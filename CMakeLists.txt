@@ -24,3 +24,7 @@ target_link_libraries(
 install(
     FILES sbpl_interface_plugin_description.xml
     DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION})
+install(
+    TARGETS moveit_planners_sbpl
+    ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+    LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION})
