@@ -1,8 +1,14 @@
 #ifndef sbpl_interface_SBPLPlanningContext_h
 #define sbpl_interface_SBPLPlanningContext_h
 
+#include <memory>
+#include <moveit/distance_field/propagation_distance_field.h>
 #include <moveit/macros/class_forward.h>
 #include <moveit/planning_interface/planning_interface.h>
+#include <sbpl_arm_planner/sbpl_arm_planner_interface.h>
+
+#include "moveit_robot_model.h"
+#include "moveit_collision_checker.h"
 
 namespace sbpl_interface {
 
@@ -21,6 +27,19 @@ public:
     virtual void clear();
 
 private:
+
+    // sbpl planner components
+    MoveItRobotModel m_robot_model;
+    MoveItCollisionChecker m_collision_checker;
+    sbpl_arm_planner::ActionSet m_action_set;
+    distance_field::PropagationDistanceField m_distance_field;
+
+    std::unique_ptr<sbpl_arm_planner::SBPLArmPlannerInterface> m_planner;
+
+    /// \brief Initialize SBPL constructs
+    /// \param[out] Reason for failure if initialization is unsuccessful
+    /// \return true if successful; false otherwise
+    bool initSBPL(std::string& why);
 };
 
 MOVEIT_CLASS_FORWARD(SBPLPlanningContext);
