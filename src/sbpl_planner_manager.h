@@ -42,6 +42,8 @@ private:
 
     moveit::core::RobotModelConstPtr m_robot_model;
     std::string m_ns;
+
+    void logPlanningScene(const planning_scene::PlanningScene& scene) const;
 };
 
 MOVEIT_CLASS_FORWARD(SBPLPlannerManager);
