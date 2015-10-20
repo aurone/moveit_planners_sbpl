@@ -10,6 +10,8 @@ class SBPLPlannerManager : public planning_interface::PlannerManager
 {
 public:
 
+    static const std::string DefaultPlanningAlgorithm;
+
     typedef planning_interface::PlannerManager Base;
 
     SBPLPlannerManager();
@@ -35,6 +37,11 @@ public:
         const planning_interface::PlannerConfigurationMap& pcs);
 
     void terminate() const;
+
+private:
+
+    moveit::core::RobotModelConstPtr m_robot_model;
+    std::string m_ns;
 };
 
 MOVEIT_CLASS_FORWARD(SBPLPlannerManager);

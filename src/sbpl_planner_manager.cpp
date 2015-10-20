@@ -1,6 +1,10 @@
 #include "sbpl_planner_manager.h"
 
+#include "sbpl_planning_context.h"
+
 namespace sbpl_interface {
+
+const std::string DefaultPlanningAlgorithm = "ARA*";
 
 SBPLPlannerManager::SBPLPlannerManager() :
     Base()
@@ -15,6 +19,8 @@ bool SBPLPlannerManager::initialize(
     const robot_model::RobotModelConstPtr& model,
     const std::string& ns)
 {
+    m_robot_model = model;
+    m_ns = ns;
     return true;
 }
 
@@ -34,6 +40,11 @@ planning_interface::PlanningContextPtr SBPLPlannerManager::getPlanningContext(
     const planning_interface::MotionPlanRequest& req,
     moveit_msgs::MoveItErrorCodes& error_code) const
 {
+    planning_interface::PlanningContextPtr context;
+    SBPLPlanningContext* sbpl_context =
+            new SBPLPlanningContext("sbpl_planning_context", req.group_name);
+    context.reset(sbpl_context);
+    return context;
 }
 
 bool SBPLPlannerManager::canServiceRequest(

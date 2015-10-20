@@ -19,6 +19,8 @@ public:
     virtual bool solve(planning_interface::MotionPlanDetailedResponse& res);
     virtual bool terminate();
     virtual void clear();
+
+private:
 };
 
 MOVEIT_CLASS_FORWARD(SBPLPlanningContext);
