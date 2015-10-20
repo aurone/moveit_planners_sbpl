@@ -8,9 +8,11 @@ find_package(sbpl REQUIRED)
 
 find_package(catkin REQUIRED
     COMPONENTS 
+    eigen_conversions
     moveit_core 
     moveit_ros_planning 
     roscpp 
+    sbpl_geometry_utils
     sbpl_manipulation 
     pluginlib)
 
