@@ -33,16 +33,17 @@
 
 #include "moveit_robot_model.h"
 
+#include <math.h>
+
 #include <eigen_conversions/eigen_kdl.h>
 #include <ros/console.h>
-
-#define LEARNING_MOVEIT 1
+#include <sbpl_geometry_utils/utils.h>
 
 namespace sbpl_interface {
 
 MoveItRobotModel::MoveItRobotModel() :
     m_group_name(),
-    m_robot_model(),
+    m_moveit_model(),
     m_robot_state(),
     m_joint_group(nullptr),
     m_tip_link(nullptr),
@@ -57,13 +58,13 @@ MoveItRobotModel::~MoveItRobotModel()
 }
 
 bool MoveItRobotModel::init(
-    const moveit::core::RobotModelConstPtr& robot_model,
+    const moveit::core::RobotModelConstPtr& moveit_model,
     const std::string& group_name)
 {
     m_group_name = group_name;
-    m_robot_model = robot_model;
-    m_robot_state.reset(new moveit::core::RobotState(robot_model));
-    m_joint_group = robot_model->getJointModelGroup(group_name);
+    m_moveit_model = moveit_model;
+    m_robot_state.reset(new moveit::core::RobotState(moveit_model));
+    m_joint_group = moveit_model->getJointModelGroup(group_name);
 
     // cache the number of active variables in this group
     m_active_var_count = 0;
@@ -73,11 +74,49 @@ bool MoveItRobotModel::init(
     // cache the number of active variables in this group as well as a mapping
     // from each active variable to its index in the robot state
     m_active_var_indices.clear();
-    for (const moveit::core::JointModel* joint : active_joints) {
+    for (size_t jind = 0; jind < active_joints.size(); ++jind) {
+        const moveit::core::JointModel* joint = active_joints[jind];
         m_active_var_count += joint->getVariableCount();
         for (size_t vind = 0; vind < joint->getVariableCount(); ++vind) {
             const std::string& var_name = joint->getVariableNames()[vind];
-            m_active_var_indices.push_back(robot_model->getVariableIndex(var_name));
+            m_active_var_names.push_back(var_name);
+            m_active_var_indices.push_back(moveit_model->getVariableIndex(var_name));
+        }
+    }
+
+    // cache the names of all planning joint variables
+    std::vector<std::string> planning_joints;
+    planning_joints.reserve(m_active_var_count);
+    for (size_t jind = 0; jind < active_joints.size(); ++jind) {
+        const moveit::core::JointModel* joint = active_joints[jind];
+        planning_joints.push_back(joint->getName());
+    }
+    setPlanningJoints(planning_joints);
+
+    // cache the limits and properties of all planning joint variables
+    m_var_min_limits.reserve(m_active_var_count);
+    m_var_max_limits.reserve(m_active_var_count);
+    m_var_incs.reserve(m_active_var_count);
+    m_var_continuous.reserve(m_active_var_count);
+    for (size_t jind = 0; jind < active_joints.size(); ++jind) {
+        const moveit::core::JointModel* joint = active_joints[jind];
+        for (size_t vind = 0; vind < joint->getVariableCount(); ++vind) {
+            const std::string& var_name = joint->getVariableNames()[vind];
+            const moveit::core::VariableBounds& var_bounds =
+                    joint->getVariableBounds(var_name);
+            if (var_bounds.position_bounded_) {
+                // slight hack here? !position_bounded_ => continuous?
+                m_var_continuous.push_back(true);
+                m_var_min_limits.push_back(-M_PI);
+                m_var_max_limits.push_back(M_PI);
+                m_var_incs.push_back(sbpl::utils::ToRadians(1.0));
+            }
+            else {
+                m_var_continuous.push_back(false);
+                m_var_min_limits.push_back(var_bounds.min_position_);
+                m_var_max_limits.push_back(var_bounds.max_position_);
+                m_var_incs.push_back(sbpl::utils::ToRadians(1.0));
+            }
         }
     }
 
@@ -87,6 +126,7 @@ bool MoveItRobotModel::init(
         m_joint_group->getEndEffectorTips(tips);
         if (!tips.empty()) {
             m_tip_link = tips.front();
+            setPlanningLink(m_tip_link->getName());
         }
     }
 
@@ -126,24 +166,18 @@ bool MoveItRobotModel::computeFK(
         return false;
     }
 
-#if LEARNING_MOVEIT
     // update all the variables in the robot state
     for (size_t vind = 0; vind < angles.size(); ++vind) {
         m_robot_state->setVariablePosition(
                 m_active_var_indices[vind], angles[vind]);
     }
-#else
-    // this would not work in the case of mimic joints, which, for efficiency,
-    // we probaly should not store as part of the state...do these still need
-    // to be updated somehow or are mimic joints automatically updated by the
-    // robot state when we call setJointVariablePosition?
-    m_robot_state->setJointGroupPositions(m_joint_group, angles.data());
-#endif
+//    // this would not work in the case of mimic joints, which, for efficiency,
+//    // we probaly should not store as part of the state...do these still need
+//    // to be updated somehow or are mimic joints automatically updated by the
+//    // robot state when we call setJointVariablePosition?
+//    m_robot_state->setJointGroupPositions(m_joint_group, angles.data());
 
-#if LEARNING_MOVEIT
     m_robot_state->updateLinkTransforms();
-#else
-#endif
 
     const Eigen::Affine3d& T_robot_link = m_robot_state->getGlobalLinkTransform(name);
     tf::transformEigenToKDL(T_robot_link, f);
@@ -256,7 +290,63 @@ void MoveItRobotModel::printRobotModelInformation()
 
     std::stringstream ss;
     m_joint_group->printGroupInfo(ss);
-    ROS_INFO("MoveIt Robot Model for '%s': %s", m_robot_model->getName().c_str(), ss.str().c_str());
+    ROS_INFO("MoveIt Robot Model for '%s': %s", m_moveit_model->getName().c_str(), ss.str().c_str());
+}
+
+const std::string& MoveItRobotModel::planningGroupName() const
+{
+    return m_group_name;
+}
+
+const moveit::core::JointModelGroup*
+MoveItRobotModel::planningJointGroup() const
+{
+    return m_joint_group;
+}
+
+const moveit::core::LinkModel* MoveItRobotModel::planningTipLink() const
+{
+    return m_tip_link;
+}
+
+const std::vector<std::string>& MoveItRobotModel::planningVariableNames() const
+{
+    return m_active_var_names;
+}
+
+int MoveItRobotModel::activeVariableCount() const
+{
+    return m_active_var_count;
+}
+
+const std::vector<int>& MoveItRobotModel::activeVariableIndices() const
+{
+    return m_active_var_indices;
+}
+
+const std::vector<double>& MoveItRobotModel::variableMinLimits() const
+{
+    return m_var_min_limits;
+}
+
+const std::vector<double>& MoveItRobotModel::variableMaxLimits() const
+{
+    return m_var_max_limits;
+}
+
+const std::vector<double>& MoveItRobotModel::variableIncrements() const
+{
+    return m_var_incs;
+}
+
+const std::vector<bool>& MoveItRobotModel::variableContinuous() const
+{
+    return m_var_continuous;
+}
+
+moveit::core::RobotModelConstPtr MoveItRobotModel::moveitRobotModel() const
+{
+    return m_moveit_model;
 }
 
 } // namespace sbpl_interface

@@ -48,7 +48,7 @@ public:
     virtual ~MoveItRobotModel();
 
     bool init(
-        const moveit::core::RobotModelConstPtr& robot_model,
+        const moveit::core::RobotModelConstPtr& moveit_model,
         const std::string& group_name);
 
     bool initialized() const;
@@ -73,13 +73,13 @@ public:
         const std::vector<double>& pose,
         const std::vector<double>& start,
         std::vector<double>& solution,
-        int option = 0);
+        int option = sbpl_arm_planner::ik_option::UNRESTRICTED);
 
     virtual bool computeIK(
         const std::vector<double>& pose,
         const std::vector<double>& start,
         std::vector<std::vector<double> >& solutions,
-        int option = 0);
+        int option = sbpl_arm_planner::ik_option::UNRESTRICTED);
 
     virtual bool computeFastIK(
         const std::vector<double>& pose,
@@ -88,11 +88,27 @@ public:
 
     virtual void printRobotModelInformation();
 
+    const std::string& planningGroupName() const;
+    const moveit::core::JointModelGroup* planningJointGroup() const;
+
+    const moveit::core::LinkModel* planningTipLink() const;
+
+    const std::vector<std::string>& planningVariableNames() const;
+    int activeVariableCount() const;
+    const std::vector<int>& activeVariableIndices() const;
+
+    const std::vector<double>& variableMinLimits() const;
+    const std::vector<double>& variableMaxLimits() const;
+    const std::vector<double>& variableIncrements() const;
+    const std::vector<bool>& variableContinuous() const;
+
+    moveit::core::RobotModelConstPtr moveitRobotModel() const;
+
 private:
 
     std::string m_group_name;
 
-    moveit::core::RobotModelConstPtr m_robot_model;
+    moveit::core::RobotModelConstPtr m_moveit_model;
     moveit::core::RobotStatePtr m_robot_state;
 
     // cached pointer to the joint group
@@ -105,6 +121,13 @@ private:
     // map from joints in joint group to their corresponding variable indices
     // in the robot state
     std::vector<int> m_active_var_indices;
+
+    std::vector<std::string> m_active_var_names;
+
+    std::vector<double> m_var_min_limits;
+    std::vector<double> m_var_max_limits;
+    std::vector<double> m_var_incs;
+    std::vector<bool> m_var_continuous;
 };
 
 } // namespace sbpl_interface
