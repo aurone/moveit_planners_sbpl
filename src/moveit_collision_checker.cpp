@@ -37,17 +37,17 @@
 #include <limits>
 
 // system includes
+#include <ros/console.h>
 #include <sbpl_geometry_utils/interpolation.h>
+
+#include "moveit_robot_model.h"
 
 namespace sbpl_interface {
 
 MoveItCollisionChecker::MoveItCollisionChecker() :
     Base(),
-    m_scene(),
-    m_min_limits(),
-    m_max_limits(),
-    m_inc(),
-    m_continuous()
+    m_robot_model(nullptr),
+    m_scene()
 {
 }
 
@@ -56,16 +56,38 @@ MoveItCollisionChecker::~MoveItCollisionChecker()
 }
 
 bool MoveItCollisionChecker::init(
-    const moveit::core::RobotModelConstPtr& robot_model,
-    const std::string& group_name,
+    const MoveItRobotModel* robot_model,
     const planning_scene::PlanningSceneConstPtr& scene)
 {
-    if (!scene) {
+    if (!robot_model->initialized()) {
+        ROS_WARN("Failed to initialize MoveIt Collision Checker: MoveIt Robot Model must be initialized");
         return false;
     }
 
+    if (!scene) {
+        ROS_WARN("Failed to initialize MoveIt Collision Checker: Planning Scene is null");
+        return false;
+    }
+
+    m_robot_model = robot_model;
     m_scene = scene;
+
+    // populate min_limits, max_limits, inc, and continuous
+    const moveit::core::JointModelGroup* joint_group =
+            robot_model->planningJointGroup();
+
+    const std::vector<std::string>& planning_var_names =
+            robot_model->planningVariableNames();
+    for (size_t vind = 0; vind < planning_var_names.size(); ++vind) {
+        const std::string& var_name = planning_var_names[vind];
+    }
+
     return true;
+}
+
+bool MoveItCollisionChecker::initialized() const
+{
+    return (bool)m_robot_model;
 }
 
 bool MoveItCollisionChecker::isStateValid(
@@ -74,7 +96,38 @@ bool MoveItCollisionChecker::isStateValid(
     bool visualize,
     double& dist)
 {
-    return false;
+    if (!initialized()) {
+        return false;
+    }
+
+    robot_state::RobotState robot_state = m_scene->getCurrentState();
+
+    // fill in variable values
+    for (size_t vind = 0; vind < angles.size(); ++vind) {
+        robot_state.setVariablePosition(
+                m_robot_model->activeVariableIndices()[vind],
+                angles[vind]);
+    }
+
+    if (robot_state.dirty()) {
+        ROS_INFO_THROTTLE(1, "Robot state _is_ dirty?!");
+    }
+
+    robot_state.update();
+
+    // TODO: need to propagate path_constraints and trajectory_constraints down
+    // to this level from the planning context. Once those are propagated, this
+    // call will need to be paired with an additional call to isStateConstrained
+
+    if (m_scene->isStateColliding(
+            robot_state, m_robot_model->planningGroupName(), verbose))
+    {
+        return true;
+    }
+    else {
+        dist = 0.0;
+        return false;
+    }
 }
 
 bool MoveItCollisionChecker::isStateToStateValid(
@@ -89,7 +142,9 @@ bool MoveItCollisionChecker::isStateToStateValid(
     dist = std::numeric_limits<double>::max();
 
     std::vector<std::vector<double>> path;
-    if (!interpolatePath(angles0, angles1, m_inc, path)) {
+    if (!interpolatePath(
+            angles0, angles1, m_robot_model->variableIncrements(), path))
+    {
         return false;
     }
 
@@ -115,7 +170,13 @@ bool MoveItCollisionChecker::interpolatePath(
     std::vector<std::vector<double>>& path)
 {
     return sbpl::interp::InterpolatePath(
-            start, end, m_min_limits, m_max_limits, m_inc, m_continuous, path);
+            start,
+            end,
+            m_robot_model->variableMinLimits(),
+            m_robot_model->variableMaxLimits(),
+            inc,
+            m_robot_model->variableContinuous(),
+            path);
 }
 
 visualization_msgs::MarkerArray 

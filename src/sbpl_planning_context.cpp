@@ -95,9 +95,7 @@ bool SBPLPlanningContext::initSBPL(std::string& why)
         return false;
     }
 
-    if (!m_collision_checker.init(
-            robot_model, getGroupName(), planning_scene))
-    {
+    if (!m_collision_checker.init(&m_robot_model, planning_scene)) {
         why = "Failed to initialize sbpl Collision Checker "
                 "from Planning Scene and Robot Model";
         return false;

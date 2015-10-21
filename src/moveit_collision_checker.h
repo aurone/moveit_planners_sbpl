@@ -40,6 +40,8 @@
 
 namespace sbpl_interface {
 
+class MoveItRobotModel;
+
 class MoveItCollisionChecker : public sbpl_arm_planner::CollisionChecker
 {
 public:
@@ -50,9 +52,10 @@ public:
     ~MoveItCollisionChecker();
 
     bool init(
-        const moveit::core::RobotModelConstPtr& robot_model,
-        const std::string& group_name,
+        const MoveItRobotModel* robot_model,
         const planning_scene::PlanningSceneConstPtr& scene);
+
+    bool initialized() const;
 
     bool isStateValid(
         const std::vector<double>& angles,
@@ -80,12 +83,9 @@ public:
 
 private:
 
-    planning_scene::PlanningSceneConstPtr m_scene;
+    const MoveItRobotModel* m_robot_model;
 
-    std::vector<double> m_min_limits;
-    std::vector<double> m_max_limits;
-    std::vector<double> m_inc;
-    std::vector<bool> m_continuous;
+    planning_scene::PlanningSceneConstPtr m_scene;
 };
 
 } // namespace sbpl_interface
