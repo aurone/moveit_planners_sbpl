@@ -44,6 +44,8 @@ private:
     std::string m_ns;
 
     void logPlanningScene(const planning_scene::PlanningScene& scene) const;
+    void logMotionRequest(
+        const planning_interface::MotionPlanRequest& req) const;
 };
 
 MOVEIT_CLASS_FORWARD(SBPLPlannerManager);

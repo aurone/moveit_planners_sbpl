@@ -53,6 +53,7 @@ planning_interface::PlanningContextPtr SBPLPlannerManager::getPlanningContext(
     }
 
     logPlanningScene(*planning_scene);
+    logMotionRequest(req);
 
     SBPLPlanningContext* sbpl_context =
             new SBPLPlanningContext("sbpl_planning_context", req.group_name);
@@ -92,6 +93,34 @@ void SBPLPlannerManager::logPlanningScene(
     ROS_INFO("    Active Collision Detector Name: %s", scene.getActiveCollisionDetectorName().c_str());
     ROS_INFO("    Has World: %s", scene.getWorld() ? "true" : "false");
     ROS_INFO("    Has Collision Robot: %s", scene.getCollisionRobot() ? "true" : "false");
+}
+
+void SBPLPlannerManager::logMotionRequest(
+    const planning_interface::MotionPlanRequest& req) const
+{
+    ROS_INFO("Motion Plan Request");
+    ROS_INFO("  workspace_parameters");
+    ROS_INFO("    header");
+    ROS_INFO_STREAM("      seq: " << req.workspace_parameters.header.seq);
+    ROS_INFO_STREAM("      stamp: " << req.workspace_parameters.header.stamp);
+    ROS_INFO_STREAM("      frame_id: " << req.workspace_parameters.header.frame_id.c_str());
+    ROS_INFO("    min_corner");
+    ROS_INFO_STREAM("      x: " << req.workspace_parameters.min_corner.x);
+    ROS_INFO_STREAM("      y: " << req.workspace_parameters.min_corner.y);
+    ROS_INFO_STREAM("      z: " << req.workspace_parameters.min_corner.z);
+    ROS_INFO("    max_corner");
+    ROS_INFO_STREAM("      x: " << req.workspace_parameters.max_corner.x);
+    ROS_INFO_STREAM("      y: " << req.workspace_parameters.max_corner.y);
+    ROS_INFO_STREAM("      z: " << req.workspace_parameters.max_corner.z);
+    ROS_INFO("  start_state");
+    ROS_INFO("  goal_constraints");
+    ROS_INFO("  path_constraints");
+    ROS_INFO("  trajectory_constraints");
+    ROS_INFO_STREAM("  planner_id: " << req.planner_id);
+    ROS_INFO_STREAM("  group_name: " << req.group_name);
+    ROS_INFO_STREAM("  num_planning_attempts: " << req.num_planning_attempts);
+    ROS_INFO_STREAM("  allowed_planning_time: " << req.allowed_planning_time);
+    ROS_INFO_STREAM("  max_velocity_scaling_factor: " << req.max_velocity_scaling_factor);
 }
 
 } // namespace sbpl_interface
