@@ -24,8 +24,12 @@ bool SBPLPlannerManager::initialize(
     const std::string& ns)
 {
     ROS_INFO("Initialized SBPL Planner Manager");
+    ROS_INFO_STREAM("  Robot Model: " << model->getName());
+    ROS_INFO_STREAM("  Namespace: " << ns);
+
     m_robot_model = model;
     m_ns = ns;
+    
     return true;
 }
 
@@ -75,6 +79,13 @@ void SBPLPlannerManager::setPlannerConfigurations(
     const planning_interface::PlannerConfigurationMap& pcs)
 {
     ROS_INFO("SBPLPlannerManager::setPlannerConfigurations");
+    ROS_INFO("Planner Configurations");
+    for (const auto& entry : pcs) {
+        ROS_INFO("  %s: { name: %s, group: %s }", entry.first.c_str(), entry.second.group.c_str(), entry.second.name.c_str());
+        for (const auto& e : entry.second.config) {
+            ROS_INFO("    %s: %s", e.first.c_str(), e.second.c_str());
+        }
+    }
 }
 
 void SBPLPlannerManager::terminate() const
