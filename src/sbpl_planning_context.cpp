@@ -37,6 +37,8 @@ bool SBPLPlanningContext::solve(planning_interface::MotionPlanResponse& res)
         return false; 
     }
 
+    ROS_INFO("Successfully initialized SBPL");
+
     moveit_msgs::PlanningScenePtr scene_msg(new moveit_msgs::PlanningScene);
 
     planning_scene::PlanningSceneConstPtr planning_scene = getPlanningScene();
@@ -116,6 +118,11 @@ bool SBPLPlanningContext::initSBPL(std::string& why)
         return false;
     }
 
+    if (!m_robot_model.planningTipLink()) {
+        ROS_ERROR("SBPL Plugin does not currently support joint groups without a tip link");
+        return false;
+    }
+
     if (!m_collision_checker.init(&m_robot_model, planning_scene)) {
         why = "Failed to initialize sbpl Collision Checker "
                 "from Planning Scene and Robot Model";
@@ -128,7 +135,23 @@ bool SBPLPlanningContext::initSBPL(std::string& why)
             &m_action_set,
             &m_distance_field));
 
-    if (!m_planner->init()) {
+    sbpl_arm_planner::PlanningParams params;
+
+    std::vector<int> discretization(m_robot_model.activeVariableCount(), 1);
+    std::vector<double> deltas(m_robot_model.activeVariableCount());
+    for (size_t vind = 0; vind < deltas.size(); ++vind) {
+        deltas[vind] = (2.0 * M_PI) / (double)discretization[vind];
+    }
+
+    params.num_joints_ = m_robot_model.activeVariableCount();
+    params.planning_frame_ = m_robot_model.planningTipLink()->getName();
+    params.group_name_ = m_robot_model.planningGroupName();
+    params.planner_name_ = getMotionPlanRequest().planner_id;
+    params.planning_joints_ = m_robot_model.planningVariableNames();
+    params.coord_vals_ = discretization;
+    params.coord_delta_ = deltas;
+
+    if (!m_planner->init(params)) {
         why = "Failed to initialize SBPL Arm Planner Interface";
         return false;
     }
