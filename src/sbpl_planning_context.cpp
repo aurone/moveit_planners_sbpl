@@ -15,7 +15,7 @@ SBPLPlanningContext::SBPLPlanningContext(
     Base(name, group),
     m_robot_model(),
     m_collision_checker(),
-    m_action_set("No, thank you"),
+    m_action_set(),
     m_distance_field(1.0, 1.0, 1.0, 0.02, 0.0, 0.0, 0.0, 0.2, false),
     m_planner()
 {
@@ -127,6 +127,12 @@ bool SBPLPlanningContext::initSBPL(std::string& why)
         why = "Failed to initialize sbpl Collision Checker "
                 "from Planning Scene and Robot Model";
         return false;
+    }
+
+    for (size_t vind = 0; vind < m_robot_model.activeVariableCount(); ++vind) {
+        std::vector<double> mprim(m_robot_model.activeVariableCount(), 0.0);
+        mprim[vind] = 1.0;
+        m_action_set.addMotionPrim(mprim, true, true);
     }
 
     m_planner.reset(new sbpl_arm_planner::SBPLArmPlannerInterface(
