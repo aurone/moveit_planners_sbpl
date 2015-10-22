@@ -63,6 +63,7 @@ planning_interface::PlanningContextPtr SBPLPlannerManager::getPlanningContext(
             new SBPLPlanningContext("sbpl_planning_context", req.group_name);
 
     sbpl_context->setPlanningScene(planning_scene);
+    sbpl_context->setMotionPlanRequest(req);
 
     context.reset(sbpl_context);
     return context;

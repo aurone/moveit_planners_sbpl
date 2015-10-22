@@ -15,7 +15,7 @@ SBPLPlanningContext::SBPLPlanningContext(
     Base(name, group),
     m_robot_model(),
     m_collision_checker(),
-    m_action_set("No, thank you"),
+    m_action_set(),
     m_distance_field(1.0, 1.0, 1.0, 0.02, 0.0, 0.0, 0.0, 0.2, false),
     m_planner()
 {
@@ -37,6 +37,8 @@ bool SBPLPlanningContext::solve(planning_interface::MotionPlanResponse& res)
         return false; 
     }
 
+    ROS_INFO("Successfully initialized SBPL");
+
     moveit_msgs::PlanningScenePtr scene_msg(new moveit_msgs::PlanningScene);
 
     planning_scene::PlanningSceneConstPtr planning_scene = getPlanningScene();
@@ -50,9 +52,30 @@ bool SBPLPlanningContext::solve(planning_interface::MotionPlanResponse& res)
     moveit_msgs::GetMotionPlan::Response res_msg;
     bool result = m_planner->solve(scene_msg, req_msg, res_msg);
     if (result) {
-        // TODO: convert moveit_msgs::GetMotionPlan::Response to
-        // planning_interface::MotionPlanResponse
-//        res = res_msg.motion_plan_response;
+        moveit::core::RobotModelConstPtr robot_model =
+                planning_scene->getRobotModel();
+
+        moveit::core::RobotState ref_state(robot_model);
+        robot_state::RobotStatePtr start_state =
+                planning_scene->getCurrentStateUpdated(req.start_state);
+
+        robot_trajectory::RobotTrajectoryPtr traj(
+                new robot_trajectory::RobotTrajectory(
+                        robot_model, getGroupName()));
+        traj->setRobotTrajectoryMsg(
+                *start_state, res_msg.motion_plan_response.trajectory);
+
+        // res_msg
+        //   motion_plan_response
+        //     trajectory_start
+        //     group_name
+        //     trajectory
+        //     planning_time
+        //     error_code
+
+        res.trajectory_ = traj;
+        res.planning_time_ = res_msg.motion_plan_response.planning_time;
+        res.error_code_ = res_msg.motion_plan_response.error_code;
     }
     return result;
 }
@@ -95,10 +118,21 @@ bool SBPLPlanningContext::initSBPL(std::string& why)
         return false;
     }
 
+    if (!m_robot_model.planningTipLink()) {
+        ROS_ERROR("SBPL Plugin does not currently support joint groups without a tip link");
+        return false;
+    }
+
     if (!m_collision_checker.init(&m_robot_model, planning_scene)) {
         why = "Failed to initialize sbpl Collision Checker "
                 "from Planning Scene and Robot Model";
         return false;
+    }
+
+    for (size_t vind = 0; vind < m_robot_model.activeVariableCount(); ++vind) {
+        std::vector<double> mprim(m_robot_model.activeVariableCount(), 0.0);
+        mprim[vind] = 1.0;
+        m_action_set.addMotionPrim(mprim, true, true);
     }
 
     m_planner.reset(new sbpl_arm_planner::SBPLArmPlannerInterface(
@@ -107,7 +141,23 @@ bool SBPLPlanningContext::initSBPL(std::string& why)
             &m_action_set,
             &m_distance_field));
 
-    if (!m_planner->init()) {
+    sbpl_arm_planner::PlanningParams params;
+
+    std::vector<int> discretization(m_robot_model.activeVariableCount(), 1);
+    std::vector<double> deltas(m_robot_model.activeVariableCount());
+    for (size_t vind = 0; vind < deltas.size(); ++vind) {
+        deltas[vind] = (2.0 * M_PI) / (double)discretization[vind];
+    }
+
+    params.num_joints_ = m_robot_model.activeVariableCount();
+    params.planning_frame_ = m_robot_model.planningTipLink()->getName();
+    params.group_name_ = m_robot_model.planningGroupName();
+    params.planner_name_ = getMotionPlanRequest().planner_id;
+    params.planning_joints_ = m_robot_model.planningVariableNames();
+    params.coord_vals_ = discretization;
+    params.coord_delta_ = deltas;
+
+    if (!m_planner->init(params)) {
         why = "Failed to initialize SBPL Arm Planner Interface";
         return false;
     }
