@@ -50,9 +50,30 @@ bool SBPLPlanningContext::solve(planning_interface::MotionPlanResponse& res)
     moveit_msgs::GetMotionPlan::Response res_msg;
     bool result = m_planner->solve(scene_msg, req_msg, res_msg);
     if (result) {
-        // TODO: convert moveit_msgs::GetMotionPlan::Response to
-        // planning_interface::MotionPlanResponse
-//        res = res_msg.motion_plan_response;
+        moveit::core::RobotModelConstPtr robot_model =
+                planning_scene->getRobotModel();
+
+        moveit::core::RobotState ref_state(robot_model);
+        robot_state::RobotStatePtr start_state =
+                planning_scene->getCurrentStateUpdated(req.start_state);
+
+        robot_trajectory::RobotTrajectoryPtr traj(
+                new robot_trajectory::RobotTrajectory(
+                        robot_model, getGroupName()));
+        traj->setRobotTrajectoryMsg(
+                *start_state, res_msg.motion_plan_response.trajectory);
+
+        // res_msg
+        //   motion_plan_response
+        //     trajectory_start
+        //     group_name
+        //     trajectory
+        //     planning_time
+        //     error_code
+
+        res.trajectory_ = traj;
+        res.planning_time_ = res_msg.motion_plan_response.planning_time;
+        res.error_code_ = res_msg.motion_plan_response.error_code;
     }
     return result;
 }
