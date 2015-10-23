@@ -73,7 +73,15 @@ bool SBPLPlannerManager::canServiceRequest(
     const planning_interface::MotionPlanRequest& req) const
 {
     ROS_INFO("SBPLPlannerManager::canServiceRequest()");
-    return false;
+    if (!req.goal_constraints.joint_constraints.empty()) {
+        return false;
+    }
+
+    if (!req.goal_constraints.visibility_constraints.empty()) {
+        return false;
+    }
+
+    return true;
 }
 
 void SBPLPlannerManager::setPlannerConfigurations(
@@ -125,7 +133,14 @@ void SBPLPlannerManager::logMotionRequest(
     ROS_INFO_STREAM("      y: " << req.workspace_parameters.max_corner.y);
     ROS_INFO_STREAM("      z: " << req.workspace_parameters.max_corner.z);
     ROS_INFO("  start_state");
-    ROS_INFO("  goal_constraints");
+    ROS_INFO("  goal_constraints: %zu", req.goal_constraints.size());
+    for (size_t cind = 0; cind < req.goal_constraints.size(); ++cind) {
+        const moveit_msgs::Constraints& constraints = req.goal_constraints[cind];
+        ROS_INFO("    joint_constraints: %zu", constraints.joint_constraints.size());
+        ROS_INFO("    position_constraints: %zu", constraints.position_constraints.size());
+        ROS_INFO("    orientation_constraints: %zu", constraints.orientation_constraints.size());
+        ROS_INFO("    visibility_constraints: %zu", constraints.visibility_constraints.size());
+    }
     ROS_INFO("  path_constraints");
     ROS_INFO("  trajectory_constraints");
     ROS_INFO_STREAM("  planner_id: " << req.planner_id);
