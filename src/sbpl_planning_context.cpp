@@ -34,7 +34,9 @@ bool SBPLPlanningContext::solve(planning_interface::MotionPlanResponse& res)
     std::string why;
     if (!initSBPL(why)) {
         ROS_WARN("Failed to initialize SBPL (%s)", why.c_str());
-        return false; 
+        res.planning_time_ = 0.0;
+        res.error_code_.val = moveit_msgs::MoveItErrorCodes::PLANNING_FAILED;
+        return false;
     }
 
     ROS_INFO("Successfully initialized SBPL");
@@ -83,7 +85,7 @@ bool SBPLPlanningContext::solve(planning_interface::MotionPlanResponse& res)
 bool SBPLPlanningContext::solve(
     planning_interface::MotionPlanDetailedResponse& res)
 {
-    ROS_INFO("SBPLPlanningContext::solve()");
+    ROS_INFO("SBPLPlanningContext::solve(planning_interface::MotionPlanDetailedResponse&)");
     return false;
 }
 
