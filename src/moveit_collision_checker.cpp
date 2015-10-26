@@ -97,6 +97,7 @@ bool MoveItCollisionChecker::isStateValid(
     double& dist)
 {
     if (!initialized()) {
+        ROS_ERROR("MoveItCollisionChecker is not initialized");
         return false;
     }
 
@@ -105,8 +106,7 @@ bool MoveItCollisionChecker::isStateValid(
     // fill in variable values
     for (size_t vind = 0; vind < angles.size(); ++vind) {
         robot_state.setVariablePosition(
-                m_robot_model->activeVariableIndices()[vind],
-                angles[vind]);
+                m_robot_model->activeVariableIndices()[vind], angles[vind]);
     }
 
     if (robot_state.dirty()) {
@@ -119,7 +119,7 @@ bool MoveItCollisionChecker::isStateValid(
     // to this level from the planning context. Once those are propagated, this
     // call will need to be paired with an additional call to isStateConstrained
 
-    if (m_scene->isStateColliding(
+    if (!m_scene->isStateColliding(
             robot_state, m_robot_model->planningGroupName(), verbose))
     {
         return true;
