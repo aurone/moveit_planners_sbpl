@@ -36,6 +36,7 @@
 #include <math.h>
 
 #include <eigen_conversions/eigen_kdl.h>
+#include <leatherman/print.h>
 #include <ros/console.h>
 #include <sbpl_geometry_utils/utils.h>
 
@@ -58,9 +59,12 @@ MoveItRobotModel::~MoveItRobotModel()
 }
 
 bool MoveItRobotModel::init(
-    const moveit::core::RobotModelConstPtr& moveit_model,
-    const std::string& group_name)
+    const planning_scene::PlanningSceneConstPtr& planning_scene,
+    const std::string& group_name,
+    const std::string& planning_frame)
 {
+    moveit::core::RobotModelConstPtr moveit_model =
+            planning_scene->getRobotModel();
     m_group_name = group_name;
     m_moveit_model = moveit_model;
     m_robot_state.reset(new moveit::core::RobotState(moveit_model));
@@ -83,6 +87,8 @@ bool MoveItRobotModel::init(
             m_active_var_indices.push_back(moveit_model->getVariableIndex(var_name));
         }
     }
+    ROS_INFO("Active Variable Names: %s", leatherman::vectorToString(m_active_var_names).c_str());
+    ROS_INFO("Active Variable Indices: %s", leatherman::vectorToString(m_active_var_indices).c_str());
 
     // cache the names of all planning joint variables
     std::vector<std::string> planning_joints;
@@ -92,6 +98,7 @@ bool MoveItRobotModel::init(
         planning_joints.push_back(joint->getName());
     }
     setPlanningJoints(planning_joints);
+    ROS_INFO("Planning Joints: %s", leatherman::vectorToString(getPlanningJoints()).c_str());
 
     // cache the limits and properties of all planning joint variables
     m_var_min_limits.reserve(m_active_var_count);
@@ -105,20 +112,25 @@ bool MoveItRobotModel::init(
             const moveit::core::VariableBounds& var_bounds =
                     joint->getVariableBounds(var_name);
             if (var_bounds.position_bounded_) {
+                m_var_continuous.push_back(false);
+                m_var_min_limits.push_back(var_bounds.min_position_);
+                m_var_max_limits.push_back(var_bounds.max_position_);
+                m_var_incs.push_back(sbpl::utils::ToRadians(1.0));
+            }
+            else {
                 // slight hack here? !position_bounded_ => continuous?
                 m_var_continuous.push_back(true);
                 m_var_min_limits.push_back(-M_PI);
                 m_var_max_limits.push_back(M_PI);
                 m_var_incs.push_back(sbpl::utils::ToRadians(1.0));
             }
-            else {
-                m_var_continuous.push_back(false);
-                m_var_min_limits.push_back(var_bounds.min_position_);
-                m_var_max_limits.push_back(var_bounds.max_position_);
-                m_var_incs.push_back(sbpl::utils::ToRadians(1.0));
-            }
         }
     }
+
+    ROS_INFO("Min Limits: %s", leatherman::vectorToString(m_var_min_limits).c_str());
+    ROS_INFO("Max Limits: %s", leatherman::vectorToString(m_var_max_limits).c_str());
+    ROS_INFO("Continuous: %s", leatherman::vectorToString(m_var_continuous).c_str());
+    ROS_INFO("Increments: %s", leatherman::vectorToString(m_var_incs).c_str());
 
     // identify a tip link to use for forward and inverse kinematics
     if (m_joint_group->isChain()) {
@@ -129,6 +141,17 @@ bool MoveItRobotModel::init(
             setPlanningLink(m_tip_link->getName());
         }
     }
+
+    // identify the frame to be used for planning
+    const moveit::core::JointModel* root_joint = m_joint_group->getCommonRoot();
+    if (!root_joint) {
+        ROS_WARN("No common root exists for joint group '%s'", group_name.c_str());
+        return false;
+    }
+
+    // TODO: check that we can translate the planning frame to the kinematics
+    // frame and vice versa
+    m_planning_frame = planning_frame;
 
     return true;
 }
@@ -302,6 +325,12 @@ const moveit::core::JointModelGroup*
 MoveItRobotModel::planningJointGroup() const
 {
     return m_joint_group;
+}
+
+const std::string&
+MoveItRobotModel::planningFrame() const
+{
+    return m_planning_frame;
 }
 
 const moveit::core::LinkModel* MoveItRobotModel::planningTipLink() const

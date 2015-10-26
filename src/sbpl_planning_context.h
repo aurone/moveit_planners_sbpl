@@ -32,7 +32,7 @@ private:
     MoveItRobotModel m_robot_model;
     MoveItCollisionChecker m_collision_checker;
     sbpl_arm_planner::ActionSet m_action_set;
-    distance_field::PropagationDistanceField m_distance_field;
+    std::unique_ptr<distance_field::PropagationDistanceField> m_distance_field;
 
     std::unique_ptr<sbpl_arm_planner::SBPLArmPlannerInterface> m_planner;
 
@@ -40,6 +40,8 @@ private:
     /// \param[out] Reason for failure if initialization is unsuccessful
     /// \return true if successful; false otherwise
     bool initSBPL(std::string& why);
+
+    bool translateRequest(moveit_msgs::GetMotionPlan::Request& req);
 };
 
 MOVEIT_CLASS_FORWARD(SBPLPlanningContext);

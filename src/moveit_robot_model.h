@@ -36,6 +36,7 @@
 
 #include <moveit/robot_model/robot_model.h>
 #include <moveit/robot_state/robot_state.h>
+#include <moveit/planning_scene/planning_scene.h>
 #include <sbpl_manipulation_components/robot_model.h>
 
 namespace sbpl_interface {
@@ -48,8 +49,9 @@ public:
     virtual ~MoveItRobotModel();
 
     bool init(
-        const moveit::core::RobotModelConstPtr& moveit_model,
-        const std::string& group_name);
+        const planning_scene::PlanningSceneConstPtr& planning_scene,
+        const std::string& group_name,
+        const std::string& planning_frame);
 
     bool initialized() const;
 
@@ -91,6 +93,8 @@ public:
     const std::string& planningGroupName() const;
     const moveit::core::JointModelGroup* planningJointGroup() const;
 
+    const std::string& planningFrame() const;
+
     const moveit::core::LinkModel* planningTipLink() const;
 
     const std::vector<std::string>& planningVariableNames() const;
@@ -128,6 +132,8 @@ private:
     std::vector<double> m_var_max_limits;
     std::vector<double> m_var_incs;
     std::vector<bool> m_var_continuous;
+
+    std::string m_planning_frame;
 };
 
 } // namespace sbpl_interface

@@ -75,6 +75,14 @@ bool SBPLPlannerManager::canServiceRequest(
     const planning_interface::MotionPlanRequest& req) const
 {
     ROS_INFO("SBPLPlannerManager::canServiceRequest()");
+
+    // TODO: check for existence of workspace parameters frame
+    // TODO: check for positive workspace volume
+    if (req.workspace_parameters.header.frame_id.empty()) {
+        ROS_WARN("SBPL planner requires explicit workspace");
+        return false;
+    }
+
     for (const moveit_msgs::Constraints& constraints : req.goal_constraints) {
         if (!constraints.joint_constraints.empty()) {
             return false;
@@ -110,13 +118,19 @@ void SBPLPlannerManager::logPlanningScene(
     const planning_scene::PlanningScene& scene) const
 {
     ROS_INFO("Planning Scene");
-    ROS_INFO("    Name: %s", scene.getName().c_str());
-    ROS_INFO("    Has Parent: %s", scene.getParent() ? "true" : "false");
-    ROS_INFO("    Has Robot Model: %s", scene.getRobotModel() ? "true" : "false");
-    ROS_INFO("    Planning Frame: %s", scene.getPlanningFrame().c_str());
-    ROS_INFO("    Active Collision Detector Name: %s", scene.getActiveCollisionDetectorName().c_str());
-    ROS_INFO("    Has World: %s", scene.getWorld() ? "true" : "false");
-    ROS_INFO("    Has Collision Robot: %s", scene.getCollisionRobot() ? "true" : "false");
+    ROS_INFO("  Name: %s", scene.getName().c_str());
+    ROS_INFO("  Has Parent: %s", scene.getParent() ? "true" : "false");
+    ROS_INFO("  Has Robot Model: %s", scene.getRobotModel() ? "true" : "false");
+    ROS_INFO("  Planning Frame: %s", scene.getPlanningFrame().c_str());
+    ROS_INFO("  Active Collision Detector Name: %s", scene.getActiveCollisionDetectorName().c_str());
+    ROS_INFO("  Has World: %s", scene.getWorld() ? "true" : "false");
+    ROS_INFO("  Has Collision Robot: %s", scene.getCollisionRobot() ? "true" : "false");
+    ROS_INFO("  Current State:");
+
+    const moveit::core::RobotState& current_state = scene.getCurrentState();
+    for (size_t vind = 0; vind < current_state.getVariableCount(); ++vind) {
+        ROS_INFO("    %s: %0.3f", current_state.getVariableNames()[vind].c_str(), current_state.getVariablePosition(vind));
+    }
 }
 
 void SBPLPlannerManager::logMotionRequest(
@@ -139,6 +153,14 @@ void SBPLPlannerManager::logMotionRequest(
     ROS_INFO_STREAM("      z: " << req.workspace_parameters.max_corner.z);
 
     ROS_INFO("  start_state");
+    ROS_INFO("    joint_state:");
+    const sensor_msgs::JointState& joint_state = req.start_state.joint_state;
+    for (size_t jind = 0; jind < joint_state.name.size(); ++jind) {
+        ROS_INFO("      { name: %s, position: %0.3f }", joint_state.name[jind].c_str(), joint_state.position[jind]);
+    }
+    ROS_INFO("    multi_dof_joint_state");
+    ROS_INFO("    attached_collision_objects: %zu", req.start_state.attached_collision_objects.size());
+    ROS_INFO("    is_diff: %s", req.start_state.is_diff ? "true" : "false");
 
     ROS_INFO("  goal_constraints: %zu", req.goal_constraints.size());
     for (size_t cind = 0; cind < req.goal_constraints.size(); ++cind) {

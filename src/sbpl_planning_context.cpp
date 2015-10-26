@@ -16,7 +16,7 @@ SBPLPlanningContext::SBPLPlanningContext(
     m_robot_model(),
     m_collision_checker(),
     m_action_set(),
-    m_distance_field(1.0, 1.0, 1.0, 0.02, 0.0, 0.0, 0.0, 0.2, false),
+    m_distance_field(),
     m_planner()
 {
     ROS_INFO("Constructed SBPL Planning Context");
@@ -48,8 +48,12 @@ bool SBPLPlanningContext::solve(planning_interface::MotionPlanResponse& res)
 
     planning_scene->getPlanningSceneMsg(*scene_msg);
     const planning_interface::MotionPlanRequest& req = getMotionPlanRequest();
+
     moveit_msgs::GetMotionPlan::Request req_msg;
-    req_msg.motion_plan_request = req;
+    if (!translateRequest(req_msg)) {
+        ROS_WARN("Unable to translate Motion Plan Request to SBPL Motion Plan Request");
+        return false;
+    }
 
     moveit_msgs::GetMotionPlan::Response res_msg;
     bool result = m_planner->solve(scene_msg, req_msg, res_msg);
@@ -108,14 +112,16 @@ bool SBPLPlanningContext::initSBPL(std::string& why)
         return false;
     }
 
-    moveit::core::RobotModelConstPtr robot_model;
-    robot_model = planning_scene->getRobotModel();
-    if (!robot_model) {
-        why = "No robot model available via planning scene";
-        return false;
-    }
+    const planning_interface::MotionPlanRequest& req = getMotionPlanRequest();
 
-    if (!m_robot_model.init(robot_model, getGroupName())) {
+    const std::string& planning_frame =
+            req.workspace_parameters.header.frame_id;
+
+    ////////////////
+    // Robot Model
+    ////////////////
+
+    if (!m_robot_model.init(planning_scene, getGroupName(), planning_frame)) {
         why = "Failed to initialize sbpl Robot Model from moveit Robot Model";
         return false;
     }
@@ -125,11 +131,19 @@ bool SBPLPlanningContext::initSBPL(std::string& why)
         return false;
     }
 
+    ////////////////////
+    // Collision Model
+    ////////////////////
+
     if (!m_collision_checker.init(&m_robot_model, planning_scene)) {
         why = "Failed to initialize sbpl Collision Checker "
                 "from Planning Scene and Robot Model";
         return false;
     }
+
+    ///////////////////////////////
+    // Action Set Initialization
+    ///////////////////////////////
 
     for (size_t vind = 0; vind < m_robot_model.activeVariableCount(); ++vind) {
         std::vector<double> mprim(m_robot_model.activeVariableCount(), 0.0);
@@ -137,11 +151,71 @@ bool SBPLPlanningContext::initSBPL(std::string& why)
         m_action_set.addMotionPrim(mprim, true, true);
     }
 
+    /////////////////////////////////
+    // Distance Field Initalization
+    /////////////////////////////////
+
+    // TODO: find the transform from the workspace to the planning frame and
+    // use as the origin
+
+    // create a distance field in the planning frame that represents the
+    // workspace boundaries
+
+    const double size_x =
+        req.workspace_parameters.max_corner.x -
+        req.workspace_parameters.min_corner.x;
+    const double size_y =
+        req.workspace_parameters.max_corner.y -
+        req.workspace_parameters.min_corner.y;
+    const double size_z =
+        req.workspace_parameters.max_corner.z -
+        req.workspace_parameters.min_corner.z;
+
+    // TODO: need to either plan in the workspace frame here rather than the
+    // common joint root...or need to expand the size of the distance field to
+    // match the axis-aligned bb of the workspace and then fill cells outside of
+    // the workspace
+
+    const double res_m = 0.02;
+    const double max_distance = 0.2;
+    const bool propagate_negative_distances = false;
+
+    // get the transform from the workspace to the planning frame
+    const std::string& workspace_frame = req.workspace_parameters.header.frame_id;
+    if (!planning_scene->knowsFrameTransform(workspace_frame) ||
+        !planning_scene->knowsFrameTransform(m_robot_model.planningFrame()))
+    {
+        ROS_WARN("Planning scene is unable to look transforms for frames '%s' and '%s'", workspace_frame.c_str(), planning_frame.c_str());
+        return false;
+    }
+
+    // get the transform from the planning frame to the workspace frame
+    const Eigen::Affine3d& T_scene_workspace = planning_scene->getFrameTransform(workspace_frame);
+    const Eigen::Affine3d& T_scene_planning = planning_scene->getFrameTransform(planning_frame);
+    Eigen::Affine3d T_planning_workspace = T_scene_planning.inverse() * T_scene_workspace;
+
+    Eigen::Vector3d workspace_pos_in_planning(T_planning_workspace.translation());
+
+    m_distance_field.reset(new distance_field::PropagationDistanceField(
+            size_x, size_y, size_x,
+            res_m,
+            workspace_pos_in_planning.x(),
+            workspace_pos_in_planning.y(),
+            workspace_pos_in_planning.z(),
+            max_distance,
+            propagate_negative_distances));
+
+    // TODO: add octomap and collision objects to the distance field
+
+    //////////////////////////////////////////////
+    // SBPL Arm Planner Interface Initialization
+    //////////////////////////////////////////////
+
     m_planner.reset(new sbpl_arm_planner::SBPLArmPlannerInterface(
             &m_robot_model,
             &m_collision_checker,
             &m_action_set,
-            &m_distance_field));
+            m_distance_field.get()));
 
     sbpl_arm_planner::PlanningParams params;
 
@@ -152,7 +226,7 @@ bool SBPLPlanningContext::initSBPL(std::string& why)
     }
 
     params.num_joints_ = m_robot_model.activeVariableCount();
-    params.planning_frame_ = m_robot_model.planningTipLink()->getName();
+    params.planning_frame_ = m_robot_model.planningFrame();
     params.group_name_ = m_robot_model.planningGroupName();
     params.planner_name_ = getMotionPlanRequest().planner_id;
     params.planning_joints_ = m_robot_model.planningVariableNames();
@@ -164,6 +238,16 @@ bool SBPLPlanningContext::initSBPL(std::string& why)
         return false;
     }
 
+    return true;
+}
+
+bool SBPLPlanningContext::translateRequest(
+    moveit_msgs::GetMotionPlan::Request& req)
+{
+    // TODO: translate goal position constraints into planning frame
+    // TODO: translate goal orientation constraints into planning frame
+
+    req.motion_plan_request = getMotionPlanRequest();
     return true;
 }
 
