@@ -124,6 +124,15 @@ void SBPLPlannerManager::logPlanningScene(
     ROS_INFO("  Planning Frame: %s", scene.getPlanningFrame().c_str());
     ROS_INFO("  Active Collision Detector Name: %s", scene.getActiveCollisionDetectorName().c_str());
     ROS_INFO("  Has World: %s", scene.getWorld() ? "true" : "false");
+    if (scene.getWorld()) {
+        ROS_INFO("    size:  %zu", scene.getWorld()->size());
+        ROS_INFO("    Object IDs: %zu", scene.getWorld()->getObjectIds().size());
+        for (size_t oind; oind < scene.getWorld()->getObjectIds().size(); ++oind) {
+            const std::string& object_id = scene.getWorld()->getObjectIds()[oind];
+            ROS_INFO("      %s", object_id.c_str());
+        }
+    }
+    ROS_INFO("  Has Collision World: %s", scene.getCollisionWorld() ? "true" : "false");
     ROS_INFO("  Has Collision Robot: %s", scene.getCollisionRobot() ? "true" : "false");
     ROS_INFO("  Current State:");
 
