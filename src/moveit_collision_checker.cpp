@@ -183,7 +183,21 @@ visualization_msgs::MarkerArray
 MoveItCollisionChecker::getCollisionModelVisualization(
     const std::vector<double>& angles)
 {
-    return visualization_msgs::MarkerArray();
+    moveit::core::RobotState robot_state(m_robot_model->moveitRobotModel());
+
+    const moveit::core::JointModelGroup* joint_group =
+            m_robot_model->planningJointGroup();
+    const std::vector<std::string>& link_names =
+            joint_group->getLinkModelNames();
+
+    visualization_msgs::MarkerArray marker_arr;
+    std_msgs::ColorRGBA color;
+    color.r = 0.0;
+    color.g = 0.0;
+    color.b = 0.8;
+    color.a = 0.8;
+    robot_state.getRobotMarkers(marker_arr, link_names, color, "", ros::Duration(0));
+    return marker_arr;
 }
 
 visualization_msgs::MarkerArray 
