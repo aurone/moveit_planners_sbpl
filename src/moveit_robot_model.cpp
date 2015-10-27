@@ -37,6 +37,7 @@
 
 #include <eigen_conversions/eigen_kdl.h>
 #include <leatherman/print.h>
+#include <leatherman/utils.h>
 #include <ros/console.h>
 #include <sbpl_geometry_utils/utils.h>
 
@@ -63,11 +64,19 @@ bool MoveItRobotModel::init(
     const std::string& group_name,
     const std::string& planning_frame)
 {
+    if (!planning_scene) {
+        ROS_ERROR("Planning Scene is null");
+        return false;
+    }
+
+    m_planning_scene = planning_scene;
+
     moveit::core::RobotModelConstPtr moveit_model =
             planning_scene->getRobotModel();
     m_group_name = group_name;
     m_moveit_model = moveit_model;
     m_robot_state.reset(new moveit::core::RobotState(moveit_model));
+    *m_robot_state = planning_scene->getCurrentState();
     m_joint_group = moveit_model->getJointModelGroup(group_name);
 
     // cache the number of active variables in this group
@@ -164,6 +173,7 @@ bool MoveItRobotModel::initialized() const
 bool MoveItRobotModel::checkJointLimits(const std::vector<double>& angles)
 {
     if (!initialized()) {
+        ROS_ERROR("MoveIt! Robot Model is uninitialized");
         return false;
     }
 
@@ -181,6 +191,7 @@ bool MoveItRobotModel::computeFK(
     KDL::Frame& f)
 {
     if (!initialized()) {
+        ROS_ERROR("MoveIt! Robot Model is uninitialized");
         return false;
     }
 
@@ -202,8 +213,30 @@ bool MoveItRobotModel::computeFK(
 
     m_robot_state->updateLinkTransforms();
 
-    const Eigen::Affine3d& T_robot_link = m_robot_state->getGlobalLinkTransform(name);
-    tf::transformEigenToKDL(T_robot_link, f);
+    const Eigen::Affine3d& T_robot_link =
+            m_robot_state->getGlobalLinkTransform(name);
+
+    // return the pose of the link in the planning frame
+    if (!m_planning_scene->knowsFrameTransform(m_planning_frame) ||
+        !m_planning_scene->knowsFrameTransform(m_moveit_model->getModelFrame()))
+    {
+        ROS_ERROR("Planning Scene does not contain transforms to planning frame '%s' or model frame '%s'", m_planning_frame.c_str(), m_moveit_model->getModelFrame().c_str());
+        return false;
+    }
+
+//    if (!m_robot_state->setFromIK(m_joint_group, T_robot_link)) {
+//        ROS_ERROR("Failed to compute IK?");
+//    }
+
+    const Eigen::Affine3d& T_scene_planning =
+            m_planning_scene->getFrameTransform(m_planning_frame);
+    const Eigen::Affine3d& T_scene_model =
+            m_planning_scene->getFrameTransform(m_moveit_model->getModelFrame());
+
+    Eigen::Affine3d T_planning_link =
+            T_scene_planning.inverse() * T_scene_model * T_robot_link;
+
+    tf::transformEigenToKDL(T_planning_link, f);
     return true;
 }
 
@@ -213,6 +246,7 @@ bool MoveItRobotModel::computeFK(
     std::vector<double>& pose)
 {
     if (!initialized()) {
+        ROS_ERROR("MoveIt! Robot Model is uninitialized");
         return false;
     }
 
@@ -237,6 +271,7 @@ bool MoveItRobotModel::computePlanningLinkFK(
     // goal constraints for one link
 
     if (!initialized()) {
+        ROS_ERROR("MoveIt! Robot Model is uninitialized");
         return false;
     }
 
@@ -255,6 +290,7 @@ bool MoveItRobotModel::computeIK(
     int option)
 {
     if (!initialized()) {
+        ROS_ERROR("MoveIt! Robot Model is uninitialized");
         return false;
     }
 
@@ -263,16 +299,80 @@ bool MoveItRobotModel::computeIK(
         return false;
     }
 
-    return false;
+    Eigen::Affine3d T_planning_link;
+//    T_planning_link =
+//            Eigen::Translation3d(pose[0], pose[1], pose[2]) *
+//            Eigen::AngleAxisd(pose[3], Eigen::Vector3d(0.0, 0.0, 1.0)) *
+//            Eigen::AngleAxisd(pose[4], Eigen::Vector3d(0.0, 1.0, 0.0)) *
+//            Eigen::AngleAxisd(pose[5], Eigen::Vector3d(1.0, 0.0, 0.0));
+    T_planning_link =
+            Eigen::Translation3d(pose[0], pose[1], pose[2]) *
+            Eigen::AngleAxisd(pose[5], Eigen::Vector3d(0.0, 0.0, 1.0)) *
+            Eigen::AngleAxisd(pose[4], Eigen::Vector3d(0.0, 1.0, 0.0)) *
+            Eigen::AngleAxisd(pose[3], Eigen::Vector3d(1.0, 0.0, 0.0));
+
+    // get the transform in the model frame
+
+    // return the pose of the link in the planning frame
+    if (!m_planning_scene->knowsFrameTransform(m_planning_frame) ||
+        !m_planning_scene->knowsFrameTransform(m_moveit_model->getModelFrame()))
+    {
+        ROS_ERROR("Planning Scene does not contain transforms to planning frame '%s' or model frame '%s'", m_planning_frame.c_str(), m_moveit_model->getModelFrame().c_str());
+        return false;
+    }
+
+    const Eigen::Affine3d& T_scene_planning =
+            m_planning_scene->getFrameTransform(m_planning_frame);
+    const Eigen::Affine3d& T_scene_model =
+            m_planning_scene->getFrameTransform(m_moveit_model->getModelFrame());
+
+    Eigen::Affine3d T_model_link =
+            T_scene_model.inverse() *
+            T_scene_planning *
+            T_planning_link;
+
+    Eigen::Affine3d T_ik_link = T_model_link;
+    m_robot_state->setToIKSolverFrame(T_ik_link, m_joint_group->getSolverInstance());
+
+    for (size_t sind = 0; sind < start.size(); ++sind) {
+        int avind = m_active_var_indices[sind];
+        m_robot_state->setVariablePosition(avind, start[sind]);
+    }
+    m_robot_state->updateLinkTransforms();
+
+    if (m_robot_state->setFromIK(m_joint_group, T_model_link, 10, 0.1)) {
+        solution.resize(m_active_var_names.size());
+        for (size_t avind = 0; avind < m_active_var_names.size(); ++avind) {
+            int vind = m_active_var_indices[avind];
+            solution[avind] = m_robot_state->getVariablePosition(vind);
+        }
+        return true;
+    }
+    else {
+        Eigen::Vector3d ik_pos(T_model_link.translation());
+        Eigen::Quaterniond ik_rot(T_model_link.rotation());
+        geometry_msgs::Quaternion q;
+        q.w = ik_rot.w();
+        q.x = ik_rot.x();
+        q.y = ik_rot.y();
+        q.z = ik_rot.z();
+        double r, p, y;
+        leatherman::getRPY(q, r, p, y);
+        ROS_ERROR("Failed to compute IK to pose (%0.3f, %0.3f, %0.3f, %0.3f, %0.3f, %0.3f) in %s for joint group '%s'",
+                ik_pos.x(), ik_pos.y(), ik_pos.z(), r, p, y, m_moveit_model->getModelFrame().c_str(), m_group_name.c_str());
+
+        return false;
+    }
 }
 
 bool MoveItRobotModel::computeIK(
     const std::vector<double>& pose,
     const std::vector<double>& start,
-    std::vector<std::vector<double> >& solutions,
+    std::vector<std::vector<double>>& solutions,
     int option)
 {
     if (!initialized()) {
+        ROS_ERROR("MoveIt! Robot Model is uninitialized");
         return false;
     }
 
@@ -293,6 +393,7 @@ bool MoveItRobotModel::computeFastIK(
     // methods...
 
     if (!initialized()) {
+        ROS_ERROR("MoveIt! Robot Model is uninitialized");
         return false;
     }
 

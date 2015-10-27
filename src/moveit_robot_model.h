@@ -112,6 +112,7 @@ private:
 
     std::string m_group_name;
 
+    planning_scene::PlanningSceneConstPtr m_planning_scene;
     moveit::core::RobotModelConstPtr m_moveit_model;
     moveit::core::RobotStatePtr m_robot_state;
 
