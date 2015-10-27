@@ -5,6 +5,7 @@
 #include <moveit/distance_field/propagation_distance_field.h>
 #include <moveit/macros/class_forward.h>
 #include <moveit/planning_interface/planning_interface.h>
+#include <moveit_msgs/OrientedBoundingBox.h>
 #include <sbpl_arm_planner/sbpl_arm_planner_interface.h>
 
 #include "moveit_robot_model.h"
@@ -42,6 +43,11 @@ private:
     bool initSBPL(std::string& why);
 
     bool translateRequest(moveit_msgs::GetMotionPlan::Request& req);
+
+    bool getPlanningFrameWorkspaceAABB(
+        const moveit_msgs::WorkspaceParameters& workspace,
+        const planning_scene::PlanningScene& scene,
+        moveit_msgs::OrientedBoundingBox& aabb);
 };
 
 MOVEIT_CLASS_FORWARD(SBPLPlanningContext);

@@ -2,6 +2,7 @@
 
 #include <sbpl_arm_planner/sbpl_arm_planner_interface.h>
 
+#include <leatherman/print.h>
 #include <moveit/planning_scene/planning_scene.h>
 #include <moveit_msgs/GetMotionPlan.h>
 #include <moveit_msgs/PlanningScene.h>
@@ -114,8 +115,7 @@ bool SBPLPlanningContext::initSBPL(std::string& why)
 
     const planning_interface::MotionPlanRequest& req = getMotionPlanRequest();
 
-    const std::string& planning_frame =
-            req.workspace_parameters.header.frame_id;
+    const std::string& planning_frame = planning_scene->getPlanningFrame();
 
     ////////////////
     // Robot Model
@@ -161,15 +161,21 @@ bool SBPLPlanningContext::initSBPL(std::string& why)
     // create a distance field in the planning frame that represents the
     // workspace boundaries
 
-    const double size_x =
-        req.workspace_parameters.max_corner.x -
-        req.workspace_parameters.min_corner.x;
-    const double size_y =
-        req.workspace_parameters.max_corner.y -
-        req.workspace_parameters.min_corner.y;
-    const double size_z =
-        req.workspace_parameters.max_corner.z -
-        req.workspace_parameters.min_corner.z;
+    moveit_msgs::OrientedBoundingBox workspace_aabb;
+    getPlanningFrameWorkspaceAABB(
+            req.workspace_parameters, *planning_scene, workspace_aabb);
+
+    ROS_INFO("AABB of workspace in planning frame:");
+    ROS_INFO("  pose:");
+    ROS_INFO("    position: (%0.3f, %0.3f, %0.3f)", workspace_aabb.pose.position.x, workspace_aabb.pose.position.y, workspace_aabb.pose.position.z);
+    ROS_INFO("    orientation: (%0.3f, %0.3f, %0.3f, %0.3f)", workspace_aabb.pose.orientation.w, workspace_aabb.pose.orientation.x, workspace_aabb.pose.orientation.y, workspace_aabb.pose.orientation.z);
+
+    // TODO: block off sections of the aabb that do not include the original
+    // workspace
+
+    const double size_x = workspace_aabb.extents.x;
+    const double size_y = workspace_aabb.extents.y;
+    const double size_z = workspace_aabb.extents.z;
 
     // TODO: need to either plan in the workspace frame here rather than the
     // common joint root...or need to expand the size of the distance field to
@@ -180,24 +186,26 @@ bool SBPLPlanningContext::initSBPL(std::string& why)
     const double max_distance = 0.2;
     const bool propagate_negative_distances = false;
 
-    // get the transform from the workspace to the planning frame
-    const std::string& workspace_frame = req.workspace_parameters.header.frame_id;
-    if (!planning_scene->knowsFrameTransform(workspace_frame) ||
-        !planning_scene->knowsFrameTransform(m_robot_model.planningFrame()))
-    {
-        ROS_WARN("Planning scene is unable to look transforms for frames '%s' and '%s'", workspace_frame.c_str(), planning_frame.c_str());
-        return false;
-    }
-
-    // get the transform from the planning frame to the workspace frame
-    const Eigen::Affine3d& T_scene_workspace = planning_scene->getFrameTransform(workspace_frame);
-    const Eigen::Affine3d& T_scene_planning = planning_scene->getFrameTransform(planning_frame);
-    Eigen::Affine3d T_planning_workspace = T_scene_planning.inverse() * T_scene_workspace;
+    Eigen::Affine3d T_planning_workspace;
+    T_planning_workspace = Eigen::Translation3d(
+            workspace_aabb.pose.position.x - 0.5 * workspace_aabb.extents.x,
+            workspace_aabb.pose.position.y - 0.5 * workspace_aabb.extents.y,
+            workspace_aabb.pose.position.z - 0.5 * workspace_aabb.extents.z);
 
     Eigen::Vector3d workspace_pos_in_planning(T_planning_workspace.translation());
 
+    ROS_INFO("Initializing workspace distance field:");
+    ROS_INFO("  size_x: %0.3f", size_x);
+    ROS_INFO("  size_y: %0.3f", size_y);
+    ROS_INFO("  size_z: %0.3f", size_z);
+    ROS_INFO("  res: %0.3f", res_m);
+    ROS_INFO("  origin_x: %0.3f", workspace_pos_in_planning.x());
+    ROS_INFO("  origin_y: %0.3f", workspace_pos_in_planning.y());
+    ROS_INFO("  origin_z: %0.3f", workspace_pos_in_planning.z());
+    ROS_INFO("  propagate_negative_distances: %s", propagate_negative_distances ? "true" : "false");
+
     m_distance_field.reset(new distance_field::PropagationDistanceField(
-            size_x, size_y, size_x,
+            size_x, size_y, size_z,
             res_m,
             workspace_pos_in_planning.x(),
             workspace_pos_in_planning.y(),
@@ -222,8 +230,10 @@ bool SBPLPlanningContext::initSBPL(std::string& why)
     std::vector<int> discretization(m_robot_model.activeVariableCount(), 1);
     std::vector<double> deltas(m_robot_model.activeVariableCount());
     for (size_t vind = 0; vind < deltas.size(); ++vind) {
-        deltas[vind] = (2.0 * M_PI) / (double)discretization[vind];
+        deltas[vind] = (double)discretization[vind] / (2.0 * M_PI);
     }
+    ROS_INFO("Discretization: %s", leatherman::vectorToString(discretization).c_str());
+    ROS_INFO("Deltas: %s", leatherman::vectorToString(deltas).c_str());
 
     params.num_joints_ = m_robot_model.activeVariableCount();
     params.planning_frame_ = m_robot_model.planningFrame();
@@ -232,6 +242,8 @@ bool SBPLPlanningContext::initSBPL(std::string& why)
     params.planning_joints_ = m_robot_model.planningVariableNames();
     params.coord_vals_ = discretization;
     params.coord_delta_ = deltas;
+    params.expands_log_level_ = "debug";
+    params.expands2_log_level_ = "debug";
 
     if (!m_planner->init(params)) {
         why = "Failed to initialize SBPL Arm Planner Interface";
@@ -248,6 +260,56 @@ bool SBPLPlanningContext::translateRequest(
     // TODO: translate goal orientation constraints into planning frame
 
     req.motion_plan_request = getMotionPlanRequest();
+    return true;
+}
+
+bool SBPLPlanningContext::getPlanningFrameWorkspaceAABB(
+    const moveit_msgs::WorkspaceParameters& workspace,
+    const planning_scene::PlanningScene& scene,
+    moveit_msgs::OrientedBoundingBox& aabb)
+{
+    if (!scene.knowsFrameTransform(workspace.header.frame_id) ||
+        !scene.knowsFrameTransform(scene.getPlanningFrame()))
+    {
+        return false;
+    }
+
+    const Eigen::Affine3d& T_scene_workspace =
+            scene.getFrameTransform(workspace.header.frame_id);
+    const Eigen::Affine3d& T_scene_planning =
+            scene.getFrameTransform(scene.getPlanningFrame());
+
+    Eigen::Affine3d T_planning_workspace =
+            T_scene_planning.inverse() * T_scene_workspace;
+
+    Eigen::Vector3d min(
+            workspace.min_corner.x,
+            workspace.min_corner.y,
+            workspace.min_corner.z);
+    Eigen::Vector3d max(
+            workspace.max_corner.x,
+            workspace.max_corner.y,
+            workspace.max_corner.z);
+
+    Eigen::Vector3d min_planning = T_planning_workspace * min;
+    Eigen::Vector3d max_planning = T_planning_workspace * max;
+
+    const double mid_x = 0.5 * (min_planning.x() + max_planning.x());
+    const double mid_y = 0.5 * (min_planning.y() + max_planning.y());
+    const double mid_z = 0.5 * (min_planning.z() + max_planning.z());
+
+    double size_x = max_planning.x() - min_planning.x();
+    double size_y = max_planning.y() - min_planning.y();
+    double size_z = max_planning.z() - min_planning.z();
+
+    aabb.pose.position.x = mid_x;
+    aabb.pose.position.y = mid_y;
+    aabb.pose.position.z = mid_z;
+    aabb.pose.orientation.w = 1.0;
+    aabb.extents.x = size_x;
+    aabb.extents.y = size_y;
+    aabb.extents.z = size_z;
+
     return true;
 }
 
