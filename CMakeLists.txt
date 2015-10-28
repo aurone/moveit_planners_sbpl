@@ -24,6 +24,9 @@ include_directories(include)
 
 add_library(
     moveit_sbpl_planner_plugin 
+    src/collision_detector_allocator_sbpl.cpp
+    src/collision_robot_sbpl.cpp
+    src/collision_world_sbpl.cpp
     src/sbpl_planner_manager.cpp
     src/sbpl_planning_context.cpp
     src/moveit_robot_model.cpp
