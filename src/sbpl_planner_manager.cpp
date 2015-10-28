@@ -140,6 +140,9 @@ void SBPLPlannerManager::logPlanningScene(
     for (size_t vind = 0; vind < current_state.getVariableCount(); ++vind) {
         ROS_INFO("    %s: %0.3f", current_state.getVariableNames()[vind].c_str(), current_state.getVariablePosition(vind));
     }
+
+    ROS_INFO("Allowed collision matrix");
+    scene.getAllowedCollisionMatrix().print(std::cout);
 }
 
 void SBPLPlannerManager::logMotionRequest(
