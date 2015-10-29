@@ -3,13 +3,17 @@
 #include <moveit/planning_scene/planning_scene.h>
 
 #include "sbpl_planning_context.h"
+#include "collision_detector_allocator_sbpl.h"
 
 namespace sbpl_interface {
 
 const std::string DefaultPlanningAlgorithm = "ARA*";
 
 SBPLPlannerManager::SBPLPlannerManager() :
-    Base()
+    Base(),
+    m_robot_model(),
+    m_ns(),
+    m_use_sbpl_cc(false)
 {
     ROS_INFO("Constructed SBPL Planner Manager");
 }
@@ -29,7 +33,17 @@ bool SBPLPlannerManager::initialize(
 
     m_robot_model = model;
     m_ns = ns;
-    
+
+    if (!loadPlannerConfigurations()) {
+        ROS_ERROR("Failed to load planner configurations");
+        return false;
+    }
+
+    ros::NodeHandle nh(ns);
+    nh.param("use_sbpl_collision_checking", m_use_sbpl_cc, false);
+
+    ROS_INFO("Use SBPL Collision Checking: %s", m_use_sbpl_cc ? "true" : "false");
+
     return true;
 }
 
@@ -58,13 +72,20 @@ planning_interface::PlanningContextPtr SBPLPlannerManager::getPlanningContext(
         return context;
     }
 
-    logPlanningScene(*planning_scene);
+    planning_scene::PlanningScenePtr diff_scene = planning_scene->diff();
+    if (m_use_sbpl_cc) {
+        diff_scene->setActiveCollisionDetector(
+            collision_detection::CollisionDetectorAllocatorSBPL::create(),
+            true);
+    }
+
+    logPlanningScene(*diff_scene);
     logMotionRequest(req);
 
     SBPLPlanningContext* sbpl_context =
             new SBPLPlanningContext("sbpl_planning_context", req.group_name);
 
-    sbpl_context->setPlanningScene(planning_scene);
+    sbpl_context->setPlanningScene(diff_scene);
     sbpl_context->setMotionPlanRequest(req);
 
     context.reset(sbpl_context);
@@ -99,6 +120,8 @@ bool SBPLPlannerManager::canServiceRequest(
 void SBPLPlannerManager::setPlannerConfigurations(
     const planning_interface::PlannerConfigurationMap& pcs)
 {
+    Base::setPlannerConfigurations(pcs);
+
     ROS_INFO("SBPLPlannerManager::setPlannerConfigurations");
     ROS_INFO("Planner Configurations");
     for (const auto& entry : pcs) {
@@ -248,6 +271,25 @@ void SBPLPlannerManager::logMotionRequest(
     ROS_INFO_STREAM("  num_planning_attempts: " << req.num_planning_attempts);
     ROS_INFO_STREAM("  allowed_planning_time: " << req.allowed_planning_time);
     ROS_INFO_STREAM("  max_velocity_scaling_factor: " << req.max_velocity_scaling_factor);
+}
+
+bool SBPLPlannerManager::loadPlannerParams()
+{
+    ros::NodeHandle nh(m_ns);
+
+    // load planner configurations
+    std::map<std::string, std::string> planner_config;
+    if (nh.hasParam("planner_configs")) {
+        XmlRpc::XmlRpcValue planner_configs_cfg;
+        if (!nh.getParam("planner_configs", planner_configs_cfg)) {
+            return false;
+        }
+    }
+    else {
+
+    }
+
+    return true;
 }
 
 } // namespace sbpl_interface
