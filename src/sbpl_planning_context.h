@@ -1,7 +1,9 @@
 #ifndef sbpl_interface_SBPLPlanningContext_h
 #define sbpl_interface_SBPLPlanningContext_h
 
+#include <map>
 #include <memory>
+#include <string>
 #include <moveit/distance_field/propagation_distance_field.h>
 #include <moveit/macros/class_forward.h>
 #include <moveit/planning_interface/planning_interface.h>
@@ -27,6 +29,8 @@ public:
     virtual bool terminate();
     virtual void clear();
 
+    void setPlannerConfiguration(const std::map<std::string, std::string>& config);
+
 private:
 
     // sbpl planner components
@@ -36,6 +40,8 @@ private:
     std::unique_ptr<distance_field::PropagationDistanceField> m_distance_field;
 
     std::unique_ptr<sbpl_arm_planner::SBPLArmPlannerInterface> m_planner;
+
+    std::map<std::string, std::string> m_config;
 
     /// \brief Initialize SBPL constructs
     /// \param[out] Reason for failure if initialization is unsuccessful

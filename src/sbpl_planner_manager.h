@@ -1,6 +1,7 @@
 #ifndef sbpl_interface_SBPLPlannerManager_h
 #define sbpl_interface_SBPLPlannerManager_h
 
+#include <XmlRpcValue.h>
 #include <moveit/macros/class_forward.h>
 #include <moveit/planning_interface/planning_interface.h>
 
@@ -49,7 +50,15 @@ private:
     void logMotionRequest(
         const planning_interface::MotionPlanRequest& req) const;
 
-    bool loadPlannerParams();
+    bool loadPlannerConfigurationMapping(const moveit::core::RobotModel& model);
+
+    // map from planner configuration name to planner settings
+    // (set of (name, value)) pairs
+    typedef std::map<std::string, std::string> PlannerSettings;
+    typedef std::map<std::string, PlannerSettings> PlannerSettingsMap;
+    bool loadPlannerSettings(PlannerSettingsMap& planner_settings);
+
+    bool xmlToString(XmlRpc::XmlRpcValue& value, std::string& str) const;
 };
 
 MOVEIT_CLASS_FORWARD(SBPLPlannerManager);
