@@ -109,7 +109,8 @@ double CollisionRobotSBPL::distanceOther(
     const CollisionRobot& other_robot,
     const robot_state::RobotState& other_state) const
 {
-    return std::numeric_limits<double>::quiet_NaN();
+    // TODO: implement
+    return -1.0;
 }
 
 double CollisionRobotSBPL::distanceOther(
@@ -118,20 +119,23 @@ double CollisionRobotSBPL::distanceOther(
     const robot_state::RobotState& other_state,
     const AllowedCollisionMatrix& acm) const
 {
-    return std::numeric_limits<double>::quiet_NaN();
+    // TODO: implement
+    return -1.0;
 }
 
 double CollisionRobotSBPL::distanceSelf(
     const robot_state::RobotState& state) const
 {
-    return std::numeric_limits<double>::quiet_NaN();
+    // TODO: implement
+    return -1.0;
 }
 
 double CollisionRobotSBPL::distanceSelf(
     const robot_state::RobotState& state,
     const AllowedCollisionMatrix& acm) const
 {
-    return std::numeric_limits<double>::quiet_NaN();
+    // TODO: implement
+    return -1.0;
 }
 
 } // namespace collision_detection

@@ -48,7 +48,7 @@ void CollisionWorldSBPL::checkRobotCollision(
 
 void CollisionWorldSBPL::checkRobotCollision(
     const CollisionRequest& req,
-    const CollisionResult& res,
+    CollisionResult& res,
     const CollisionRobot& robot,
     const robot_state::RobotState& state1,
     const robot_state::RobotState& state2) const
@@ -58,7 +58,7 @@ void CollisionWorldSBPL::checkRobotCollision(
 
 void CollisionWorldSBPL::checkRobotCollision(
     const CollisionRequest& req,
-    const CollisionResult& res,
+    CollisionResult& res,
     const CollisionRobot& robot,
     const robot_state::RobotState& state1,
     const robot_state::RobotState& state2,
@@ -69,7 +69,7 @@ void CollisionWorldSBPL::checkRobotCollision(
 
 void CollisionWorldSBPL::checkWorldCollision(
     const CollisionRequest& req,
-    const CollisionResult& res,
+    CollisionResult& res,
     const CollisionWorld& other_world) const
 {
     // TODO: implement
@@ -77,11 +77,42 @@ void CollisionWorldSBPL::checkWorldCollision(
 
 void CollisionWorldSBPL::checkWorldCollision(
     const CollisionRequest& req,
-    const CollisionResult& res,
+    CollisionResult& res,
     const CollisionWorld& other_world,
     const AllowedCollisionMatrix& acm) const
 {
     // TODO: implement
+}
+
+double CollisionWorldSBPL::distanceRobot(
+    const CollisionRobot& robot,
+    const robot_state::RobotState& state) const
+{
+    // TODO: implement
+    return -1.0;
+}
+
+double CollisionWorldSBPL::distanceRobot(
+    const CollisionRobot& robot,
+    const robot_state::RobotState& state,
+    const AllowedCollisionMatrix& acm) const
+{
+    // TODO: implement
+    return -1.0;
+}
+
+double CollisionWorldSBPL::distanceWorld(const CollisionWorld& world) const
+{
+    // TODO: implement
+    return -1.0;
+}
+
+double CollisionWorldSBPL::distanceWorld(
+    const CollisionWorld& world,
+    const AllowedCollisionMatrix& acm) const
+{
+    // TODO: implement
+    return -1.0;
 }
 
 } // collision_detection
