@@ -10,11 +10,12 @@
 namespace sbpl_interface {
 
 SBPLPlanningContext::SBPLPlanningContext(
+    MoveItRobotModel* robot_model,
     const std::string& name,
     const std::string& group)
 :
     Base(name, group),
-    m_robot_model(),
+    m_robot_model(robot_model),
     m_collision_checker(),
     m_action_set(),
     m_distance_field(),
@@ -105,6 +106,12 @@ void SBPLPlanningContext::clear()
     ROS_INFO("SBPLPlanningContext::clear()");
 }
 
+void SBPLPlanningContext::setPlannerConfiguration(
+    const std::map<std::string, std::string>& config)
+{
+    m_config = config;
+}
+
 bool SBPLPlanningContext::initSBPL(std::string& why)
 {
     planning_scene::PlanningSceneConstPtr planning_scene = getPlanningScene();
@@ -117,25 +124,11 @@ bool SBPLPlanningContext::initSBPL(std::string& why)
 
     const std::string& planning_frame = planning_scene->getPlanningFrame();
 
-    ////////////////
-    // Robot Model
-    ////////////////
-
-    if (!m_robot_model.init(planning_scene, getGroupName(), planning_frame)) {
-        why = "Failed to initialize sbpl Robot Model from moveit Robot Model";
-        return false;
-    }
-
-    if (!m_robot_model.planningTipLink()) {
-        ROS_ERROR("SBPL Plugin does not currently support joint groups without a tip link");
-        return false;
-    }
-
     ////////////////////
     // Collision Model
     ////////////////////
 
-    if (!m_collision_checker.init(&m_robot_model, planning_scene)) {
+    if (!m_collision_checker.init(m_robot_model, planning_scene)) {
         why = "Failed to initialize sbpl Collision Checker "
                 "from Planning Scene and Robot Model";
         return false;
@@ -145,8 +138,8 @@ bool SBPLPlanningContext::initSBPL(std::string& why)
     // Action Set Initialization
     ///////////////////////////////
 
-    for (size_t vind = 0; vind < m_robot_model.activeVariableCount(); ++vind) {
-        std::vector<double> mprim(m_robot_model.activeVariableCount(), 0.0);
+    for (size_t vind = 0; vind < m_robot_model->activeVariableCount(); ++vind) {
+        std::vector<double> mprim(m_robot_model->activeVariableCount(), 0.0);
         mprim[vind] = 1.0;
         m_action_set.addMotionPrim(mprim, true, true);
     }
@@ -220,26 +213,26 @@ bool SBPLPlanningContext::initSBPL(std::string& why)
     //////////////////////////////////////////////
 
     m_planner.reset(new sbpl_arm_planner::SBPLArmPlannerInterface(
-            &m_robot_model,
+            m_robot_model,
             &m_collision_checker,
             &m_action_set,
             m_distance_field.get()));
 
     sbpl_arm_planner::PlanningParams params;
 
-    std::vector<int> discretization(m_robot_model.activeVariableCount(), 1);
-    std::vector<double> deltas(m_robot_model.activeVariableCount());
+    std::vector<int> discretization(m_robot_model->activeVariableCount(), 1);
+    std::vector<double> deltas(m_robot_model->activeVariableCount());
     for (size_t vind = 0; vind < deltas.size(); ++vind) {
         deltas[vind] = (double)discretization[vind] / (2.0 * M_PI);
     }
     ROS_INFO("Discretization: %s", leatherman::vectorToString(discretization).c_str());
     ROS_INFO("Deltas: %s", leatherman::vectorToString(deltas).c_str());
 
-    params.num_joints_ = m_robot_model.activeVariableCount();
-    params.planning_frame_ = m_robot_model.planningFrame();
-    params.group_name_ = m_robot_model.planningGroupName();
+    params.num_joints_ = m_robot_model->activeVariableCount();
+    params.planning_frame_ = m_robot_model->planningFrame();
+    params.group_name_ = m_robot_model->planningGroupName();
     params.planner_name_ = getMotionPlanRequest().planner_id;
-    params.planning_joints_ = m_robot_model.planningVariableNames();
+    params.planning_joints_ = m_robot_model->planningVariableNames();
     params.coord_vals_ = discretization;
     params.coord_delta_ = deltas;
     params.expands_log_level_ = "debug";

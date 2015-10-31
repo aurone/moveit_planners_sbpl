@@ -20,8 +20,10 @@ class SBPLPlanningContext : public planning_interface::PlanningContext
 public:
 
     typedef planning_interface::PlanningContext Base;
-
-    SBPLPlanningContext(const std::string& name, const std::string& group);
+    SBPLPlanningContext(
+        MoveItRobotModel* robot_model,
+        const std::string& name,
+        const std::string& group);
     virtual ~SBPLPlanningContext();
 
     virtual bool solve(planning_interface::MotionPlanResponse& res);
@@ -34,7 +36,7 @@ public:
 private:
 
     // sbpl planner components
-    MoveItRobotModel m_robot_model;
+    MoveItRobotModel* m_robot_model;
     MoveItCollisionChecker m_collision_checker;
     sbpl_arm_planner::ActionSet m_action_set;
     std::unique_ptr<distance_field::PropagationDistanceField> m_distance_field;

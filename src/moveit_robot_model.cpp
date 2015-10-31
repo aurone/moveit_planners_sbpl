@@ -45,7 +45,7 @@ namespace sbpl_interface {
 
 MoveItRobotModel::MoveItRobotModel() :
     m_group_name(),
-    m_moveit_model(),
+    m_robot_model(),
     m_robot_state(),
     m_joint_group(nullptr),
     m_tip_link(nullptr),
@@ -60,24 +60,14 @@ MoveItRobotModel::~MoveItRobotModel()
 }
 
 bool MoveItRobotModel::init(
-    const planning_scene::PlanningSceneConstPtr& planning_scene,
-    const std::string& group_name,
-    const std::string& planning_frame)
+    const robot_model::RobotModelConstPtr& robot_model,
+    const std::string& group_name)
 {
-    if (!planning_scene) {
-        ROS_ERROR("Planning Scene is null");
-        return false;
-    }
-
-    m_planning_scene = planning_scene;
-
-    moveit::core::RobotModelConstPtr moveit_model =
-            planning_scene->getRobotModel();
+    m_robot_model = robot_model;
     m_group_name = group_name;
-    m_moveit_model = moveit_model;
-    m_robot_state.reset(new moveit::core::RobotState(moveit_model));
-    *m_robot_state = planning_scene->getCurrentState();
-    m_joint_group = moveit_model->getJointModelGroup(group_name);
+    m_robot_state.reset(new moveit::core::RobotState(robot_model));
+    m_robot_state->setToDefaultValues();
+    m_joint_group = robot_model->getJointModelGroup(group_name);
 
     // cache the number of active variables in this group
     m_active_var_count = 0;
@@ -93,7 +83,7 @@ bool MoveItRobotModel::init(
         for (size_t vind = 0; vind < joint->getVariableCount(); ++vind) {
             const std::string& var_name = joint->getVariableNames()[vind];
             m_active_var_names.push_back(var_name);
-            m_active_var_indices.push_back(moveit_model->getVariableIndex(var_name));
+            m_active_var_indices.push_back(robot_model->getVariableIndex(var_name));
         }
     }
     ROS_INFO("Active Variable Names: %s", leatherman::vectorToString(m_active_var_names).c_str());
@@ -160,7 +150,9 @@ bool MoveItRobotModel::init(
 
     // TODO: check that we can translate the planning frame to the kinematics
     // frame and vice versa
-    m_planning_frame = planning_frame;
+
+    // TODO: consider not-readiness if planning scene or planning frame is
+    // unspecified
 
     return true;
 }
@@ -168,6 +160,32 @@ bool MoveItRobotModel::init(
 bool MoveItRobotModel::initialized() const
 {
     return (bool)m_joint_group;
+}
+
+bool MoveItRobotModel::setPlanningScene(
+    const planning_scene::PlanningSceneConstPtr& scene)
+{
+    if (!scene) {
+        ROS_ERROR("Planning Scene is null");
+        return false;
+    }
+
+    if (scene->getRobotModel() != m_robot_model) {
+        ROS_ERROR("Planning scene is for a different robot model");
+        return false;
+    }
+
+    m_planning_scene = scene;
+    *m_robot_state = scene->getCurrentState();
+    m_robot_state->updateLinkTransforms();
+    return true;
+}
+
+bool MoveItRobotModel::setPlanningFrame(const std::string& planning_frame)
+{
+    // TODO: check for frame existence in robot or planning scene?
+    m_planning_frame = planning_frame;
+    return true;
 }
 
 bool MoveItRobotModel::checkJointLimits(const std::vector<double>& angles)
@@ -218,9 +236,9 @@ bool MoveItRobotModel::computeFK(
 
     // return the pose of the link in the planning frame
     if (!m_planning_scene->knowsFrameTransform(m_planning_frame) ||
-        !m_planning_scene->knowsFrameTransform(m_moveit_model->getModelFrame()))
+        !m_planning_scene->knowsFrameTransform(m_robot_model->getModelFrame()))
     {
-        ROS_ERROR("Planning Scene does not contain transforms to planning frame '%s' or model frame '%s'", m_planning_frame.c_str(), m_moveit_model->getModelFrame().c_str());
+        ROS_ERROR("Planning Scene does not contain transforms to planning frame '%s' or model frame '%s'", m_planning_frame.c_str(), m_robot_model->getModelFrame().c_str());
         return false;
     }
 
@@ -231,7 +249,7 @@ bool MoveItRobotModel::computeFK(
     const Eigen::Affine3d& T_scene_planning =
             m_planning_scene->getFrameTransform(m_planning_frame);
     const Eigen::Affine3d& T_scene_model =
-            m_planning_scene->getFrameTransform(m_moveit_model->getModelFrame());
+            m_planning_scene->getFrameTransform(m_robot_model->getModelFrame());
 
     Eigen::Affine3d T_planning_link =
             T_scene_planning.inverse() * T_scene_model * T_robot_link;
@@ -315,16 +333,16 @@ bool MoveItRobotModel::computeIK(
 
     // return the pose of the link in the planning frame
     if (!m_planning_scene->knowsFrameTransform(m_planning_frame) ||
-        !m_planning_scene->knowsFrameTransform(m_moveit_model->getModelFrame()))
+        !m_planning_scene->knowsFrameTransform(m_robot_model->getModelFrame()))
     {
-        ROS_ERROR("Planning Scene does not contain transforms to planning frame '%s' or model frame '%s'", m_planning_frame.c_str(), m_moveit_model->getModelFrame().c_str());
+        ROS_ERROR("Planning Scene does not contain transforms to planning frame '%s' or model frame '%s'", m_planning_frame.c_str(), m_robot_model->getModelFrame().c_str());
         return false;
     }
 
     const Eigen::Affine3d& T_scene_planning =
             m_planning_scene->getFrameTransform(m_planning_frame);
     const Eigen::Affine3d& T_scene_model =
-            m_planning_scene->getFrameTransform(m_moveit_model->getModelFrame());
+            m_planning_scene->getFrameTransform(m_robot_model->getModelFrame());
 
     Eigen::Affine3d T_model_link =
             T_scene_model.inverse() *
@@ -359,7 +377,7 @@ bool MoveItRobotModel::computeIK(
         double r, p, y;
         leatherman::getRPY(q, r, p, y);
         ROS_ERROR("Failed to compute IK to pose (%0.3f, %0.3f, %0.3f, %0.3f, %0.3f, %0.3f) in %s for joint group '%s'",
-                ik_pos.x(), ik_pos.y(), ik_pos.z(), r, p, y, m_moveit_model->getModelFrame().c_str(), m_group_name.c_str());
+                ik_pos.x(), ik_pos.y(), ik_pos.z(), r, p, y, m_robot_model->getModelFrame().c_str(), m_group_name.c_str());
 
         return false;
     }
@@ -414,7 +432,7 @@ void MoveItRobotModel::printRobotModelInformation()
 
     std::stringstream ss;
     m_joint_group->printGroupInfo(ss);
-    ROS_INFO("MoveIt Robot Model for '%s': %s", m_moveit_model->getName().c_str(), ss.str().c_str());
+    ROS_INFO("MoveIt Robot Model for '%s': %s", m_robot_model->getName().c_str(), ss.str().c_str());
 }
 
 const std::string& MoveItRobotModel::planningGroupName() const
@@ -476,7 +494,7 @@ const std::vector<bool>& MoveItRobotModel::variableContinuous() const
 
 moveit::core::RobotModelConstPtr MoveItRobotModel::moveitRobotModel() const
 {
-    return m_moveit_model;
+    return m_robot_model;
 }
 
 } // namespace sbpl_interface

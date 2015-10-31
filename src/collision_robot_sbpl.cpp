@@ -30,6 +30,7 @@ void CollisionRobotSBPL::checkOtherCollision(
     const robot_state::RobotState& other_state) const
 {
     // TODO: implement
+    clearAllCollisions(res);
 }
 
 void CollisionRobotSBPL::checkOtherCollision(
@@ -41,6 +42,7 @@ void CollisionRobotSBPL::checkOtherCollision(
     const AllowedCollisionMatrix& acm) const
 {
     // TODO: implement
+    clearAllCollisions(res);
 }
 
 void CollisionRobotSBPL::checkOtherCollision(
@@ -53,6 +55,7 @@ void CollisionRobotSBPL::checkOtherCollision(
     const robot_state::RobotState& other_state2) const
 {
     // TODO: implement
+    clearAllCollisions(res);
 }
 
 void CollisionRobotSBPL::checkOtherCollision(
@@ -66,6 +69,7 @@ void CollisionRobotSBPL::checkOtherCollision(
     const AllowedCollisionMatrix& acm) const
 {
     // TODO: implement
+    clearAllCollisions(res);
 }
 
 void CollisionRobotSBPL::checkSelfCollision(
@@ -74,6 +78,7 @@ void CollisionRobotSBPL::checkSelfCollision(
     const robot_state::RobotState& state) const
 {
     // TODO: implement
+    clearAllCollisions(res);
 }
 
 void CollisionRobotSBPL::checkSelfCollision(
@@ -83,6 +88,7 @@ void CollisionRobotSBPL::checkSelfCollision(
     const AllowedCollisionMatrix& acm) const
 {
     // TODO: implement
+    clearAllCollisions(res);
 }
 
 void CollisionRobotSBPL::checkSelfCollision(
@@ -92,6 +98,7 @@ void CollisionRobotSBPL::checkSelfCollision(
     const robot_state::RobotState& state2) const
 {
     // TODO: implement
+    clearAllCollisions(res);
 }
 
 void CollisionRobotSBPL::checkSelfCollision(
@@ -101,7 +108,8 @@ void CollisionRobotSBPL::checkSelfCollision(
     const robot_state::RobotState& state2,
     const AllowedCollisionMatrix& acm) const
 {
-
+    // TODO: implement
+    clearAllCollisions(res);
 }
 
 double CollisionRobotSBPL::distanceOther(
@@ -136,6 +144,21 @@ double CollisionRobotSBPL::distanceSelf(
 {
     // TODO: implement
     return -1.0;
+}
+
+void CollisionRobotSBPL::updatedPaddingOrScaling(
+    const std::vector<std::string>& links)
+{
+    CollisionRobot::updatedPaddingOrScaling(links);
+}
+
+void CollisionRobotSBPL::clearAllCollisions(CollisionResult& res) const
+{
+    res.collision = false;
+    res.contact_count = 0;
+    res.contacts.clear();
+    res.cost_sources.clear();
+    res.distance = 100.0;
 }
 
 } // namespace collision_detection

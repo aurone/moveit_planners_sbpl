@@ -5,6 +5,8 @@
 #include <moveit/macros/class_forward.h>
 #include <moveit/planning_interface/planning_interface.h>
 
+#include "moveit_robot_model.h"
+
 namespace sbpl_interface {
 
 class SBPLPlannerManager : public planning_interface::PlannerManager
@@ -46,6 +48,13 @@ private:
 
     bool m_use_sbpl_cc;
 
+    std::map<std::string, MoveItRobotModel> m_sbpl_models;
+    
+    // per-group-sbpl-collision-allocators
+    typedef collision_detection::CollisionDetectorAllocatorPtr
+    CollisionCheckerAllocatorPtr;
+    std::map<std::string, CollisionCheckerAllocatorPtr> m_cc_allocators;
+
     void logPlanningScene(const planning_scene::PlanningScene& scene) const;
     void logMotionRequest(
         const planning_interface::MotionPlanRequest& req) const;
@@ -59,6 +68,13 @@ private:
     bool loadPlannerSettings(PlannerSettingsMap& planner_settings);
 
     bool xmlToString(XmlRpc::XmlRpcValue& value, std::string& str) const;
+
+    // retrive an already-initialized model for a given group
+    MoveItRobotModel* getModelForGroup(const std::string& group_name);
+
+    bool selectCollisionCheckerSBPL(
+        planning_scene::PlanningScene& scene,
+        const std::string& group_name);
 };
 
 MOVEIT_CLASS_FORWARD(SBPLPlannerManager);

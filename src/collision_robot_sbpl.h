@@ -92,6 +92,14 @@ public:
     virtual double distanceSelf(
         const robot_state::RobotState& state,
         const AllowedCollisionMatrix& acm) const;
+
+protected:
+
+    virtual void updatedPaddingOrScaling(const std::vector<std::string>& links);
+
+private:
+
+    void clearAllCollisions(CollisionResult& res) const;
 };
 
 } // namespace collision_detection

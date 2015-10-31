@@ -48,13 +48,6 @@ public:
     MoveItRobotModel();
     virtual ~MoveItRobotModel();
 
-    bool init(
-        const planning_scene::PlanningSceneConstPtr& planning_scene,
-        const std::string& group_name,
-        const std::string& planning_frame);
-
-    bool initialized() const;
-
     virtual bool checkJointLimits(const std::vector<double>& angles);
 
     virtual bool computeFK(
@@ -90,6 +83,15 @@ public:
 
     virtual void printRobotModelInformation();
 
+    bool init(
+        const moveit::core::RobotModelConstPtr& robot_model,
+        const std::string& group_name);
+
+    bool initialized() const;
+
+    bool setPlanningScene(const planning_scene::PlanningSceneConstPtr& state);
+    bool setPlanningFrame(const std::string& planning_frame);
+
     const std::string& planningGroupName() const;
     const moveit::core::JointModelGroup* planningJointGroup() const;
 
@@ -113,7 +115,7 @@ private:
     std::string m_group_name;
 
     planning_scene::PlanningSceneConstPtr m_planning_scene;
-    moveit::core::RobotModelConstPtr m_moveit_model;
+    moveit::core::RobotModelConstPtr m_robot_model;
     moveit::core::RobotStatePtr m_robot_state;
 
     // cached pointer to the joint group
