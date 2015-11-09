@@ -50,7 +50,7 @@ private:
     /// \return true if successful; false otherwise
     bool initSBPL(std::string& why);
 
-    bool translateRequest(moveit_msgs::GetMotionPlan::Request& req);
+    bool translateRequest(moveit_msgs::MotionPlanRequest& req);
 
     bool getPlanningFrameWorkspaceAABB(
         const moveit_msgs::WorkspaceParameters& workspace,

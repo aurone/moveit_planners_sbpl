@@ -51,13 +51,13 @@ bool SBPLPlanningContext::solve(planning_interface::MotionPlanResponse& res)
     planning_scene->getPlanningSceneMsg(*scene_msg);
     const planning_interface::MotionPlanRequest& req = getMotionPlanRequest();
 
-    moveit_msgs::GetMotionPlan::Request req_msg;
+    moveit_msgs::MotionPlanRequest req_msg;
     if (!translateRequest(req_msg)) {
         ROS_WARN("Unable to translate Motion Plan Request to SBPL Motion Plan Request");
         return false;
     }
 
-    moveit_msgs::GetMotionPlan::Response res_msg;
+    moveit_msgs::MotionPlanResponse res_msg;
     bool result = m_planner->solve(scene_msg, req_msg, res_msg);
     if (result) {
         moveit::core::RobotModelConstPtr robot_model =
@@ -71,7 +71,7 @@ bool SBPLPlanningContext::solve(planning_interface::MotionPlanResponse& res)
                 new robot_trajectory::RobotTrajectory(
                         robot_model, getGroupName()));
         traj->setRobotTrajectoryMsg(
-                *start_state, res_msg.motion_plan_response.trajectory);
+                *start_state, res_msg.trajectory);
 
         // res_msg
         //   motion_plan_response
@@ -82,8 +82,8 @@ bool SBPLPlanningContext::solve(planning_interface::MotionPlanResponse& res)
         //     error_code
 
         res.trajectory_ = traj;
-        res.planning_time_ = res_msg.motion_plan_response.planning_time;
-        res.error_code_ = res_msg.motion_plan_response.error_code;
+        res.planning_time_ = res_msg.planning_time;
+        res.error_code_ = res_msg.error_code;
     }
     return result;
 }
@@ -247,12 +247,12 @@ bool SBPLPlanningContext::initSBPL(std::string& why)
 }
 
 bool SBPLPlanningContext::translateRequest(
-    moveit_msgs::GetMotionPlan::Request& req)
+    moveit_msgs::MotionPlanRequest& req)
 {
     // TODO: translate goal position constraints into planning frame
     // TODO: translate goal orientation constraints into planning frame
 
-    req.motion_plan_request = getMotionPlanRequest();
+    req = getMotionPlanRequest();
     return true;
 }
 
