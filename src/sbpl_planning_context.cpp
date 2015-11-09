@@ -9,6 +9,69 @@
 
 namespace sbpl_interface {
 
+static std::string to_string(moveit_msgs::MoveItErrorCodes code)
+{
+    switch (code.val) {
+    case moveit_msgs::MoveItErrorCodes::SUCCESS:
+        return "SUCCESS";
+    case moveit_msgs::MoveItErrorCodes::FAILURE:
+        return "FAILURE";
+
+    case moveit_msgs::MoveItErrorCodes::PLANNING_FAILED:
+        return "PLANNING_FAILED";
+    case moveit_msgs::MoveItErrorCodes::INVALID_MOTION_PLAN:
+        return "INVALID_MOTION_PLAN";
+    case moveit_msgs::MoveItErrorCodes::MOTION_PLAN_INVALIDATED_BY_ENVIRONMENT_CHANGE:
+        return "MOTION_PLAN_INVALIDATED_BY_ENVIRONMENT_CHANGE";
+    case moveit_msgs::MoveItErrorCodes::CONTROL_FAILED:
+        return "CONTROL_FAILED";
+    case moveit_msgs::MoveItErrorCodes::UNABLE_TO_AQUIRE_SENSOR_DATA:
+        return "UNABLE_TO_AQUIRE_SENSOR_DATA";
+    case moveit_msgs::MoveItErrorCodes::TIMED_OUT:
+        return "TIMED_OUT";
+    case moveit_msgs::MoveItErrorCodes::PREEMPTED:
+        return "PREEMPTED";
+
+    case moveit_msgs::MoveItErrorCodes::START_STATE_IN_COLLISION:
+        return "START_STATE_IN_COLLISION";
+    case moveit_msgs::MoveItErrorCodes::START_STATE_VIOLATES_PATH_CONSTRAINTS:
+        return "START_STATE_VIOLATES_PATH_CONSTRAINTS";
+
+    case moveit_msgs::MoveItErrorCodes::GOAL_IN_COLLISION:
+        return "GOAL_IN_COLLISION";
+    case moveit_msgs::MoveItErrorCodes::GOAL_VIOLATES_PATH_CONSTRAINTS:
+        return "GOAL_VIOLATES_PATH_CONSTRAINTS";
+    case moveit_msgs::MoveItErrorCodes::GOAL_CONSTRAINTS_VIOLATED:
+        return "GOAL_CONSTRAINTS_VIOLATED";
+
+    case moveit_msgs::MoveItErrorCodes::INVALID_GROUP_NAME:
+        return "INVALID_GROUP_NAME";
+    case moveit_msgs::MoveItErrorCodes::INVALID_GOAL_CONSTRAINTS:
+        return "INVALID_GOAL_CONSTRAINTS";
+    case moveit_msgs::MoveItErrorCodes::INVALID_ROBOT_STATE:
+        return "INVALID_ROBOT_STATE";
+    case moveit_msgs::MoveItErrorCodes::INVALID_LINK_NAME:
+        return "INVALID_LINK_NAME";
+    case moveit_msgs::MoveItErrorCodes::INVALID_OBJECT_NAME:
+        return "INVALID_OBJECT_NAME";
+
+    case moveit_msgs::MoveItErrorCodes::FRAME_TRANSFORM_FAILURE:
+        return "FRAME_TRANSFORM_FAILURE";
+    case moveit_msgs::MoveItErrorCodes::COLLISION_CHECKING_UNAVAILABLE:
+        return "COLLISION_CHECKING_UNAVAILABLE";
+    case moveit_msgs::MoveItErrorCodes::ROBOT_STATE_STALE:
+        return "ROBOT_STATE_STALE";
+    case moveit_msgs::MoveItErrorCodes::SENSOR_INFO_STALE:
+        return "SENSOR_INFO_STALE";
+
+    case moveit_msgs::MoveItErrorCodes::NO_IK_SOLUTION:
+        return "NO_IK_SOLUTION";
+
+    default:
+        return "UNRECOGNIZED";
+    }
+}
+
 SBPLPlanningContext::SBPLPlanningContext(
     MoveItRobotModel* robot_model,
     const std::string& name,
@@ -51,15 +114,16 @@ bool SBPLPlanningContext::solve(planning_interface::MotionPlanResponse& res)
     planning_scene->getPlanningSceneMsg(*scene_msg);
     const planning_interface::MotionPlanRequest& req = getMotionPlanRequest();
 
-    moveit_msgs::GetMotionPlan::Request req_msg;
+    moveit_msgs::MotionPlanRequest req_msg;
     if (!translateRequest(req_msg)) {
         ROS_WARN("Unable to translate Motion Plan Request to SBPL Motion Plan Request");
         return false;
     }
 
-    moveit_msgs::GetMotionPlan::Response res_msg;
+    moveit_msgs::MotionPlanResponse res_msg;
     bool result = m_planner->solve(scene_msg, req_msg, res_msg);
     if (result) {
+        ROS_INFO("Call to SBPLArmPlannerInterface::solve() succeeded");
         moveit::core::RobotModelConstPtr robot_model =
                 planning_scene->getRobotModel();
 
@@ -67,23 +131,30 @@ bool SBPLPlanningContext::solve(planning_interface::MotionPlanResponse& res)
         robot_state::RobotStatePtr start_state =
                 planning_scene->getCurrentStateUpdated(req.start_state);
 
+        ROS_INFO("Creating RobotTrajectory from path with %zu joint trajectory points and %zu multi-dof joint trajectory points",
+                    res_msg.trajectory.joint_trajectory.points.size(),
+                    res_msg.trajectory.multi_dof_joint_trajectory.points.size());
         robot_trajectory::RobotTrajectoryPtr traj(
                 new robot_trajectory::RobotTrajectory(
                         robot_model, getGroupName()));
         traj->setRobotTrajectoryMsg(
-                *start_state, res_msg.motion_plan_response.trajectory);
+                *start_state, res_msg.trajectory);
 
         // res_msg
-        //   motion_plan_response
         //     trajectory_start
         //     group_name
         //     trajectory
         //     planning_time
         //     error_code
 
+        ROS_INFO("Motion Plan Response:");
+        ROS_INFO("  Trajectory: %zu points", traj->getWayPointCount());
+        ROS_INFO("  Planning Time: %0.3f seconds", res_msg.planning_time);
+        ROS_INFO("  Error Code: %d (%s)", res_msg.error_code.val, to_string(res_msg.error_code).c_str());
+
         res.trajectory_ = traj;
-        res.planning_time_ = res_msg.motion_plan_response.planning_time;
-        res.error_code_ = res_msg.motion_plan_response.error_code;
+        res.planning_time_ = res_msg.planning_time;
+        res.error_code_ = res_msg.error_code;
     }
     return result;
 }
@@ -247,12 +318,12 @@ bool SBPLPlanningContext::initSBPL(std::string& why)
 }
 
 bool SBPLPlanningContext::translateRequest(
-    moveit_msgs::GetMotionPlan::Request& req)
+    moveit_msgs::MotionPlanRequest& req)
 {
     // TODO: translate goal position constraints into planning frame
     // TODO: translate goal orientation constraints into planning frame
 
-    req.motion_plan_request = getMotionPlanRequest();
+    req = getMotionPlanRequest();
     return true;
 }
 

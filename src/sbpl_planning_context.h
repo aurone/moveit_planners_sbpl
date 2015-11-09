@@ -8,6 +8,7 @@
 #include <moveit/macros/class_forward.h>
 #include <moveit/planning_interface/planning_interface.h>
 #include <moveit_msgs/OrientedBoundingBox.h>
+#include <moveit_msgs/MotionPlanRequest.h>
 #include <sbpl_arm_planner/sbpl_arm_planner_interface.h>
 
 #include "moveit_robot_model.h"
@@ -50,7 +51,7 @@ private:
     /// \return true if successful; false otherwise
     bool initSBPL(std::string& why);
 
-    bool translateRequest(moveit_msgs::GetMotionPlan::Request& req);
+    bool translateRequest(moveit_msgs::MotionPlanRequest& req);
 
     bool getPlanningFrameWorkspaceAABB(
         const moveit_msgs::WorkspaceParameters& workspace,
