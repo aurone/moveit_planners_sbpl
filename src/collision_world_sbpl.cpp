@@ -255,6 +255,7 @@ bool CollisionWorldSBPL::initialized() const
 
 void CollisionWorldSBPL::registerWorldCallback()
 {
+    ROS_INFO("Registering world observer callback");
     auto ocfn = boost::bind(&CollisionWorldSBPL::worldUpdate, this, _1, _2);
     m_observer_handle = getWorld()->addObserver(ocfn);
 }
@@ -264,6 +265,28 @@ void CollisionWorldSBPL::worldUpdate(
     World::Action action)
 {
     ROS_INFO("CollisionWorldSBPL::worldUpdate()");
+    if (action & World::ActionBits::UNINITIALIZED) {
+        ROS_INFO("  action: UNINITIALIZED");
+    }
+    else if (action & World::ActionBits::CREATE) {
+        ROS_INFO("  action: CREATE");
+    }
+    else if (action & World::ActionBits::DESTROY) {
+        ROS_INFO("  action: DESTROY");
+    }
+    else if (action & World::ActionBits::MOVE_SHAPE) {
+        ROS_INFO("  action: MOVE_SHAPE");
+    }
+    else if (action & World::ActionBits::ADD_SHAPE) {
+        ROS_INFO("  action: ADD_SHAPE");
+    }
+    else if (action & World::ActionBits::REMOVE_SHAPE)  {
+        ROS_INFO("  action: REMOVE_SHAPE");
+    }
+
+    ROS_INFO("  id: %s", object->id_.c_str());
+    ROS_INFO("  shapes: %zu", object->shapes_.size());
+    ROS_INFO("  shape_poses: %zu", object->shape_poses_.size());
 }
 
 bool CollisionWorldSBPL::checkDegenerateCollision(CollisionResult& res) const
