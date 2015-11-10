@@ -598,8 +598,68 @@ bool SBPLPlannerManager::xmlToString(
     }   break;
     case XmlRpc::XmlRpcValue::TypeArray:
     {
-        ROS_WARN("You should implement reading in arrays");
-        return false;
+        std::stringstream ss;
+        for (int i = 0; i < value.size(); ++i) {
+            XmlRpc::XmlRpcValue& arr_value = value[i];
+            switch (arr_value.getType()) {
+            case XmlRpc::XmlRpcValue::TypeBoolean:
+                ss << (bool)arr_value;
+                break;
+            case XmlRpc::XmlRpcValue::TypeInt:
+                ss << (int)arr_value;
+                break;
+            case XmlRpc::XmlRpcValue::TypeDouble:
+                ss << (double)arr_value;
+                break;
+            case XmlRpc::XmlRpcValue::TypeString:
+                ss << (std::string)arr_value;
+                break;
+            default:
+                ROS_ERROR("Unsupported array member type (%s)", xmlTypeToString(arr_value.getType()));
+                return false;
+            }
+
+            if (i != value.size() - 1) {
+                ss << ' ';
+            }
+        }
+        out = ss.str();
+        return true;
+    }   break;
+    case XmlRpc::XmlRpcValue::TypeStruct:
+    {
+        std::stringstream ss;
+        int i = 0;
+        for (auto it = value.begin(); it != value.end(); ++it) {
+            ss << it->first << ' ';
+            XmlRpc::XmlRpcValue& struct_value = it->second;
+            switch (struct_value.getType()) {
+            case XmlRpc::XmlRpcValue::TypeBoolean:
+                ss << (bool)struct_value;
+                break;
+            case XmlRpc::XmlRpcValue::TypeInt:
+                ss << (int)struct_value;
+                break;
+            case XmlRpc::XmlRpcValue::TypeDouble:
+                ss << (double)struct_value;
+                break;
+            case XmlRpc::XmlRpcValue::TypeString:
+                ss << (std::string)struct_value;
+                break;
+            default:
+                ROS_ERROR("Unsupported struct member type (%s)", xmlTypeToString(struct_value.getType()));
+                return false;
+            }
+
+            if (i != value.size() - 1) {
+                ss << ' ';
+            }
+
+            ++i;
+        }
+
+        out = ss.str();
+        return true;
     }   break;
     default:
         return false;
