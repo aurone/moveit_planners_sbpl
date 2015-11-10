@@ -10,10 +10,15 @@ namespace collision_detection {
 
 CollisionWorldSBPL::CollisionWorldSBPL() :
     CollisionWorld(),
+    m_sbpl_robot_model(nullptr),
+    m_urdf_string(),
+    m_group_name(),
+    m_cc_config(),
     m_dfield(),
     m_grid(),
     m_cspace(),
-    m_observer_handle()
+    m_observer_handle(),
+    m_updated_joint_variables()
 {
     // TODO: implement
     ROS_INFO("CollisionWorldSBPL()");
@@ -21,10 +26,14 @@ CollisionWorldSBPL::CollisionWorldSBPL() :
 
 CollisionWorldSBPL::CollisionWorldSBPL(const WorldPtr& world) :
     CollisionWorld(world),
+    m_urdf_string(),
+    m_group_name(),
+    m_cc_config(),
     m_dfield(),
     m_grid(),
     m_cspace(),
-    m_observer_handle()
+    m_observer_handle(),
+    m_updated_joint_variables()
 {
     // TODO: implement
     ROS_INFO("CollisionWorldSBPL(const WorldPtr&)");
@@ -37,10 +46,14 @@ CollisionWorldSBPL::CollisionWorldSBPL(
     const WorldPtr& world)
 :
     CollisionWorld(other, world),
+    m_urdf_string(),
+    m_group_name(),
+    m_cc_config(),
     m_dfield(),
     m_grid(),
     m_cspace(),
-    m_observer_handle()
+    m_observer_handle(),
+    m_updated_joint_variables()
 {
     // TODO: implement
     ROS_INFO("CollisionWorldSBPL(CollisionWorldSBPL&, const WorldPtr&)");
@@ -76,7 +89,7 @@ void CollisionWorldSBPL::checkRobotCollision(
     const robot_state::RobotState& state,
     const AllowedCollisionMatrix& acm) const
 {
-    ROS_INFO("checkRobotCollision(req, res, robot, state, acm)");
+//    ROS_INFO("checkRobotCollision(req, res, robot, state, acm)");
 
     if (checkDegenerateCollision(res)) {
         return;
@@ -262,21 +275,12 @@ bool CollisionWorldSBPL::init(
     m_cspace.reset(new sbpl::collision::SBPLCollisionSpace(m_grid.get()));
 
     ROS_INFO("Initializing collision space");
-    if (m_cspace->init(urdf_string, group_name, config)) {
-        ROS_INFO("Successfully initialized collision space");
-
-        // update collision model to the current state of the world
-
-        addWorldToCollisionSpace(*curr_world);
-
-        // save these parameters for reinitialization if the world changes
-        m_sbpl_robot_model = sbpl_robot_model;
-        m_urdf_string = urdf_string;
-        m_group_name = group_name;
-        m_cc_config = config;
-        return true;
-    }
-    else {
+    if (!m_cspace->init(
+            urdf_string,
+            group_name,
+            config,
+            sbpl_robot_model->planningVariableNames()))
+    {
         ROS_ERROR("Failed to initialize collision space");
         // reset data structures from above
         m_cspace.reset();
@@ -284,6 +288,23 @@ bool CollisionWorldSBPL::init(
         m_dfield.reset();
         return false;
     }
+
+    ROS_INFO("Successfully initialized collision space");
+
+    // update collision model to the current state of the world
+
+    ROS_INFO("Adding world to collision space");
+
+    addWorldToCollisionSpace(*curr_world);
+
+    ROS_INFO("Added world to collision space");
+
+    // save these parameters for reinitialization if the world changes
+    m_sbpl_robot_model = sbpl_robot_model;
+    m_urdf_string = urdf_string;
+    m_group_name = group_name;
+    m_cc_config = config;
+    return true;
 }
 
 bool CollisionWorldSBPL::initialized() const
@@ -528,13 +549,26 @@ void CollisionWorldSBPL::updateCollisionSpaceJointState(
 {
     // first update => need to update everything
     if (m_updated_joint_variables.size() != state.getVariableCount()) {
+        ROS_INFO("Initializing collision space joint state");
+
         m_updated_joint_variables.resize(state.getVariableCount());
         for (size_t vind = 0; vind < state.getVariableCount(); ++vind) {
             const std::string& variable_name = state.getVariableNames()[vind];
             double variable_position = state.getVariablePositions()[vind];
             m_updated_joint_variables[vind] = variable_position;
+            ROS_INFO("Syncing joint variable '%s'", variable_name.c_str());
             m_cspace->setJointPosition(variable_name, variable_position);
         }
+
+        // set the order of joints
+        int av_count = m_sbpl_robot_model->activeVariableCount();
+        std::vector<double> planning_variables(av_count);
+        for (int avind = 0; avind < av_count; ++avind) {
+            int vind = m_sbpl_robot_model->activeVariableIndices()[avind];
+            planning_variables[avind] = state.getVariablePositions()[vind];
+        }
+
+        ROS_INFO("Collision space joint state initialized");
         return;
     }
 
@@ -568,7 +602,6 @@ void CollisionWorldSBPL::checkRobotCollisionMutable(
 {
     updateCollisionSpaceJointState(state);
 
-    // TODO: grab the planning joints
     int av_count = m_sbpl_robot_model->activeVariableCount();
     std::vector<double> planning_variables(av_count);
     for (int avind = 0; avind < av_count; ++avind) {
