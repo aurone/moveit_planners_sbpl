@@ -212,7 +212,7 @@ bool SBPLPlanningContext::initSBPL(std::string& why)
     for (size_t vind = 0; vind < m_robot_model->activeVariableCount(); ++vind) {
         std::vector<double> mprim(m_robot_model->activeVariableCount(), 0.0);
         mprim[vind] = 1.0;
-        m_action_set.addMotionPrim(mprim, true, true);
+        m_action_set.addMotionPrim(mprim, true, false);
     }
 
     /////////////////////////////////
