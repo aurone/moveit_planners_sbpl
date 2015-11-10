@@ -8,11 +8,27 @@
 
 #include <sbpl_collision_checking/sbpl_collision_space.h>
 
+namespace sbpl_interface {
+class MoveItRobotModel;
+} // namespace sbpl_interface
+
 namespace collision_detection {
 
 class CollisionWorldSBPL : public CollisionWorld
 {
 public:
+
+    struct CollisionWorldConfig
+    {
+        double size_x;
+        double size_y;
+        double size_z;
+        double origin_x;
+        double origin_y;
+        double origin_z;
+        double res_m;
+        double max_distance_m;
+    };
 
     CollisionWorldSBPL();
     CollisionWorldSBPL(const WorldPtr& world);
@@ -77,12 +93,15 @@ public:
     virtual void setWorld(const WorldPtr& world);
 
     bool init(
+        const sbpl_interface::MoveItRobotModel* sbpl_robot_model,
+        const CollisionWorldConfig& collision_world_config,
         const std::string& urdf_string,
         const std::string& group_name,
         const sbpl::collision::CollisionModelConfig& config);
 
 private:
 
+    const sbpl_interface::MoveItRobotModel* m_sbpl_robot_model;
     std::string m_urdf_string;
     std::string m_group_name;
     sbpl::collision::CollisionModelConfig m_cc_config;
@@ -92,6 +111,8 @@ private:
     std::unique_ptr<sbpl::collision::SBPLCollisionSpace> m_cspace;
 
     World::ObserverHandle m_observer_handle;
+
+    std::vector<double> m_updated_joint_variables;
 
     // returns whether the model has been initialized with a valid world; will
     // return true if there is no world, regardless of whether initialization
@@ -111,6 +132,38 @@ private:
 
     moveit_msgs::OrientedBoundingBox computeWorldAABB(const World& world) const;
     bool emptyBoundingBox(const moveit_msgs::OrientedBoundingBox& bb) const;
+
+    void addWorldToCollisionSpace(const World& world);
+
+    void updateCollisionSpaceJointState(const moveit::core::RobotState& state);
+
+    void checkRobotCollisionMutable(
+        const CollisionRequest& req,
+        CollisionResult& res,
+        const CollisionRobot& robot,
+        const robot_state::RobotState& state);
+
+    void checkRobotCollisionMutable(
+        const CollisionRequest& req,
+        CollisionResult& res,
+        const CollisionRobot& robot,
+        const robot_state::RobotState& state,
+        const AllowedCollisionMatrix& acm);
+
+    void checkRobotCollisionMutable(
+        const CollisionRequest& req,
+        CollisionResult& res,
+        const CollisionRobot& robot,
+        const robot_state::RobotState& state1,
+        const robot_state::RobotState& state2);
+
+    void checkRobotCollisionMutable(
+        const CollisionRequest& req,
+        CollisionResult& res,
+        const CollisionRobot& robot,
+        const robot_state::RobotState& state1,
+        const robot_state::RobotState& state2,
+        const AllowedCollisionMatrix& acm);
 };
 
 } // namespace collision_detection

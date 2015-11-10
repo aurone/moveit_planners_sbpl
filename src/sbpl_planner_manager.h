@@ -74,6 +74,7 @@ private:
 
     bool selectCollisionCheckerSBPL(
         planning_scene::PlanningScene& scene,
+        const MoveItRobotModel* sbpl_robot_model,
         const std::string& group_name);
 };
 

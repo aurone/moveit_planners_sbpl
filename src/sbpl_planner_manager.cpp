@@ -137,7 +137,9 @@ planning_interface::PlanningContextPtr SBPLPlannerManager::getPlanningContext(
     // set the correct collision checker
     if (use_sbpl_cc) {
         ROS_INFO("Using SBPL collision checker");
-        if (!mutable_me->selectCollisionCheckerSBPL(*diff_scene, req.group_name)) {
+        if (!mutable_me->selectCollisionCheckerSBPL(
+                *diff_scene, sbpl_model, req.group_name))
+        {
             ROS_WARN("No Collision Checker available for group '%s'", req.group_name.c_str());
             return context;
         }
@@ -242,8 +244,10 @@ void SBPLPlannerManager::logPlanningScene(
     if (scene.getWorld()) {
         ROS_INFO("    size:  %zu", scene.getWorld()->size());
         ROS_INFO("    Object IDs: %zu", scene.getWorld()->getObjectIds().size());
-        for (size_t oind; oind < scene.getWorld()->getObjectIds().size(); ++oind) {
-            const std::string& object_id = scene.getWorld()->getObjectIds()[oind];
+        for (auto oit = scene.getWorld()->begin();
+            oit != scene.getWorld()->end(); ++oit)
+        {
+            const std::string& object_id = oit->first;
             ROS_INFO("      %s", object_id.c_str());
         }
     }
@@ -633,6 +637,7 @@ MoveItRobotModel* SBPLPlannerManager::getModelForGroup(
 
 bool SBPLPlannerManager::selectCollisionCheckerSBPL(
     planning_scene::PlanningScene& scene,
+    const MoveItRobotModel* sbpl_robot_model,
     const std::string& group_name)
 {
     // check for a pre-existing collision detector for this group
@@ -663,6 +668,23 @@ bool SBPLPlannerManager::selectCollisionCheckerSBPL(
         return false;
     }
 
+    ros::NodeHandle nh(m_ns);
+    XmlRpc::XmlRpcValue collision_world_config_params;
+    if (!nh.getParam("collision_world", collision_world_config_params)) {
+        ROS_ERROR("Failed to retrieve 'collision_world' from the param server");
+        return false;
+    }
+
+    collision_detection::CollisionWorldSBPL::CollisionWorldConfig cw_cfg;
+    cw_cfg.size_x = collision_world_config_params["size_x"];
+    cw_cfg.size_y = collision_world_config_params["size_y"];
+    cw_cfg.size_z = collision_world_config_params["size_z"];
+    cw_cfg.origin_x = collision_world_config_params["origin_x"];
+    cw_cfg.origin_y = collision_world_config_params["origin_y"];
+    cw_cfg.origin_z = collision_world_config_params["origin_z"];
+    cw_cfg.res_m = collision_world_config_params["res_m"];
+    cw_cfg.max_distance_m = collision_world_config_params["max_distance_m"];
+
     std::string robot_description;
     if (!ros::NodeHandle().getParam("robot_description", robot_description)) {
         ROS_ERROR("Failed to retrieve parameter 'robot_description'");
@@ -675,7 +697,16 @@ bool SBPLPlannerManager::selectCollisionCheckerSBPL(
         return false;
     }
 
-    mutable_cworld->init(robot_description, group_name, config);
+    if (!mutable_cworld->init(
+        sbpl_robot_model,
+        cw_cfg,
+        robot_description,
+        group_name,
+        config))
+    {
+        ROS_ERROR("Failed to initialize Collision World SBPL");
+        return false;
+    }
 
     auto ent = m_cc_allocators.insert(std::make_pair(group_name, cc));
     assert(ent.second);
