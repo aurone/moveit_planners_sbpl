@@ -635,20 +635,25 @@ bool SBPLPlannerManager::selectCollisionCheckerSBPL(
     planning_scene::PlanningScene& scene,
     const std::string& group_name)
 {
+    // check for a pre-existing collision detector for this group
     auto it = m_cc_allocators.find(group_name);
     if (it != m_cc_allocators.end()) {
         scene.setActiveCollisionDetector(it->second, true);
         return true;
     }
 
+    // create a new collision detector
     auto cc = collision_detection::CollisionDetectorAllocatorSBPL::create();
     scene.setActiveCollisionDetector(cc, true);
 
+    // initialize the collision world (assumed to now be the sbpl collision
+    // world)
     collision_detection::CollisionWorldConstPtr cworld =
             scene.getCollisionWorld();
 
     const collision_detection::CollisionWorldSBPL* sbpl_cworld = 
-            dynamic_cast<const collision_detection::CollisionWorldSBPL*>(cworld.get());
+            dynamic_cast<const collision_detection::CollisionWorldSBPL*>(
+                    cworld.get());
 
     collision_detection::CollisionWorldSBPL* mutable_cworld = 
             const_cast<collision_detection::CollisionWorldSBPL*>(sbpl_cworld);
