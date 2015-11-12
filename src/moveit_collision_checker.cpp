@@ -101,6 +101,9 @@ bool MoveItCollisionChecker::isStateValid(
         return false;
     }
 
+    // TODO: WRONG! We need to use the start state as specified through the
+    // motion plan request here, which may differ from the current scene if
+    // modified by a planning request adapter
     robot_state::RobotState robot_state = m_scene->getCurrentState();
 
     // fill in variable values
