@@ -48,9 +48,10 @@ private:
 
     bool m_use_sbpl_cc;
 
+    // per-group sbpl robot model
     std::map<std::string, MoveItRobotModel> m_sbpl_models;
     
-    // per-group-sbpl-collision-allocators
+    // per-group sbpl collision allocators
     typedef collision_detection::CollisionDetectorAllocatorPtr
     CollisionCheckerAllocatorPtr;
     std::map<std::string, CollisionCheckerAllocatorPtr> m_cc_allocators;

@@ -96,6 +96,19 @@ bool SBPLPlanningContext::solve(planning_interface::MotionPlanResponse& res)
 {
     ROS_INFO("SBPLPlanningContext::solve()");
 
+    planning_scene::PlanningSceneConstPtr scene = getPlanningScene();
+    moveit::core::RobotModelConstPtr robot = scene->getRobotModel();
+    const planning_interface::MotionPlanRequest& req = getMotionPlanRequest();
+
+    if (req.goal_constraints.empty()) {
+        // :3
+        res.trajectory_.reset(
+                new robot_trajectory::RobotTrajectory(robot, getGroupName()));
+        res.planning_time_ = 0.0;
+        res.error_code_.val = moveit_msgs::MoveItErrorCodes::SUCCESS;
+        return true;
+    }
+
     std::string why;
     if (!initSBPL(why)) {
         ROS_WARN("Failed to initialize SBPL (%s)", why.c_str());
@@ -108,11 +121,9 @@ bool SBPLPlanningContext::solve(planning_interface::MotionPlanResponse& res)
 
     moveit_msgs::PlanningScenePtr scene_msg(new moveit_msgs::PlanningScene);
 
-    planning_scene::PlanningSceneConstPtr planning_scene = getPlanningScene();
-    assert(planning_scene.get()); // otherwise initialization would have failed
+    assert(scene.get()); // otherwise initialization would have failed
 
-    planning_scene->getPlanningSceneMsg(*scene_msg);
-    const planning_interface::MotionPlanRequest& req = getMotionPlanRequest();
+    scene->getPlanningSceneMsg(*scene_msg);
 
     moveit_msgs::MotionPlanRequest req_msg;
     if (!translateRequest(req_msg)) {
@@ -124,19 +135,17 @@ bool SBPLPlanningContext::solve(planning_interface::MotionPlanResponse& res)
     bool result = m_planner->solve(scene_msg, req_msg, res_msg);
     if (result) {
         ROS_INFO("Call to SBPLArmPlannerInterface::solve() succeeded");
-        moveit::core::RobotModelConstPtr robot_model =
-                planning_scene->getRobotModel();
 
-        moveit::core::RobotState ref_state(robot_model);
+        moveit::core::RobotState ref_state(robot);
         robot_state::RobotStatePtr start_state =
-                planning_scene->getCurrentStateUpdated(req.start_state);
+                scene->getCurrentStateUpdated(req.start_state);
 
         ROS_INFO("Creating RobotTrajectory from path with %zu joint trajectory points and %zu multi-dof joint trajectory points",
                     res_msg.trajectory.joint_trajectory.points.size(),
                     res_msg.trajectory.multi_dof_joint_trajectory.points.size());
         robot_trajectory::RobotTrajectoryPtr traj(
                 new robot_trajectory::RobotTrajectory(
-                        robot_model, getGroupName()));
+                        robot, getGroupName()));
         traj->setRobotTrajectoryMsg(
                 *start_state, res_msg.trajectory);
 
