@@ -813,6 +813,7 @@ bool SBPLPlannerManager::selectCollisionCheckerSBPL(
     }
 
     collision_detection::CollisionWorldSBPL::CollisionWorldConfig cw_cfg;
+    cw_cfg.world_frame =  scene.getPlanningFrame();
     cw_cfg.size_x = collision_world_config_params["size_x"];
     cw_cfg.size_y = collision_world_config_params["size_y"];
     cw_cfg.size_z = collision_world_config_params["size_z"];

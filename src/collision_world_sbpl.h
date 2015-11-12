@@ -20,6 +20,7 @@ public:
 
     struct CollisionWorldConfig
     {
+        std::string world_frame;
         double size_x;
         double size_y;
         double size_z;
@@ -104,7 +105,8 @@ private:
     const sbpl_interface::MoveItRobotModel* m_sbpl_robot_model;
     std::string m_urdf_string;
     std::string m_group_name;
-    sbpl::collision::CollisionModelConfig m_cc_config;
+    sbpl::collision::CollisionModelConfig m_cm_config;
+    CollisionWorldConfig m_cw_config;
 
     std::unique_ptr<distance_field::PropagationDistanceField> m_dfield;
     std::unique_ptr<sbpl_arm_planner::OccupancyGrid> m_grid;

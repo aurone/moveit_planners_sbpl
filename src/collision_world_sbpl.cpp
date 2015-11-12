@@ -13,7 +13,8 @@ CollisionWorldSBPL::CollisionWorldSBPL() :
     m_sbpl_robot_model(nullptr),
     m_urdf_string(),
     m_group_name(),
-    m_cc_config(),
+    m_cm_config(),
+    m_cw_config(),
     m_dfield(),
     m_grid(),
     m_cspace(),
@@ -28,7 +29,8 @@ CollisionWorldSBPL::CollisionWorldSBPL(const WorldPtr& world) :
     CollisionWorld(world),
     m_urdf_string(),
     m_group_name(),
-    m_cc_config(),
+    m_cm_config(),
+    m_cw_config(),
     m_dfield(),
     m_grid(),
     m_cspace(),
@@ -48,7 +50,8 @@ CollisionWorldSBPL::CollisionWorldSBPL(
     CollisionWorld(other, world),
     m_urdf_string(),
     m_group_name(),
-    m_cc_config(),
+    m_cm_config(),
+    m_cw_config(),
     m_dfield(),
     m_grid(),
     m_cspace(),
@@ -278,6 +281,7 @@ bool CollisionWorldSBPL::init(
             false));
     ROS_INFO("  Constructing Occupancy Grid");
     m_grid.reset(new sbpl_arm_planner::OccupancyGrid(m_dfield.get()));
+    m_grid->setReferenceFrame(collision_world_config.world_frame);
     ROS_INFO("  Constructing Collision Space");
     m_cspace.reset(new sbpl::collision::SBPLCollisionSpace(m_grid.get()));
 
@@ -298,26 +302,37 @@ bool CollisionWorldSBPL::init(
 
     ROS_INFO("  Successfully initialized collision space");
 
-    // update collision model to the current state of the world
-
-    ROS_INFO("  Adding world to collision space");
-
-    addWorldToCollisionSpace(*curr_world);
-
-    ros::Publisher cspace_pub = ros::NodeHandle().advertise<visualization_msgs::MarkerArray>("occupied_voxels", 5);
-    ros::Duration(1.0).sleep();
-    visualization_msgs::MarkerArray occupied_voxels_markers =
-            m_cspace->getVisualization("occupied_voxels");
-    ROS_INFO("Publishing %zu visualizations of occupied_voxels", occupied_voxels_markers.markers.size());
-    cspace_pub.publish(occupied_voxels_markers);
-
-    ROS_INFO("  Added world to collision space");
-
-    // save these parameters for reinitialization if the world changes
+    // Save these parameters for reinitialization if the world changes.
+    // NOTE: must cache these parameters before adding the world to the
+    // collision space
     m_sbpl_robot_model = sbpl_robot_model;
     m_urdf_string = urdf_string;
     m_group_name = group_name;
-    m_cc_config = config;
+    m_cm_config = config;
+    m_cw_config = collision_world_config;
+
+    ROS_INFO("  Adding world to collision space");
+    addWorldToCollisionSpace(*curr_world);
+    ROS_INFO("  Added world to collision space");
+
+    // publish collision world visualizations
+    ros::Publisher cspace_pub =
+            ros::NodeHandle().advertise<visualization_msgs::MarkerArray>(
+                    "occupied_voxels", 5);
+    ros::Duration(1.0).sleep();
+
+    visualization_msgs::MarkerArray markers;
+
+    ROS_INFO("Publishing visualization of occupied_voxels");
+    markers = m_cspace->getOccupiedVoxelsVisualization();
+    cspace_pub.publish(markers);
+
+    ros::Duration(1.0).sleep();
+
+    ROS_INFO("Publishing visualization of bounding box");
+    markers = m_cspace->getBoundingBoxVisualization();
+    cspace_pub.publish(markers);
+
     return true;
 }
 
@@ -473,9 +488,12 @@ void CollisionWorldSBPL::addWorldToCollisionSpace(const World& world)
         moveit_msgs::CollisionObject obj_msg;
         obj_msg.header.seq = 0;
         obj_msg.header.stamp = ros::Time(0);
-        // TODO: do we need to import the planning frame from the planning scene
-        // here?
-        obj_msg.header.frame_id = "planning_frame"; 
+
+        // TODO: safe to assume that the world frame will always be the world
+        // frame or should we try to transform things here somehow
+        obj_msg.header.frame_id = m_cw_config.world_frame;
+
+        obj_msg.id = name;
 
         assert(object.shape_poses_.size() == object.shapes_.size());
         for (size_t sind = 0; sind < object.shapes_.size(); ++sind) {
@@ -557,7 +575,7 @@ void CollisionWorldSBPL::addWorldToCollisionSpace(const World& world)
         }
 
         obj_msg.operation = moveit_msgs::CollisionObject::ADD;
-        m_cspace->processCollisionObjectMsg(obj_msg);
+        m_cspace->processCollisionObject(obj_msg);
     }
 }
 
