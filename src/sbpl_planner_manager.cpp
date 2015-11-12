@@ -1,6 +1,7 @@
 #include "sbpl_planner_manager.h"
 
 #include <moveit/planning_scene/planning_scene.h>
+#include <moveit/robot_state/conversions.h>
 
 #include "collision_detector_allocator_sbpl.h"
 #include "sbpl_planning_context.h"
@@ -98,6 +99,7 @@ planning_interface::PlanningContextPtr SBPLPlannerManager::getPlanningContext(
         return context;
     }
 
+    // create a child planning scene so we can set a different collision checker
     planning_scene::PlanningScenePtr diff_scene = planning_scene->diff();
 
     ///////////////////////////
@@ -185,27 +187,100 @@ bool SBPLPlannerManager::canServiceRequest(
 {
     ROS_INFO("SBPLPlannerManager::canServiceRequest()");
 
+    // TODO: Most of this is just duplicate of
+    // SBPLArmPlannerInterface::canServiceRequest. Can we make that static and
+    // just call that here?
+
+    if (req.allowed_planning_time < 0.0) {
+        ROS_WARN("allowed_planning_time must be non-negative");
+        return false;
+    }
+
+    // check for a configuration for the requested group
     auto pcit = getPlannerConfigurations().find(req.group_name);
     if (pcit == getPlannerConfigurations().end()) {
         ROS_WARN("No planner configuration found for group '%s'", req.group_name.c_str());
         return false;
     }
 
-    // TODO: check for existence of workspace parameters frame
-    // TODO: check for positive workspace volume
-    if (req.workspace_parameters.header.frame_id.empty()) {
-        ROS_WARN("SBPL planner requires explicit workspace");
+    std::vector<std::string> available_algs;
+    getPlanningAlgorithms(available_algs);
+    if (std::find(
+            available_algs.begin(), available_algs.end(), req.planner_id) ==
+                    available_algs.end())
+    {
+        ROS_WARN("SBPL planner does not support the '%s' algorithm", req.planner_id.c_str());
+        return false;
+    }
+
+    // guard against unsupported constraints
+
+    if (req.goal_constraints.size() > 1) {
+        ROS_WARN("SBPL planner does not currently support more than one goal constraint");
         return false;
     }
 
     for (const moveit_msgs::Constraints& constraints : req.goal_constraints) {
         if (!constraints.joint_constraints.empty()) {
+            ROS_WARN("SBPL planner does not currently support goal constraints on joint positions");
             return false;
         }
 
         if (!constraints.visibility_constraints.empty()) {
+            ROS_WARN("SBPL planner does not currently support goal constraints on visibility");
             return false;
         }
+
+        if (constraints.position_constraints.size() != 1 ||
+            constraints.orientation_constraints.size() != 1)
+        {
+            ROS_WARN("SBPL planner only supports goal constraints with exactly one position constraint and one orientation constraint");
+            return false;
+        }
+    }
+
+    if (!req.path_constraints.position_constraints.empty() ||
+        !req.path_constraints.orientation_constraints.empty() ||
+        !req.path_constraints.joint_constraints.empty() ||
+        !req.path_constraints.visibility_constraints.empty())
+    {
+        ROS_WARN("SBPL planner does not support path constraints");
+        return false;
+    }
+
+    if (!req.trajectory_constraints.constraints.empty()) {
+        ROS_WARN("SBPL planner does not support trajectory constraints");
+        return false;
+    }
+
+    // TODO: check start state for existence of state for our robot model
+
+    // TODO: check for existence of workspace parameters frame? Would this make
+    // this call tied to an explicit planning scene?
+    if (req.workspace_parameters.header.frame_id.empty()) {
+        ROS_WARN("SBPL planner requires workspace parameters to have a valid frame");
+        return false;
+    }
+
+    // check for positive workspace volume
+    const auto& min_corner = req.workspace_parameters.min_corner;
+    const auto& max_corner = req.workspace_parameters.max_corner;
+    if (min_corner.x > max_corner.x ||
+        min_corner.y > max_corner.y ||
+        min_corner.z > max_corner.z)
+    {
+        std::stringstream reasons;
+        if (min_corner.x > max_corner.x) {
+            reasons << "negative length";
+        }
+        if (min_corner.y > max_corner.y) {
+            reasons << (reasons.str().empty() ? "" : " ") << "negative width";
+        }
+        if (min_corner.z > max_corner.z) {
+            reasons << (reasons.str().empty() ? "" : " ") << "negative height";
+        }
+        ROS_WARN("SBPL planner requires valid workspace (%s)", reasons.str().c_str());
+        return false;
     }
 
     return true;
@@ -313,7 +388,7 @@ void SBPLPlannerManager::logMotionRequest(
         // position constraints
         ROS_INFO("    position_constraints: %zu", constraints.position_constraints.size());
         for (size_t pcind = 0; pcind < constraints.position_constraints.size(); ++pcind) {
-            const moveit_msgs::PositionConstraint pos_constraint = 
+            const moveit_msgs::PositionConstraint pos_constraint =
                     constraints.position_constraints[pcind];
             ROS_INFO("      header: { frame_id: %s, seq: %u, stamp: %0.3f }", pos_constraint.header.frame_id.c_str(), pos_constraint.header.seq, pos_constraint.header.stamp.toSec());
             ROS_INFO("      link_name: %s", pos_constraint.link_name.c_str());
@@ -360,7 +435,7 @@ void SBPLPlannerManager::logMotionRequest(
         ROS_INFO("    orientation_constraints: %zu", constraints.orientation_constraints.size());
         ROS_INFO("    visibility_constraints: %zu", constraints.visibility_constraints.size());
     }
-    
+
     ROS_INFO_STREAM("  planner_id: " << req.planner_id);
     ROS_INFO_STREAM("  group_name: " << req.group_name);
     ROS_INFO_STREAM("  num_planning_attempts: " << req.num_planning_attempts);
@@ -688,6 +763,8 @@ MoveItRobotModel* SBPLPlannerManager::getModelForGroup(
             ROS_WARN("SBPL Plugin does not currently support joint groups without a tip link");
             return nullptr;
         }
+
+        ROS_INFO("Created SBPL Robot Model for group '%s'", group_name.c_str());
         return sbpl_model;
     }
     else {
@@ -716,11 +793,11 @@ bool SBPLPlannerManager::selectCollisionCheckerSBPL(
     collision_detection::CollisionWorldConstPtr cworld =
             scene.getCollisionWorld();
 
-    const collision_detection::CollisionWorldSBPL* sbpl_cworld = 
+    const collision_detection::CollisionWorldSBPL* sbpl_cworld =
             dynamic_cast<const collision_detection::CollisionWorldSBPL*>(
                     cworld.get());
 
-    collision_detection::CollisionWorldSBPL* mutable_cworld = 
+    collision_detection::CollisionWorldSBPL* mutable_cworld =
             const_cast<collision_detection::CollisionWorldSBPL*>(sbpl_cworld);
 
     if (!mutable_cworld) {
