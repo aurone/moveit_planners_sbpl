@@ -222,12 +222,13 @@ bool CollisionWorldSBPL::init(
     const std::string& group_name,
     const sbpl::collision::CollisionModelConfig& config)
 {
+    ROS_INFO("Initializing Collision World SBPL");
+
     if (!m_urdf_string.empty()) {
         ROS_WARN("Collision World SBPL cannot be reinitialized");
         return false;
     }
 
-    ROS_INFO("CollisionWorldSBPL::init");
     WorldPtr curr_world = getWorld();
     if (!curr_world) {
         ROS_WARN("Collision World SBPL requires a World before initalization");
@@ -235,7 +236,11 @@ bool CollisionWorldSBPL::init(
     }
 
     // create distance field large enough to hold world
+    ROS_INFO("  Computing world bounding box");
     moveit_msgs::OrientedBoundingBox world_bb = computeWorldAABB(*curr_world);
+    ROS_INFO("  -> Bounding Box:");
+    ROS_INFO("     position: (%0.3f, %0.3f, %0.3f)", world_bb.pose.position.x, world_bb.pose.position.y, world_bb.pose.position.z);
+    ROS_INFO("     extents: (%0.3f, %0.3f, %0.3f)", world_bb.extents.x, world_bb.extents.y, world_bb.extents.z);
 
     // TODO: being outside the distance field considered valid? it probably
     // should be since there's no notion of a bounding box in the world. If
@@ -262,26 +267,28 @@ bool CollisionWorldSBPL::init(
     const double df_origin_y = collision_world_config.origin_y; //world_bb.pose.position.y;
     const double df_origin_z = collision_world_config.origin_z; //world_bb.pose.position.z;
 
-    ROS_INFO("Initializing distance field to size (%0.3f, %0.3f, %0.3f) at (%0.3f, %0.3f, %0.3f)", df_size_x, df_size_y, df_size_z, df_origin_x, df_origin_y, df_origin_z);
+    ROS_INFO("  Initializing Distance Field");
+    ROS_INFO("    size: (%0.3f, %0.3f, %0.3f)", df_size_x, df_size_y, df_size_z);
+    ROS_INFO("    origin: (%0.3f, %0.3f, %0.3f)", df_origin_x, df_origin_y, df_origin_z);
     m_dfield.reset(new distance_field::PropagationDistanceField(
             df_size_x, df_size_y, df_size_z,
             df_res_m,
             df_origin_x, df_origin_y, df_origin_z,
             df_max_distance,
             false));
-    ROS_INFO("Constructing Occupancy Grid");
+    ROS_INFO("  Constructing Occupancy Grid");
     m_grid.reset(new sbpl_arm_planner::OccupancyGrid(m_dfield.get()));
-    ROS_INFO("Constructing Collision Space");
+    ROS_INFO("  Constructing Collision Space");
     m_cspace.reset(new sbpl::collision::SBPLCollisionSpace(m_grid.get()));
 
-    ROS_INFO("Initializing collision space");
+    ROS_INFO("  Initializing Collision Space");
     if (!m_cspace->init(
             urdf_string,
             group_name,
             config,
             sbpl_robot_model->planningVariableNames()))
     {
-        ROS_ERROR("Failed to initialize collision space");
+        ROS_ERROR("  Failed to initialize collision space");
         // reset data structures from above
         m_cspace.reset();
         m_grid.reset();
@@ -289,15 +296,22 @@ bool CollisionWorldSBPL::init(
         return false;
     }
 
-    ROS_INFO("Successfully initialized collision space");
+    ROS_INFO("  Successfully initialized collision space");
 
     // update collision model to the current state of the world
 
-    ROS_INFO("Adding world to collision space");
+    ROS_INFO("  Adding world to collision space");
 
     addWorldToCollisionSpace(*curr_world);
 
-    ROS_INFO("Added world to collision space");
+    ros::Publisher cspace_pub = ros::NodeHandle().advertise<visualization_msgs::MarkerArray>("occupied_voxels", 5);
+    ros::Duration(1.0).sleep();
+    visualization_msgs::MarkerArray occupied_voxels_markers =
+            m_cspace->getVisualization("occupied_voxels");
+    ROS_INFO("Publishing %zu visualizations of occupied_voxels", occupied_voxels_markers.markers.size());
+    cspace_pub.publish(occupied_voxels_markers);
+
+    ROS_INFO("  Added world to collision space");
 
     // save these parameters for reinitialization if the world changes
     m_sbpl_robot_model = sbpl_robot_model;
@@ -455,23 +469,26 @@ void CollisionWorldSBPL::addWorldToCollisionSpace(const World& world)
         const std::string& name = oit->first;
         const World::Object& object = *oit->second;
 
-        // convert to moveit_msgs::CollisionObject
+        // convert to World::Object to moveit_msgs::CollisionObject
         moveit_msgs::CollisionObject obj_msg;
         obj_msg.header.seq = 0;
         obj_msg.header.stamp = ros::Time(0);
-        obj_msg.header.frame_id = "planning_frame";
+        // TODO: do we need to import the planning frame from the planning scene
+        // here?
+        obj_msg.header.frame_id = "planning_frame"; 
 
         assert(object.shape_poses_.size() == object.shapes_.size());
         for (size_t sind = 0; sind < object.shapes_.size(); ++sind) {
             const Eigen::Affine3d& shape_transform = object.shape_poses_[sind];
             const shapes::ShapeConstPtr& shape = object.shapes_[sind];
 
+            // convert shape to corresponding shape_msgs type
             switch (shape->type) {
             case shapes::UNKNOWN_SHAPE:
             {
                 ROS_WARN("Skipping shape of unknown type");
                 continue;
-            }
+            }   break;
             case shapes::SPHERE:
             {
                 const shapes::Sphere* sphere =
@@ -486,7 +503,7 @@ void CollisionWorldSBPL::addWorldToCollisionSpace(const World& world)
                 geometry_msgs::Pose pose;
                 tf::poseEigenToMsg(shape_transform, pose);
                 obj_msg.primitive_poses.push_back(pose);
-            }
+            }   break;
             case shapes::CYLINDER:
             {
                 const shapes::Cylinder* cylinder = 
@@ -502,11 +519,11 @@ void CollisionWorldSBPL::addWorldToCollisionSpace(const World& world)
                 geometry_msgs::Pose pose;
                 tf::poseEigenToMsg(shape_transform, pose);
                 obj_msg.primitive_poses.push_back(pose);
-            }
+            }   break;
             case shapes::CONE:
             {
-
-            }
+                ROS_ERROR("Unsupported object type: Cone");
+            }   break;
             case shapes::BOX:
             {
                 const shapes::Box* box = 
@@ -523,19 +540,19 @@ void CollisionWorldSBPL::addWorldToCollisionSpace(const World& world)
                 geometry_msgs::Pose pose;
                 tf::poseEigenToMsg(shape_transform, pose);
                 obj_msg.primitive_poses.push_back(pose);
-            }
+            }   break;
             case shapes::PLANE:
             {
-
-            }
+                ROS_ERROR("Unsupported object type: Plane");
+            }   break;
             case shapes::MESH:
             {
-
-            }
+                ROS_ERROR("Unsupported object type: Mesh");
+            }   break;
             case shapes::OCTREE:
             {
-
-            }
+                ROS_ERROR("Unsupported object type: OcTree");
+            }   break;
             }
         }
 
