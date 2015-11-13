@@ -150,7 +150,7 @@ planning_interface::PlanningContextPtr SBPLPlannerManager::getPlanningContext(
         ROS_INFO("Using default collision checker");
     }
 
-    logPlanningScene(*diff_scene);
+//    logPlanningScene(*diff_scene);
     logMotionRequest(req);
 
     SBPLPlanningContext* sbpl_context = new SBPLPlanningContext(
@@ -335,8 +335,8 @@ void SBPLPlannerManager::logPlanningScene(
         ROS_INFO("    %s: %0.3f", current_state.getVariableNames()[vind].c_str(), current_state.getVariablePosition(vind));
     }
 
-    ROS_INFO("Allowed collision matrix");
-    scene.getAllowedCollisionMatrix().print(std::cout);
+//    ROS_INFO("Allowed collision matrix");
+//    scene.getAllowedCollisionMatrix().print(std::cout);
 }
 
 void SBPLPlannerManager::logMotionRequest(
@@ -361,10 +361,19 @@ void SBPLPlannerManager::logMotionRequest(
     ROS_INFO("  start_state");
     ROS_INFO("    joint_state:");
     const sensor_msgs::JointState& joint_state = req.start_state.joint_state;
-    for (size_t jind = 0; jind < joint_state.name.size(); ++jind) {
-        ROS_INFO("      { name: %s, position: %0.3f }", joint_state.name[jind].c_str(), joint_state.position[jind]);
+    for (size_t jidx = 0; jidx < joint_state.name.size(); ++jidx) {
+        ROS_INFO("      { name: %s, position: %0.3f }", joint_state.name[jidx].c_str(), joint_state.position[jidx]);
     }
     ROS_INFO("    multi_dof_joint_state");
+    const sensor_msgs::MultiDOFJointState& multi_dof_joint_state = req.start_state.multi_dof_joint_state;
+    ROS_INFO("      header: { seq: %d, stamp: %0.3f, frame_id: %s }",
+            multi_dof_joint_state.header.seq,
+            multi_dof_joint_state.header.stamp.toSec(),
+            multi_dof_joint_state.header.frame_id.c_str());
+    for (size_t jidx = 0; jidx < multi_dof_joint_state.joint_names.size(); ++jidx) {
+        ROS_INFO("      { joint_names: %s, transform: }", multi_dof_joint_state.joint_names[jidx].c_str());
+    }
+
     ROS_INFO("    attached_collision_objects: %zu", req.start_state.attached_collision_objects.size());
     ROS_INFO("    is_diff: %s", req.start_state.is_diff ? "true" : "false");
 
