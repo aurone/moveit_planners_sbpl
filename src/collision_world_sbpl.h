@@ -116,6 +116,11 @@ private:
 
     std::vector<double> m_updated_joint_variables;
 
+    ros::NodeHandle m_nh;
+    ros::Publisher m_cspace_pub;
+
+    void construct();
+
     // returns whether the model has been initialized with a valid world; will
     // return true if there is no world, regardless of whether initialization
     // was attempted
@@ -166,6 +171,9 @@ private:
         const robot_state::RobotState& state1,
         const robot_state::RobotState& state2,
         const AllowedCollisionMatrix& acm);
+
+    std::vector<double> extractPlanningVariables(
+        const moveit::core::RobotState& state) const;
 };
 
 } // namespace collision_detection

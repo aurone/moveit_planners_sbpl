@@ -2,44 +2,26 @@
 
 #include <ros/ros.h>
 #include <geometric_shapes/shape_operations.h>
+#include <leatherman/print.h>
 #include <eigen_conversions/eigen_msg.h>
 
 #include "moveit_robot_model.h"
 
 namespace collision_detection {
 
-CollisionWorldSBPL::CollisionWorldSBPL() :
-    CollisionWorld(),
-    m_sbpl_robot_model(nullptr),
-    m_urdf_string(),
-    m_group_name(),
-    m_cm_config(),
-    m_cw_config(),
-    m_dfield(),
-    m_grid(),
-    m_cspace(),
-    m_observer_handle(),
-    m_updated_joint_variables()
+CollisionWorldSBPL::CollisionWorldSBPL() : CollisionWorld()
 {
     // TODO: implement
     ROS_INFO("CollisionWorldSBPL()");
+    construct();
 }
 
 CollisionWorldSBPL::CollisionWorldSBPL(const WorldPtr& world) :
-    CollisionWorld(world),
-    m_urdf_string(),
-    m_group_name(),
-    m_cm_config(),
-    m_cw_config(),
-    m_dfield(),
-    m_grid(),
-    m_cspace(),
-    m_observer_handle(),
-    m_updated_joint_variables()
+    CollisionWorld(world)
 {
     // TODO: implement
     ROS_INFO("CollisionWorldSBPL(const WorldPtr&)");
-
+    construct();
     registerWorldCallback();
 }
 
@@ -47,19 +29,11 @@ CollisionWorldSBPL::CollisionWorldSBPL(
     const CollisionWorldSBPL& other,
     const WorldPtr& world)
 :
-    CollisionWorld(other, world),
-    m_urdf_string(),
-    m_group_name(),
-    m_cm_config(),
-    m_cw_config(),
-    m_dfield(),
-    m_grid(),
-    m_cspace(),
-    m_observer_handle(),
-    m_updated_joint_variables()
+    CollisionWorld(other, world)
 {
     // TODO: implement
     ROS_INFO("CollisionWorldSBPL(CollisionWorldSBPL&, const WorldPtr&)");
+    construct();
     registerWorldCallback();
 }
 
@@ -316,24 +290,19 @@ bool CollisionWorldSBPL::init(
     ROS_INFO("  Added world to collision space");
 
     // publish collision world visualizations
-    ros::Publisher cspace_pub =
-            ros::NodeHandle().advertise<visualization_msgs::MarkerArray>(
-                    "occupied_voxels", 5);
-    ros::Duration(1.0).sleep();
-
-    visualization_msgs::MarkerArray markers;
-
-    ROS_INFO("Publishing visualization of occupied_voxels");
-    markers = m_cspace->getOccupiedVoxelsVisualization();
-    cspace_pub.publish(markers);
-
-    ros::Duration(1.0).sleep();
-
     ROS_INFO("Publishing visualization of bounding box");
+    visualization_msgs::MarkerArray markers;
     markers = m_cspace->getBoundingBoxVisualization();
-    cspace_pub.publish(markers);
+    m_cspace_pub.publish(markers);
 
     return true;
+}
+
+void CollisionWorldSBPL::construct()
+{
+    m_sbpl_robot_model = nullptr;
+    m_cspace_pub = m_nh.advertise<visualization_msgs::MarkerArray>(
+            "collision_space", 5);
 }
 
 bool CollisionWorldSBPL::initialized() const
@@ -595,13 +564,18 @@ void CollisionWorldSBPL::updateCollisionSpaceJointState(
             m_cspace->setJointPosition(variable_name, variable_position);
         }
 
-        // set the order of joints
-        int av_count = m_sbpl_robot_model->activeVariableCount();
-        std::vector<double> planning_variables(av_count);
-        for (int avind = 0; avind < av_count; ++avind) {
-            int vind = m_sbpl_robot_model->activeVariableIndices()[avind];
-            planning_variables[avind] = state.getVariablePositions()[vind];
-        }
+        m_cspace->updateVoxelGroups();
+
+        ROS_INFO("Publishing visualization of occupied_voxels");
+        visualization_msgs::MarkerArray markers;
+        markers = m_cspace->getOccupiedVoxelsVisualization();
+        m_cspace_pub.publish(markers);
+
+        ros::Duration(1.0).sleep();
+
+//        std::vector<double> pvars = extractPlanningVariables(state);
+//        markers = m_cspace->getCollisionModelVisualization(pvars);
+//        m_cspace_pub.publish(markers);
 
         ROS_INFO("Collision space joint state initialized");
         return;
@@ -625,7 +599,7 @@ void CollisionWorldSBPL::checkRobotCollisionMutable(
     const CollisionRobot& robot,
     const robot_state::RobotState& state)
 {
-
+    ROS_ERROR("checkRobotCollision(req, res, robot, state)");
 }
 
 void CollisionWorldSBPL::checkRobotCollisionMutable(
@@ -637,18 +611,17 @@ void CollisionWorldSBPL::checkRobotCollisionMutable(
 {
     updateCollisionSpaceJointState(state);
 
-    int av_count = m_sbpl_robot_model->activeVariableCount();
-    std::vector<double> planning_variables(av_count);
-    for (int avind = 0; avind < av_count; ++avind) {
-        int vind = m_sbpl_robot_model->activeVariableIndices()[avind];
-        planning_variables[avind] = state.getVariablePositions()[vind];
-    }
+    std::vector<double> pvars = extractPlanningVariables(state);
 
     double dist;
-    bool check_res = m_cspace->isStateValid(
-            planning_variables, req.verbose, false, dist);
+    bool check_res = m_cspace->isStateValid(pvars, req.verbose, false, dist);
+    if (!check_res) {
+//        ROS_INFO("State %s is invalid", to_string(pvars).c_str());
+//        auto markers = m_cspace->getCollisionModelVisualization(pvars);
+//        m_cspace_pub.publish(markers);
+    }
 
-    res.collision = check_res;
+    res.collision = !check_res;
     if (req.distance) {
         res.distance = dist;
     }
@@ -667,7 +640,7 @@ void CollisionWorldSBPL::checkRobotCollisionMutable(
     const robot_state::RobotState& state1,
     const robot_state::RobotState& state2)
 {
-
+    ROS_ERROR("checkRobotCollision(req, res, robot, state1, state2)");
 }
 
 void CollisionWorldSBPL::checkRobotCollisionMutable(
@@ -678,7 +651,20 @@ void CollisionWorldSBPL::checkRobotCollisionMutable(
     const robot_state::RobotState& state2,
     const AllowedCollisionMatrix& acm)
 {
+    ROS_ERROR("checkRobotCollision(req, res, robot, state1, state2, acm)");
+}
 
+std::vector<double> CollisionWorldSBPL::extractPlanningVariables(
+    const moveit::core::RobotState& state) const
+{
+    assert(m_sbpl_robot_model);
+    int av_count = m_sbpl_robot_model->activeVariableCount();
+    std::vector<double> pvars(av_count);
+    for (int avind = 0; avind < av_count; ++avind) {
+        int vind = m_sbpl_robot_model->activeVariableIndices()[avind];
+        pvars[avind] = state.getVariablePositions()[vind];
+    }
+    return pvars;
 }
 
 } // collision_detection
