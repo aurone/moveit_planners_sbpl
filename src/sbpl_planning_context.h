@@ -32,7 +32,7 @@ public:
     virtual bool terminate();
     virtual void clear();
 
-    void setPlannerConfiguration(const std::map<std::string, std::string>& config);
+    bool init(const std::map<std::string, std::string>& config);
 
 private:
 

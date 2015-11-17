@@ -173,7 +173,11 @@ planning_interface::PlanningContextPtr SBPLPlannerManager::getPlanningContext(
             }
         }
     }
-    sbpl_context->setPlannerConfiguration(all_params);
+    if (!sbpl_context->init(all_params)) {
+        ROS_ERROR("Failed to initialize SBPL Planning Context");
+        delete sbpl_context;
+        return context;
+    }
 
     sbpl_context->setPlanningScene(diff_scene);
     sbpl_context->setMotionPlanRequest(req);
@@ -299,6 +303,8 @@ void SBPLPlannerManager::setPlannerConfigurations(
             ROS_INFO("    %s: %s", e.first.c_str(), e.second.c_str());
         }
     }
+
+    // translate to SBPLPlanningContext::Params
 }
 
 void SBPLPlannerManager::terminate() const
@@ -488,7 +494,8 @@ bool SBPLPlannerManager::loadPlannerConfigurationMapping(
         "ik_mprim_dist_thresh",
         "use_rpy_snap_mprim",
         "use_multi_res_mprims",
-        "short_dist_mprims_thresh"
+        "short_dist_mprims_thresh",
+        "shortcut_path"
     };
 
     const std::vector<std::string>& joint_group_names =
@@ -496,11 +503,13 @@ bool SBPLPlannerManager::loadPlannerConfigurationMapping(
     for (size_t jind = 0; jind < joint_group_names.size(); ++jind) {
         const std::string& joint_group_name = joint_group_names[jind];
         if (!nh.hasParam(joint_group_name)) {
-            ROS_WARN("No planning configuration for joint group '%s'", joint_group_name.c_str());
+            ROS_WARN("No planning configuration for joint group '%s'",
+                    joint_group_name.c_str());
             continue;
         }
 
-        ROS_INFO("Reading configuration for joint group '%s'", joint_group_name.c_str());
+        ROS_INFO("Reading configuration for joint group '%s'",
+                joint_group_name.c_str());
 
         XmlRpc::XmlRpcValue joint_group_cfg;
         if (!nh.getParam(joint_group_name, joint_group_cfg)) {
@@ -509,19 +518,21 @@ bool SBPLPlannerManager::loadPlannerConfigurationMapping(
         }
 
         if (joint_group_cfg.getType() != XmlRpc::XmlRpcValue::TypeStruct) {
-            ROS_ERROR("'<joint_group> should be a map of parameter names to parameter values");
+            ROS_ERROR("'%s' should be a map of parameter names to parameter values",
+                    joint_group_name.c_str());
             return false;
         }
 
         ROS_INFO("Creating (group, planner) configurations");
 
-        if (joint_group_cfg.hasMember("planner_config")) {
+        if (joint_group_cfg.hasMember("planner_configs")) {
             XmlRpc::XmlRpcValue& group_planner_configs_cfg =
-                    joint_group_cfg["planner_config"];
+                    joint_group_cfg["planner_configs"];
             if (group_planner_configs_cfg.getType() !=
                 XmlRpc::XmlRpcValue::TypeArray)
             {
-                ROS_ERROR("'planner_configs' should be an array of strings");
+                ROS_ERROR("'planner_configs' should be an array of strings (actual: %s)",
+                        xmlTypeToString(group_planner_configs_cfg.getType()));
                 return false;
             }
 
@@ -534,7 +545,7 @@ bool SBPLPlannerManager::loadPlannerConfigurationMapping(
                 if (group_planner_config.getType() !=
                     XmlRpc::XmlRpcValue::TypeString)
                 {
-                    ROS_ERROR("'planner_configs' should be an array of strings");
+                    ROS_ERROR("group planner config should be the name of a planner config");
                     return false;
                 }
 
@@ -543,7 +554,8 @@ bool SBPLPlannerManager::loadPlannerConfigurationMapping(
 
                 auto it = planner_settings_map.find(planner_config_name);
                 if (it == planner_settings_map.end()) {
-                    ROS_WARN("No planner settings exist for configuration '%s'", planner_config_name.c_str());
+                    ROS_WARN("No planner settings exist for configuration '%s'",
+                            planner_config_name.c_str());
                 }
                 else {
                     // create a separate group of planner configuration settings for
@@ -568,18 +580,21 @@ bool SBPLPlannerManager::loadPlannerConfigurationMapping(
         {
             const char* param_name = known_group_param_names[pind];
             if (!joint_group_cfg.hasMember(param_name)) {
-                ROS_WARN("Group '%s' lacks parameter '%s'", joint_group_name.c_str(), param_name);
+                ROS_WARN("Group '%s' lacks parameter '%s'",
+                        joint_group_name.c_str(), param_name);
                 found_all = false;
                 break;
             }
 
-            ROS_INFO("Converting parameter '%s' to string representation", param_name);
+            ROS_INFO("Converting parameter '%s' to string representation",
+                    param_name);
             XmlRpc::XmlRpcValue& param = joint_group_cfg[param_name];
             if (!xmlToString(param, known_settings[param_name])) {
                 ROS_ERROR("Unsupported parameter type");
             }
             else {
-                ROS_INFO("Converted parameter to '%s'", known_settings[param_name].c_str());
+                ROS_INFO("Converted parameter to '%s'",
+                        known_settings[param_name].c_str());
             }
         }
 

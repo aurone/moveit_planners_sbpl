@@ -186,10 +186,58 @@ void SBPLPlanningContext::clear()
     ROS_INFO("SBPLPlanningContext::clear()");
 }
 
-void SBPLPlanningContext::setPlannerConfiguration(
-    const std::map<std::string, std::string>& config)
+bool SBPLPlanningContext::init(const std::map<std::string, std::string>& config)
 {
+    // check for required parameters
+    const std::vector<std::string>& required_params =
+    {
+        // environment
+        "discretization",
+
+        // action set
+        "mprim_filename",
+        "use_xyzrpy_snap_mprim",
+        "use_xyz_snap_mprim",
+        "ik_mprim_dist_thresh",
+        "use_rpy_snap_mprim",
+        "use_multi_res_mprims",
+        "short_dist_mprims_thresh",
+
+        "use_bfs_heuristic",
+
+        // planner
+        "type",
+        "epsilon",
+
+        // post-processing
+        "shortcut_path"
+    };
+
+    for (const std::string& req_param : required_params) {
+        if (config.find(req_param) == config.end()) {
+            ROS_ERROR("Missing parameter '%s'", req_param.c_str());
+            return false;
+        }
+    }
+
+    // check for conditionally-required parameters
+    const std::vector<std::string>& bfs_required_params =
+    {
+        "bfs_res_x",
+        "bfs_res_y",
+        "bfs_res_z",
+    };
+    if (config.at("use_bfs_heuristic") == "true") {
+        for (const std::string& req_param : bfs_required_params) {
+            if (config.find(req_param) == config.end()) {
+                ROS_ERROR("Missing parameter '%s'", req_param.c_str());
+                return false;
+            }
+        }
+    }
+
     m_config = config;
+    return true;
 }
 
 bool SBPLPlanningContext::initSBPL(std::string& why)
