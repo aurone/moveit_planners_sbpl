@@ -7,7 +7,7 @@
 #include <sbpl_arm_planner/sbpl_arm_planner_interface.h>
 #include <sbpl_manipulation_components/motion_primitive.h>
 
-namespace sbpl_interface {
+namespace moveit_msgs {
 
 static std::string to_string(moveit_msgs::MoveItErrorCodes code)
 {
@@ -71,6 +71,10 @@ static std::string to_string(moveit_msgs::MoveItErrorCodes code)
         return "UNRECOGNIZED";
     }
 }
+
+} // namespace moveit_msgs
+
+namespace sbpl_interface {
 
 SBPLPlanningContext::SBPLPlanningContext(
     MoveItRobotModel* robot_model,
@@ -253,7 +257,8 @@ bool SBPLPlanningContext::init(const std::map<std::string, std::string>& config)
     double xyz_snap_thresh = config.at("xyz_snap_dist_thresh") == "true";
     double rpy_snap_thresh = config.at("rpy_snap_dist_thresh") == "true";
     double xyzrpy_snap_thresh = config.at("xyzrpy_snap_dist_thresh") == "true";
-    double short_dist_mprims_thresh = config.at("short_dist_mprims_thresh") == "true";
+    double short_dist_mprims_thresh =
+            config.at("short_dist_mprims_thresh") == "true";
 
     bool shortcut_path = config.at("shortcut_path") == "true";
 
@@ -291,15 +296,41 @@ bool SBPLPlanningContext::init(const std::map<std::string, std::string>& config)
     m_short_dist_mprims_thresh = short_dist_mprims_thresh;
     m_shortcut_path = shortcut_path;
 
-    m_action_set.useAmp(sbpl_arm_planner::MotionPrimitive::SNAP_TO_XYZ, use_xyz_snap_mprim);
-    m_action_set.useAmp(sbpl_arm_planner::MotionPrimitive::SNAP_TO_RPY, use_rpy_snap_mprim);
-    m_action_set.useAmp(sbpl_arm_planner::MotionPrimitive::SNAP_TO_XYZ_RPY, use_xyzrpy_snap_mprim);
-    m_action_set.useAmp(sbpl_arm_planner::MotionPrimitive::SHORT_DISTANCE, use_short_dist_mprims);
+    m_action_set.useAmp(
+            sbpl_arm_planner::MotionPrimitive::SNAP_TO_XYZ,
+            use_xyz_snap_mprim);
+    m_action_set.useAmp(
+            sbpl_arm_planner::MotionPrimitive::SNAP_TO_RPY,
+            use_rpy_snap_mprim);
+    m_action_set.useAmp(
+            sbpl_arm_planner::MotionPrimitive::SNAP_TO_XYZ_RPY,
+            use_xyzrpy_snap_mprim);
+    m_action_set.useAmp(
+            sbpl_arm_planner::MotionPrimitive::SHORT_DISTANCE,
+            use_short_dist_mprims);
 
-    m_action_set.ampThresh(sbpl_arm_planner::MotionPrimitive::SNAP_TO_XYZ, xyz_snap_thresh);
-    m_action_set.ampThresh(sbpl_arm_planner::MotionPrimitive::SNAP_TO_RPY, rpy_snap_thresh);
-    m_action_set.ampThresh(sbpl_arm_planner::MotionPrimitive::SNAP_TO_XYZ_RPY, xyzrpy_snap_thresh);
-    m_action_set.ampThresh(sbpl_arm_planner::MotionPrimitive::SHORT_DISTANCE, short_dist_mprims_thresh);
+    m_action_set.ampThresh(
+            sbpl_arm_planner::MotionPrimitive::SNAP_TO_XYZ,
+            xyz_snap_thresh);
+    m_action_set.ampThresh(
+            sbpl_arm_planner::MotionPrimitive::SNAP_TO_RPY,
+            rpy_snap_thresh);
+    m_action_set.ampThresh(
+            sbpl_arm_planner::MotionPrimitive::SNAP_TO_XYZ_RPY,
+            xyzrpy_snap_thresh);
+    m_action_set.ampThresh(
+            sbpl_arm_planner::MotionPrimitive::SHORT_DISTANCE,
+            short_dist_mprims_thresh);
+
+    ROS_INFO("Action Set:");
+    for (auto ait = m_action_set.begin(); ait != m_action_set.end(); ++ait) {
+        ROS_INFO("  type: %s", to_string(ait->type).c_str());
+        if (ait->type == sbpl_arm_planner::MotionPrimitive::LONG_DISTANCE ||
+            ait->type == sbpl_arm_planner::MotionPrimitive::SHORT_DISTANCE)
+        {
+            ROS_INFO("    action: %s", to_string(ait->action).c_str());
+        }
+    }
 
     return true;
 }
