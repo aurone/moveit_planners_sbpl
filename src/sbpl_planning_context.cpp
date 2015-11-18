@@ -412,20 +412,25 @@ bool SBPLPlanningContext::initSBPL(std::string& why)
 
     sbpl_arm_planner::PlanningParams params;
 
-//    std::vector<int> discretization(m_robot_model->activeVariableCount(), 1);
-//    std::vector<double> deltas(m_robot_model->activeVariableCount());
-//    for (size_t vind = 0; vind < deltas.size(); ++vind) {
-//        deltas[vind] = (double)discretization[vind] / (2.0 * M_PI);
-//    }
+    // number of discretizations in a circle
+    std::vector<int> discretization(m_robot_model->activeVariableCount());
+    for (size_t vind = 0; vind < discretization.size(); ++vind) {
+        const std::string& vname = m_robot_model->planningVariableNames()[vind];
+        auto dit = m_disc.find(vname);
+        if (dit == m_disc.end()) {
+            ROS_ERROR("Discretization for variable '%s' not available in config", vname.c_str());
+            return false;
+        }
+        discretization[vind] = (int)round((2.0 * M_PI) / dit->second);
+    }
 
-    std::vector<int> discretization(m_robot_model->activeVariableCount(), 360);
     std::vector<double> deltas(m_robot_model->activeVariableCount());
     for (size_t vind = 0; vind < deltas.size(); ++vind) {
         deltas[vind] = (2.0 * M_PI) / (double)discretization[vind];
     }
 
-    ROS_INFO("Discretization: %s", leatherman::vectorToString(discretization).c_str());
-    ROS_INFO("Deltas: %s", leatherman::vectorToString(deltas).c_str());
+    ROS_INFO("Discretization: %s", to_string(discretization).c_str());
+    ROS_INFO("Deltas: %s", to_string(deltas).c_str());
 
     params.num_joints_ = m_robot_model->activeVariableCount();
     params.planning_frame_ = m_robot_model->planningFrame();
