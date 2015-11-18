@@ -86,8 +86,8 @@ bool MoveItRobotModel::init(
             m_active_var_indices.push_back(robot_model->getVariableIndex(var_name));
         }
     }
-    ROS_INFO("Active Variable Names: %s", leatherman::vectorToString(m_active_var_names).c_str());
-    ROS_INFO("Active Variable Indices: %s", leatherman::vectorToString(m_active_var_indices).c_str());
+    ROS_INFO("Active Variable Names: %s", to_string(m_active_var_names).c_str());
+    ROS_INFO("Active Variable Indices: %s", to_string(m_active_var_indices).c_str());
 
     // cache the names of all planning joint variables
     std::vector<std::string> planning_joints;
@@ -97,7 +97,7 @@ bool MoveItRobotModel::init(
         planning_joints.push_back(joint->getName());
     }
     setPlanningJoints(planning_joints);
-    ROS_INFO("Planning Joints: %s", leatherman::vectorToString(getPlanningJoints()).c_str());
+    ROS_INFO("Planning Joints: %s", to_string(getPlanningJoints()).c_str());
 
     // cache the limits and properties of all planning joint variables
     m_var_min_limits.reserve(m_active_var_count);
@@ -126,10 +126,10 @@ bool MoveItRobotModel::init(
         }
     }
 
-    ROS_INFO("Min Limits: %s", leatherman::vectorToString(m_var_min_limits).c_str());
-    ROS_INFO("Max Limits: %s", leatherman::vectorToString(m_var_max_limits).c_str());
-    ROS_INFO("Continuous: %s", leatherman::vectorToString(m_var_continuous).c_str());
-    ROS_INFO("Increments: %s", leatherman::vectorToString(m_var_incs).c_str());
+    ROS_INFO("Min Limits: %s", to_string(m_var_min_limits).c_str());
+    ROS_INFO("Max Limits: %s", to_string(m_var_max_limits).c_str());
+    ROS_INFO("Continuous: %s", to_string(m_var_continuous).c_str());
+    ROS_INFO("Increments: %s", to_string(m_var_incs).c_str());
 
     // identify a tip link to use for forward and inverse kinematics
     if (m_joint_group->isChain()) {

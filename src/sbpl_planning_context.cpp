@@ -1,11 +1,11 @@
 #include "sbpl_planning_context.h"
 
-#include <sbpl_arm_planner/sbpl_arm_planner_interface.h>
-
 #include <leatherman/print.h>
 #include <moveit/planning_scene/planning_scene.h>
 #include <moveit_msgs/GetMotionPlan.h>
 #include <moveit_msgs/PlanningScene.h>
+#include <sbpl_arm_planner/sbpl_arm_planner_interface.h>
+#include <sbpl_manipulation_components/motion_primitive.h>
 
 namespace sbpl_interface {
 
@@ -188,6 +188,8 @@ void SBPLPlanningContext::clear()
 
 bool SBPLPlanningContext::init(const std::map<std::string, std::string>& config)
 {
+    ROS_INFO("Initializing SBPL Planning Context");
+
     // check for required parameters
     const std::vector<std::string>& required_params =
     {
@@ -196,11 +198,13 @@ bool SBPLPlanningContext::init(const std::map<std::string, std::string>& config)
 
         // action set
         "mprim_filename",
-        "use_xyzrpy_snap_mprim",
-        "use_xyz_snap_mprim",
-        "ik_mprim_dist_thresh",
         "use_rpy_snap_mprim",
-        "use_multi_res_mprims",
+        "use_xyz_snap_mprim",
+        "use_xyzrpy_snap_mprim",
+        "use_short_dist_mprims",
+        "xyz_snap_dist_thresh",
+        "rpy_snap_dist_thresh",
+        "xyzrpy_snap_dist_thresh",
         "short_dist_mprims_thresh",
 
         "use_bfs_heuristic",
@@ -236,7 +240,67 @@ bool SBPLPlanningContext::init(const std::map<std::string, std::string>& config)
         }
     }
 
+    ROS_INFO(" -> Required Parameters Found");
+
+    // parse parameters and check validity
+
+    std::map<std::string, double> disc;
+
+    bool use_xyz_snap_mprim = config.at("use_xyz_snap_mprim") == "true";
+    bool use_rpy_snap_mprim = config.at("use_rpy_snap_mprim") == "true";
+    bool use_xyzrpy_snap_mprim = config.at("use_xyzrpy_snap_mprim") == "true";
+    bool use_short_dist_mprims = config.at("use_short_dist_mprims") == "true";
+    double xyz_snap_thresh = config.at("xyz_snap_dist_thresh") == "true";
+    double rpy_snap_thresh = config.at("rpy_snap_dist_thresh") == "true";
+    double xyzrpy_snap_thresh = config.at("xyzrpy_snap_dist_thresh") == "true";
+    double short_dist_mprims_thresh = config.at("short_dist_mprims_thresh") == "true";
+
+    bool shortcut_path = config.at("shortcut_path") == "true";
+
+    // check that we have discretization
+    std::stringstream ss(config.at("discretization"));
+    std::string joint;
+    double jres;
+    while (ss >> joint >> jres) {
+        disc.insert(std::make_pair(joint, jres));
+    }
+
+    ROS_INFO("Parsed discretization for %zu joints", disc.size());
+
+    // TODO: check that we have discretization for all active planning variables
+
+    const std::string& action_filename = config.at("mprim_filename");
+
+    sbpl_arm_planner::ActionSet as;
+    if (!sbpl_arm_planner::ActionSet::Load(action_filename, as)) {
+        ROS_ERROR("Failed to load action set from '%s'", action_filename.c_str());
+        return false;
+    }
+
     m_config = config;
+
+    m_disc = disc;
+    m_action_set = as;
+    m_use_xyz_snap_mprim = use_xyz_snap_mprim;
+    m_use_rpy_snap_mprim = use_rpy_snap_mprim;
+    m_use_xyzrpy_snap_mprim = use_xyzrpy_snap_mprim;
+    m_use_short_dist_mprims = use_short_dist_mprims;
+    m_xyz_snap_thresh = xyz_snap_thresh;
+    m_rpy_snap_thresh = rpy_snap_thresh;
+    m_xyzrpy_snap_thresh = xyzrpy_snap_thresh;
+    m_short_dist_mprims_thresh = short_dist_mprims_thresh;
+    m_shortcut_path = shortcut_path;
+
+    m_action_set.useAmp(sbpl_arm_planner::MotionPrimitive::SNAP_TO_XYZ, use_xyz_snap_mprim);
+    m_action_set.useAmp(sbpl_arm_planner::MotionPrimitive::SNAP_TO_RPY, use_rpy_snap_mprim);
+    m_action_set.useAmp(sbpl_arm_planner::MotionPrimitive::SNAP_TO_XYZ_RPY, use_xyzrpy_snap_mprim);
+    m_action_set.useAmp(sbpl_arm_planner::MotionPrimitive::SHORT_DISTANCE, use_short_dist_mprims);
+
+    m_action_set.ampThresh(sbpl_arm_planner::MotionPrimitive::SNAP_TO_XYZ, xyz_snap_thresh);
+    m_action_set.ampThresh(sbpl_arm_planner::MotionPrimitive::SNAP_TO_RPY, rpy_snap_thresh);
+    m_action_set.ampThresh(sbpl_arm_planner::MotionPrimitive::SNAP_TO_XYZ_RPY, xyzrpy_snap_thresh);
+    m_action_set.ampThresh(sbpl_arm_planner::MotionPrimitive::SHORT_DISTANCE, short_dist_mprims_thresh);
+
     return true;
 }
 
@@ -266,11 +330,11 @@ bool SBPLPlanningContext::initSBPL(std::string& why)
     // Action Set Initialization
     ///////////////////////////////
 
-    for (size_t vind = 0; vind < m_robot_model->activeVariableCount(); ++vind) {
-        std::vector<double> mprim(m_robot_model->activeVariableCount(), 0.0);
-        mprim[vind] = 1.0;
-        m_action_set.addMotionPrim(mprim, true, false);
-    }
+    // TODO: the motion primitive file currently must have joint variable
+    // changes specified in the active variable order...which the user may not
+    // know...fix that
+
+    // Action Set loaded upon initialization
 
     /////////////////////////////////
     // Distance Field Initalization
@@ -348,11 +412,18 @@ bool SBPLPlanningContext::initSBPL(std::string& why)
 
     sbpl_arm_planner::PlanningParams params;
 
-    std::vector<int> discretization(m_robot_model->activeVariableCount(), 1);
+//    std::vector<int> discretization(m_robot_model->activeVariableCount(), 1);
+//    std::vector<double> deltas(m_robot_model->activeVariableCount());
+//    for (size_t vind = 0; vind < deltas.size(); ++vind) {
+//        deltas[vind] = (double)discretization[vind] / (2.0 * M_PI);
+//    }
+
+    std::vector<int> discretization(m_robot_model->activeVariableCount(), 360);
     std::vector<double> deltas(m_robot_model->activeVariableCount());
     for (size_t vind = 0; vind < deltas.size(); ++vind) {
-        deltas[vind] = (double)discretization[vind] / (2.0 * M_PI);
+        deltas[vind] = (2.0 * M_PI) / (double)discretization[vind];
     }
+
     ROS_INFO("Discretization: %s", leatherman::vectorToString(discretization).c_str());
     ROS_INFO("Deltas: %s", leatherman::vectorToString(deltas).c_str());
 
@@ -365,6 +436,7 @@ bool SBPLPlanningContext::initSBPL(std::string& why)
     params.coord_delta_ = deltas;
     params.expands_log_level_ = "debug";
     params.expands2_log_level_ = "debug";
+    params.shortcut_path_ = m_shortcut_path;
 
     if (!m_planner->init(params)) {
         why = "Failed to initialize SBPL Arm Planner Interface";

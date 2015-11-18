@@ -42,21 +42,21 @@ SBPLPlannerManager::SBPLPlannerManager() :
     m_robot_model(),
     m_ns()
 {
-    ROS_INFO("Constructed SBPL Planner Manager");
+    ROS_DEBUG("Constructed SBPL Planner Manager");
 }
 
 SBPLPlannerManager::~SBPLPlannerManager()
 {
-    ROS_INFO("Destructed SBPL Planner Manager");
+    ROS_DEBUG("Destructed SBPL Planner Manager");
 }
 
 bool SBPLPlannerManager::initialize(
     const robot_model::RobotModelConstPtr& model,
     const std::string& ns)
 {
-    ROS_INFO("Initialized SBPL Planner Manager");
-    ROS_INFO_STREAM("  Robot Model: " << model->getName());
-    ROS_INFO_STREAM("  Namespace: " << ns);
+    ROS_INFO("Initializing SBPL Planner Manager");
+    ROS_INFO("  Robot Model: %s", model->getName().c_str());
+    ROS_INFO("  Namespace: %s", ns.c_str());
 
     m_robot_model = model;
     m_ns = ns;
@@ -66,6 +66,7 @@ bool SBPLPlannerManager::initialize(
         return false;
     }
 
+    ROS_INFO("Initialized SBPL Planner Manager");
     return true;
 }
 
@@ -85,7 +86,7 @@ planning_interface::PlanningContextPtr SBPLPlannerManager::getPlanningContext(
     const planning_interface::MotionPlanRequest& req,
     moveit_msgs::MoveItErrorCodes& error_code) const
 {
-    ROS_INFO("SBPLPlannerManager::getPlanningContext");
+    ROS_DEBUG("Getting SBPL Planning Context");
 
     planning_interface::PlanningContextPtr context;
 
@@ -189,7 +190,7 @@ planning_interface::PlanningContextPtr SBPLPlannerManager::getPlanningContext(
 bool SBPLPlannerManager::canServiceRequest(
     const planning_interface::MotionPlanRequest& req) const
 {
-    ROS_INFO("SBPLPlannerManager::canServiceRequest()");
+    ROS_DEBUG("SBPLPlannerManager::canServiceRequest()");
 
     // TODO: Most of this is just duplicate of
     // SBPLArmPlannerInterface::canServiceRequest. Can we make that static and
@@ -295,7 +296,6 @@ void SBPLPlannerManager::setPlannerConfigurations(
 {
     Base::setPlannerConfigurations(pcs);
 
-    ROS_INFO("SBPLPlannerManager::setPlannerConfigurations");
     ROS_INFO("Planner Configurations");
     for (const auto& entry : pcs) {
         ROS_INFO("  %s: { name: %s, group: %s }", entry.first.c_str(), entry.second.group.c_str(), entry.second.name.c_str());
@@ -473,7 +473,7 @@ bool SBPLPlannerManager::loadPlannerConfigurationMapping(
         return false;
     }
 
-    ROS_INFO("Successfully loaded planner settings");
+    ROS_DEBUG("Successfully loaded planner settings");
 
     // TODO: implement defaults for parameters
     const bool DefaultUseCollisionCheckingSBPL = true;
@@ -489,11 +489,13 @@ bool SBPLPlannerManager::loadPlannerConfigurationMapping(
         "use_sbpl_collision_checking",
         "discretization",
         "mprim_filename",
-        "use_xyzrpy_snap_mprim",
         "use_xyz_snap_mprim",
-        "ik_mprim_dist_thresh",
         "use_rpy_snap_mprim",
-        "use_multi_res_mprims",
+        "use_xyzrpy_snap_mprim",
+        "use_short_dist_mprims",
+        "xyz_snap_dist_thresh",
+        "rpy_snap_dist_thresh",
+        "xyzrpy_snap_dist_thresh",
         "short_dist_mprims_thresh",
         "shortcut_path"
     };
@@ -508,7 +510,7 @@ bool SBPLPlannerManager::loadPlannerConfigurationMapping(
             continue;
         }
 
-        ROS_INFO("Reading configuration for joint group '%s'",
+        ROS_DEBUG("Reading configuration for joint group '%s'",
                 joint_group_name.c_str());
 
         XmlRpc::XmlRpcValue joint_group_cfg;
@@ -523,7 +525,7 @@ bool SBPLPlannerManager::loadPlannerConfigurationMapping(
             return false;
         }
 
-        ROS_INFO("Creating (group, planner) configurations");
+        ROS_DEBUG("Creating (group, planner) configurations");
 
         if (joint_group_cfg.hasMember("planner_configs")) {
             XmlRpc::XmlRpcValue& group_planner_configs_cfg =
@@ -570,7 +572,7 @@ bool SBPLPlannerManager::loadPlannerConfigurationMapping(
             }
         }
 
-        ROS_INFO("Creating group configuration");
+        ROS_DEBUG("Creating group configuration");
 
         bool found_all = true;
         PlannerSettings known_settings;
@@ -586,14 +588,14 @@ bool SBPLPlannerManager::loadPlannerConfigurationMapping(
                 break;
             }
 
-            ROS_INFO("Converting parameter '%s' to string representation",
+            ROS_DEBUG("Converting parameter '%s' to string representation",
                     param_name);
             XmlRpc::XmlRpcValue& param = joint_group_cfg[param_name];
             if (!xmlToString(param, known_settings[param_name])) {
                 ROS_ERROR("Unsupported parameter type");
             }
             else {
-                ROS_INFO("Converted parameter to '%s'",
+                ROS_DEBUG("Converted parameter to '%s'",
                         known_settings[param_name].c_str());
             }
         }
@@ -641,7 +643,7 @@ bool SBPLPlannerManager::loadPlannerSettings(PlannerSettingsMap& out)
         const std::string& planner_config_name = it->first;
         XmlRpc::XmlRpcValue& planner_settings_cfg = it->second;
 
-        ROS_INFO("Reading configuration for '%s'", planner_config_name.c_str());
+        ROS_DEBUG("Reading configuration for '%s'", planner_config_name.c_str());
 
         if (planner_settings_cfg.getType() != XmlRpc::XmlRpcValue::TypeStruct) {
             ROS_ERROR("Planner configuration should be a map of parameter names to values");
@@ -655,7 +657,7 @@ bool SBPLPlannerManager::loadPlannerSettings(PlannerSettingsMap& out)
         {
             const std::string& planner_setting_name = iit->first;
             XmlRpc::XmlRpcValue& planner_setting = iit->second;
-            ROS_INFO("Reading value for parameter '%s'", planner_setting_name.c_str());
+            ROS_DEBUG("Reading value for parameter '%s'", planner_setting_name.c_str());
             if (!xmlToString(
                     planner_setting, planner_settings[planner_setting_name]))
             {

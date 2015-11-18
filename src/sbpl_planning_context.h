@@ -46,6 +46,17 @@ private:
 
     std::map<std::string, std::string> m_config;
 
+    std::map<std::string, double> m_disc;
+    bool m_use_xyz_snap_mprim;
+    bool m_use_rpy_snap_mprim;
+    bool m_use_xyzrpy_snap_mprim;
+    bool m_use_short_dist_mprims;
+    double m_xyz_snap_thresh;
+    double m_rpy_snap_thresh;
+    double m_xyzrpy_snap_thresh;
+    double m_short_dist_mprims_thresh;
+    bool m_shortcut_path;
+
     /// \brief Initialize SBPL constructs
     /// \param[out] Reason for failure if initialization is unsuccessful
     /// \return true if successful; false otherwise

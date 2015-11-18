@@ -560,7 +560,7 @@ void CollisionWorldSBPL::updateCollisionSpaceJointState(
             const std::string& variable_name = state.getVariableNames()[vind];
             double variable_position = state.getVariablePositions()[vind];
             m_updated_joint_variables[vind] = variable_position;
-            ROS_INFO("Syncing joint variable '%s'", variable_name.c_str());
+            ROS_DEBUG("Syncing joint variable '%s'", variable_name.c_str());
             m_cspace->setJointPosition(variable_name, variable_position);
         }
 
