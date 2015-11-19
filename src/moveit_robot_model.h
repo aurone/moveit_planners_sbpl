@@ -48,6 +48,9 @@ public:
     MoveItRobotModel();
     virtual ~MoveItRobotModel();
 
+    /// \name sbpl_arm_planner::RobotModel API Requirements
+    ///@{
+
     virtual bool checkJointLimits(const std::vector<double>& angles);
 
     virtual bool computeFK(
@@ -83,13 +86,23 @@ public:
 
     virtual void printRobotModelInformation();
 
+    ///@}
+
+    /// \brief Initialize the MoveItRobotModel for the given MoveIt! Robot Model
+    ///     and the group being planned for
     bool init(
         const moveit::core::RobotModelConstPtr& robot_model,
         const std::string& group_name);
 
     bool initialized() const;
 
+    /// \brief Set the Planning Scene
+    ///
+    /// The Planning Scene is required, in general, to transform the pose
+    /// computed by IK into the planning frame.
     bool setPlanningScene(const planning_scene::PlanningSceneConstPtr& state);
+
+    /// \brief Set the frame the planner accepts kinematics to be computed in
     bool setPlanningFrame(const std::string& planning_frame);
 
     const std::string& planningGroupName() const;
@@ -99,14 +112,23 @@ public:
 
     const moveit::core::LinkModel* planningTipLink() const;
 
+    /// \brief The names of the variables being planned for
     const std::vector<std::string>& planningVariableNames() const;
+
+    /// \brief The number of variables being planned for
     int activeVariableCount() const;
+
+    /// \brief Return the indices into the moveit::core::RobotState joint
+    ///     variable vector of the planning variables
     const std::vector<int>& activeVariableIndices() const;
 
+    /// \name Planning Joint Variable Properties
+    ///@{
     const std::vector<double>& variableMinLimits() const;
     const std::vector<double>& variableMaxLimits() const;
     const std::vector<double>& variableIncrements() const;
     const std::vector<bool>& variableContinuous() const;
+    ///@}
 
     moveit::core::RobotModelConstPtr moveitRobotModel() const;
 
