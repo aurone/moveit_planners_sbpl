@@ -36,6 +36,7 @@
 
 #include <moveit/planning_scene/planning_scene.h>
 #include <moveit/robot_model/robot_model.h>
+#include <moveit/robot_state/robot_state.h>
 #include <sbpl_manipulation_components/collision_checker.h>
 
 namespace sbpl_interface {
@@ -53,6 +54,7 @@ public:
 
     bool init(
         const MoveItRobotModel* robot_model,
+        const moveit::core::RobotState& ref_state,
         const planning_scene::PlanningSceneConstPtr& scene);
 
     bool initialized() const;
@@ -86,6 +88,8 @@ private:
     const MoveItRobotModel* m_robot_model;
 
     planning_scene::PlanningSceneConstPtr m_scene;
+
+    moveit::core::RobotStatePtr m_ref_state;
 };
 
 } // namespace sbpl_interface

@@ -2,6 +2,7 @@
 
 #include <leatherman/print.h>
 #include <moveit/planning_scene/planning_scene.h>
+#include <moveit/robot_state/conversions.h>
 #include <moveit_msgs/GetMotionPlan.h>
 #include <moveit_msgs/PlanningScene.h>
 #include <sbpl_arm_planner/sbpl_arm_planner_interface.h>
@@ -337,21 +338,29 @@ bool SBPLPlanningContext::init(const std::map<std::string, std::string>& config)
 
 bool SBPLPlanningContext::initSBPL(std::string& why)
 {
-    planning_scene::PlanningSceneConstPtr planning_scene = getPlanningScene();
-    if (!planning_scene) {
+    planning_scene::PlanningSceneConstPtr scene = getPlanningScene();
+    if (!scene) {
         why = "No Planning Scene available";
         return false;
     }
 
     const planning_interface::MotionPlanRequest& req = getMotionPlanRequest();
 
-    const std::string& planning_frame = planning_scene->getPlanningFrame();
+    const std::string& planning_frame = scene->getPlanningFrame();
 
     ////////////////////
     // Collision Model
     ////////////////////
 
-    if (!m_collision_checker.init(m_robot_model, planning_scene)) {
+    moveit::core::RobotModelConstPtr robot = scene->getRobotModel();
+    moveit::core::RobotState start_state(robot);
+
+    if (!moveit::core::robotStateMsgToRobotState(req.start_state, start_state)) {
+        why = "Failed to convert start state to reference state";
+        return false;
+    }
+
+    if (!m_collision_checker.init(m_robot_model, start_state, scene)) {
         why = "Failed to initialize sbpl Collision Checker "
                 "from Planning Scene and Robot Model";
         return false;
@@ -379,7 +388,7 @@ bool SBPLPlanningContext::initSBPL(std::string& why)
 
     moveit_msgs::OrientedBoundingBox workspace_aabb;
     getPlanningFrameWorkspaceAABB(
-            req.workspace_parameters, *planning_scene, workspace_aabb);
+            req.workspace_parameters, *scene, workspace_aabb);
 
     ROS_INFO("AABB of workspace in planning frame:");
     ROS_INFO("  pose:");

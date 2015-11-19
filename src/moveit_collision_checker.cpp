@@ -47,7 +47,8 @@ namespace sbpl_interface {
 MoveItCollisionChecker::MoveItCollisionChecker() :
     Base(),
     m_robot_model(nullptr),
-    m_scene()
+    m_scene(),
+    m_ref_state()
 {
 }
 
@@ -57,19 +58,44 @@ MoveItCollisionChecker::~MoveItCollisionChecker()
 
 bool MoveItCollisionChecker::init(
     const MoveItRobotModel* robot_model,
+    const moveit::core::RobotState& ref_state,
     const planning_scene::PlanningSceneConstPtr& scene)
 {
+    ROS_INFO("Initializing MoveIt! Collision Checker");
+
     if (!robot_model->initialized()) {
-        ROS_WARN("Failed to initialize MoveIt Collision Checker: MoveIt Robot Model must be initialized");
+        ROS_ERROR("Failed to initialize MoveIt Collision Checker: "
+                "MoveIt Robot Model must be initialized");
         return false;
     }
 
     if (!scene) {
-        ROS_WARN("Failed to initialize MoveIt Collision Checker: Planning Scene is null");
+        ROS_ERROR("Failed to initialize MoveIt Collision Checker: "
+                "Planning Scene is null");
+        return false;
+    }
+
+    if (robot_model->moveitRobotModel()->getName() !=
+        scene->getRobotModel()->getName())
+    {
+        ROS_ERROR("Failed to initialize MoveIt Collision Checker: "
+                "model is not the same between SBPL Robot Model and Planning Scene");
+        return false;
+    }
+
+    if (robot_model->moveitRobotModel()->getName() !=
+        ref_state.getRobotModel()->getName())
+    {
+        ROS_ERROR("Failed to initialize MoveIt Collision Checker: "
+                "model is not the same between SBPL Robot Model and reference state");
         return false;
     }
 
     m_robot_model = robot_model;
+
+    m_ref_state.reset(new moveit::core::RobotState(scene->getRobotModel()));
+    *m_ref_state = ref_state;
+
     m_scene = scene;
 
     // populate min_limits, max_limits, inc, and continuous
@@ -101,29 +127,24 @@ bool MoveItCollisionChecker::isStateValid(
         return false;
     }
 
-    // TODO: WRONG! We need to use the start state as specified through the
-    // motion plan request here, which may differ from the current scene if
-    // modified by a planning request adapter
-    robot_state::RobotState robot_state = m_scene->getCurrentState();
-
     // fill in variable values
     for (size_t vind = 0; vind < angles.size(); ++vind) {
-        robot_state.setVariablePosition(
+        m_ref_state->setVariablePosition(
                 m_robot_model->activeVariableIndices()[vind], angles[vind]);
     }
 
-    if (robot_state.dirty()) {
-        ROS_INFO_THROTTLE(1, "Robot state _is_ dirty?!");
-    }
-
-    robot_state.update();
+    // TODO: this isn't necessary for the sbpl collision checker...do we need
+    // this for FCL to function properly?
+//    if (m_ref_state->dirtyLinkTransforms()) {
+//        m_ref_state->updateLinkTransforms();
+//    }
 
     // TODO: need to propagate path_constraints and trajectory_constraints down
     // to this level from the planning context. Once those are propagated, this
     // call will need to be paired with an additional call to isStateConstrained
 
     if (!m_scene->isStateColliding(
-            robot_state, m_robot_model->planningGroupName(), verbose))
+            *m_ref_state, m_robot_model->planningGroupName(), verbose))
     {
         return true;
     }
