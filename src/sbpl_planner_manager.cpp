@@ -794,6 +794,7 @@ MoveItRobotModel* SBPLPlannerManager::getModelForGroup(
         return sbpl_model;
     }
     else {
+        ROS_INFO("Using existing SBPL Robot Model for group '%s'", group_name.c_str());
         return &it->second;
     }
 }
@@ -803,17 +804,34 @@ bool SBPLPlannerManager::selectCollisionCheckerSBPL(
     const MoveItRobotModel* sbpl_robot_model,
     const std::string& group_name)
 {
-    // check for a pre-existing collision detector for this group
     auto it = m_cc_allocators.find(group_name);
     if (it != m_cc_allocators.end()) {
+        // use pre-existing collision detector for this group
+        ROS_INFO("Using existing collision checker for group '%s'", group_name.c_str());
         scene.setActiveCollisionDetector(it->second, true);
-        return true;
+        return initializeCollisionWorld(scene, sbpl_robot_model, group_name);
     }
+    else {
+        // create a new collision detector for this group
+        ROS_INFO("Creating new Collision Checker for group '%s'", group_name.c_str());
+        auto cc = collision_detection::CollisionDetectorAllocatorSBPL::create();
+        scene.setActiveCollisionDetector(cc, true);
+        if (initializeCollisionWorld(scene, sbpl_robot_model, group_name)) {
+            auto ent = m_cc_allocators.insert(std::make_pair(group_name, cc));
+            assert(ent.second);
+            return true;
+        }
+        else {
+            return false;
+        }
+    }
+}
 
-    // create a new collision detector
-    auto cc = collision_detection::CollisionDetectorAllocatorSBPL::create();
-    scene.setActiveCollisionDetector(cc, true);
-
+bool SBPLPlannerManager::initializeCollisionWorld(
+    planning_scene::PlanningScene& scene,
+    const MoveItRobotModel* sbpl_robot_model,
+    const std::string& group_name)
+{
     // initialize the collision world (assumed to now be the sbpl collision
     // world)
     collision_detection::CollisionWorldConstPtr cworld =
@@ -872,8 +890,6 @@ bool SBPLPlannerManager::selectCollisionCheckerSBPL(
         return false;
     }
 
-    auto ent = m_cc_allocators.insert(std::make_pair(group_name, cc));
-    assert(ent.second);
     return true;
 }
 

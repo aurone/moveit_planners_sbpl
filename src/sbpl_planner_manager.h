@@ -77,6 +77,11 @@ private:
         planning_scene::PlanningScene& scene,
         const MoveItRobotModel* sbpl_robot_model,
         const std::string& group_name);
+
+    bool initializeCollisionWorld(
+        planning_scene::PlanningScene& scene,
+        const MoveItRobotModel* sbpl_robot_model,
+        const std::string& group_name);
 };
 
 MOVEIT_CLASS_FORWARD(SBPLPlannerManager);
