@@ -37,6 +37,9 @@ public:
 
     virtual ~CollisionWorldSBPL();
 
+    /// \name CollisionWorld API Requirements
+    ///@{
+
     virtual void checkRobotCollision(
         const CollisionRequest& req,
         CollisionResult& res,
@@ -93,12 +96,19 @@ public:
 
     virtual void setWorld(const WorldPtr& world);
 
+    ///@}
+
     bool init(
         const sbpl_interface::MoveItRobotModel* sbpl_robot_model,
         const CollisionWorldConfig& collision_world_config,
         const std::string& urdf_string,
         const std::string& group_name,
         const sbpl::collision::CollisionModelConfig& config);
+
+    // returns whether the model has been initialized with a valid world; will
+    // return true if there is no world, regardless of whether initialization
+    // was attempted
+    bool initialized() const;
 
 private:
 
@@ -120,11 +130,6 @@ private:
     ros::Publisher m_cspace_pub;
 
     void construct();
-
-    // returns whether the model has been initialized with a valid world; will
-    // return true if there is no world, regardless of whether initialization
-    // was attempted
-    bool initialized() const;
 
     void registerWorldCallback();
     void worldUpdate(const World::ObjectConstPtr& object, World::Action action);
