@@ -39,6 +39,7 @@ CollisionWorldSBPL::CollisionWorldSBPL(
 
 CollisionWorldSBPL::~CollisionWorldSBPL()
 {
+    ROS_INFO("~CollisionWorldSBPL");
 }
 
 void CollisionWorldSBPL::checkRobotCollision(
@@ -150,6 +151,7 @@ double CollisionWorldSBPL::distanceRobot(
     const CollisionRobot& robot,
     const robot_state::RobotState& state) const
 {
+    ROS_INFO("distanceRobot(robot, state)");
     // TODO: implement
     return -1.0;
 }
@@ -159,12 +161,14 @@ double CollisionWorldSBPL::distanceRobot(
     const robot_state::RobotState& state,
     const AllowedCollisionMatrix& acm) const
 {
+    ROS_INFO("distanceRobot(robot, state, acm)");
     // TODO: implement
     return -1.0;
 }
 
 double CollisionWorldSBPL::distanceWorld(const CollisionWorld& world) const
 {
+    ROS_INFO("distanceWorld(world)");
     // TODO: implement
     return -1.0;
 }
@@ -173,6 +177,7 @@ double CollisionWorldSBPL::distanceWorld(
     const CollisionWorld& world,
     const AllowedCollisionMatrix& acm) const
 {
+    ROS_INFO("distanceWrold(world, acm)");
     // TODO: implement
     return -1.0;
 }
@@ -351,11 +356,13 @@ void CollisionWorldSBPL::worldUpdate(
 bool CollisionWorldSBPL::checkDegenerateCollision(CollisionResult& res) const
 {
     if (!initialized()) {
+        ROS_ERROR_ONCE("Degenerate Collision: Uninitialized Collision World SBPL");
         setVacuousCollision(res);
         return true;
     }
 
     if (!getWorld()) {
+        ROS_ERROR_ONCE("Degenerate Collision: No World");
         clearAllCollisions(res);
         return true;
     }
@@ -614,12 +621,12 @@ void CollisionWorldSBPL::checkRobotCollisionMutable(
     std::vector<double> pvars = extractPlanningVariables(state);
 
     double dist;
-    bool check_res = m_cspace->isStateValid(pvars, req.verbose, false, dist);
-    if (!check_res) {
+    bool check_res = m_cspace->isStateValid(pvars, req.verbose, req.verbose, dist);
+//    if (!check_res) {
 //        ROS_INFO("State %s is invalid", to_string(pvars).c_str());
 //        auto markers = m_cspace->getCollisionModelVisualization(pvars);
 //        m_cspace_pub.publish(markers);
-    }
+//    }
 
     res.collision = !check_res;
     if (req.distance) {
