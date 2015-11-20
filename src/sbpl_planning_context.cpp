@@ -195,6 +195,15 @@ bool SBPLPlanningContext::init(const std::map<std::string, std::string>& config)
 {
     ROS_INFO("Initializing SBPL Planning Context");
 
+    if (!m_robot_model->initialized()) {
+        ROS_ERROR("MoveIt! Robot Model is not initialized");
+        return false;
+    }
+
+    //////////////////////////
+    // check for parameters //
+    //////////////////////////
+
     // check for required parameters
     const std::vector<std::string>& required_params =
     {
@@ -235,7 +244,9 @@ bool SBPLPlanningContext::init(const std::map<std::string, std::string>& config)
         "bfs_res_x",
         "bfs_res_y",
         "bfs_res_z",
+        "bfs_sphere_radius"
     };
+
     if (config.at("use_bfs_heuristic") == "true") {
         for (const std::string& req_param : bfs_required_params) {
             if (config.find(req_param) == config.end()) {
@@ -247,7 +258,9 @@ bool SBPLPlanningContext::init(const std::map<std::string, std::string>& config)
 
     ROS_INFO(" -> Required Parameters Found");
 
-    // parse parameters and check validity
+    ///////////////////////////////////
+    // parse and validate parameters //
+    ///////////////////////////////////
 
     std::map<std::string, double> disc;
 
@@ -261,7 +274,38 @@ bool SBPLPlanningContext::init(const std::map<std::string, std::string>& config)
     double short_dist_mprims_thresh =
             config.at("short_dist_mprims_thresh") == "true";
 
+    double epsilon;
+    try {
+        epsilon = std::stod(config.at("epsilon"));
+    }
+    catch (const std::logic_error& ex) {
+        ROS_ERROR("Failed to convert epsilon to floating-point value");
+        return false;
+    }
+
     bool shortcut_path = config.at("shortcut_path") == "true";
+
+    bool use_bfs_heuristic = config.at("use_bfs_heuristic") == "true";
+    double bfs_res_x = 0.0;
+    double bfs_res_y = 0.0;
+    double bfs_res_z = 0.0;
+    double bfs_sphere_radius = 0.0;
+    if (use_bfs_heuristic) {
+        try {
+            bfs_res_x = std::stod(config.at("bfs_res_x"));
+            bfs_res_y = std::stod(config.at("bfs_res_y"));
+            bfs_res_z = std::stod(config.at("bfs_res_z"));
+            bfs_sphere_radius = std::stod(config.at("bfs_sphere_radius"));
+
+            if (bfs_res_x != bfs_res_y || bfs_res_x != bfs_res_z) {
+                ROS_WARN("Distance field currently only supports uniformly discretized grids. Using x resolution (%0.3f) as resolution for all dimensions", bfs_res_x);
+            }
+        }
+        catch (const std::logic_error& ex) { // thrown by std::stod
+            ROS_ERROR("Failed to convert bfs resolutions to floating-point values");
+            return false;
+        }
+    }
 
     // check that we have discretization
     std::stringstream ss(config.at("discretization"));
@@ -283,6 +327,10 @@ bool SBPLPlanningContext::init(const std::map<std::string, std::string>& config)
         return false;
     }
 
+    //////////////////////////////////////////////
+    // initialize structures against parameters //
+    //////////////////////////////////////////////
+
     m_config = config;
 
     m_disc = disc;
@@ -295,6 +343,15 @@ bool SBPLPlanningContext::init(const std::map<std::string, std::string>& config)
     m_rpy_snap_thresh = rpy_snap_thresh;
     m_xyzrpy_snap_thresh = xyzrpy_snap_thresh;
     m_short_dist_mprims_thresh = short_dist_mprims_thresh;
+
+    m_use_bfs_heuristic = use_bfs_heuristic;
+    m_bfs_res_x = bfs_res_x;
+    m_bfs_res_y = bfs_res_y;
+    m_bfs_res_z = bfs_res_z;
+    m_bfs_sphere_radius = bfs_sphere_radius;
+
+    m_epsilon = epsilon;
+
     m_shortcut_path = shortcut_path;
 
     m_action_set.useAmp(
@@ -367,7 +424,7 @@ bool SBPLPlanningContext::initSBPL(std::string& why)
     }
 
     ///////////////////////////////
-    // Action Set Initialization
+    // Action Set Initialization //
     ///////////////////////////////
 
     // TODO: the motion primitive file currently must have joint variable
@@ -376,20 +433,18 @@ bool SBPLPlanningContext::initSBPL(std::string& why)
 
     // Action Set loaded upon initialization
 
-    /////////////////////////////////
-    // Distance Field Initalization
-    /////////////////////////////////
+    //////////////////////////////////
+    // Distance Field Initalization //
+    //////////////////////////////////
 
     if (!initHeuristicGrid(*scene, req.workspace_parameters)) {
         why = "Failed to initialize heuristic information";
         return false;
     }
 
-    // TODO: add octomap and collision objects to the distance field
-
-    //////////////////////////////////////////////
-    // SBPL Arm Planner Interface Initialization
-    //////////////////////////////////////////////
+    ///////////////////////////////////////////////
+    // SBPL Arm Planner Interface Initialization //
+    ///////////////////////////////////////////////
 
     m_planner.reset(new sbpl_arm_planner::SBPLArmPlannerInterface(
             m_robot_model,
@@ -419,13 +474,23 @@ bool SBPLPlanningContext::initSBPL(std::string& why)
     ROS_INFO("Discretization: %s", to_string(discretization).c_str());
     ROS_INFO("Deltas: %s", to_string(deltas).c_str());
 
-    params.num_joints_ = m_robot_model->activeVariableCount();
     params.planning_frame_ = m_robot_model->planningFrame();
     params.group_name_ = m_robot_model->planningGroupName();
-    params.planner_name_ = getMotionPlanRequest().planner_id;
+    params.num_joints_ = m_robot_model->activeVariableCount();
     params.planning_joints_ = m_robot_model->planningVariableNames();
     params.coord_vals_ = discretization;
     params.coord_delta_ = deltas;
+
+    params.use_multiple_ik_solutions_ = false;
+
+    // NOTE: default cost function parameters
+
+    params.use_bfs_heuristic_ = m_use_bfs_heuristic;
+    params.planning_link_sphere_radius_ = m_bfs_sphere_radius;
+
+    params.planner_name_ = getMotionPlanRequest().planner_id;
+    params.epsilon_ = m_epsilon;
+
     params.expands_log_level_ = "debug";
     params.expands2_log_level_ = "debug";
     params.shortcut_path_ = m_shortcut_path;
@@ -535,8 +600,11 @@ bool SBPLPlanningContext::initHeuristicGrid(
     // match the axis-aligned bb of the workspace and then fill cells outside of
     // the workspace
 
-    const double res_m = 0.02;
-    const double max_distance = 0.2;
+    const double res_x_m = m_use_bfs_heuristic ? m_bfs_res_x : 0.02;
+    const double res_y_m = m_use_bfs_heuristic ? m_bfs_res_y : 0.02;
+    const double res_z_m = m_use_bfs_heuristic ? m_bfs_res_z : 0.02;
+
+    const double max_distance = m_use_bfs_heuristic ? m_bfs_sphere_radius + res_x_m : res_x_m;
     const bool propagate_negative_distances = false;
 
     Eigen::Affine3d T_planning_workspace;
@@ -551,7 +619,7 @@ bool SBPLPlanningContext::initHeuristicGrid(
     ROS_INFO("  size_x: %0.3f", size_x);
     ROS_INFO("  size_y: %0.3f", size_y);
     ROS_INFO("  size_z: %0.3f", size_z);
-    ROS_INFO("  res: %0.3f", res_m);
+    ROS_INFO("  res: %0.3f", res_x_m);
     ROS_INFO("  origin_x: %0.3f", workspace_pos_in_planning.x());
     ROS_INFO("  origin_y: %0.3f", workspace_pos_in_planning.y());
     ROS_INFO("  origin_z: %0.3f", workspace_pos_in_planning.z());
@@ -559,12 +627,17 @@ bool SBPLPlanningContext::initHeuristicGrid(
 
     m_distance_field.reset(new distance_field::PropagationDistanceField(
             size_x, size_y, size_z,
-            res_m,
+            res_x_m,
             workspace_pos_in_planning.x(),
             workspace_pos_in_planning.y(),
             workspace_pos_in_planning.z(),
             max_distance,
             propagate_negative_distances));
+
+    if (!m_use_bfs_heuristic) {
+        ROS_INFO("Not using BFS heuristic (Skipping occupancy grid filling)");
+        return true;
+    }
 
     /////////////////////////
     // Fill Distance Field //

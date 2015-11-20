@@ -303,8 +303,6 @@ void SBPLPlannerManager::setPlannerConfigurations(
             ROS_INFO("    %s: %s", e.first.c_str(), e.second.c_str());
         }
     }
-
-    // translate to SBPLPlanningContext::Params
 }
 
 void SBPLPlannerManager::terminate() const

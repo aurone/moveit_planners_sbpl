@@ -21,17 +21,36 @@ class SBPLPlanningContext : public planning_interface::PlanningContext
 public:
 
     typedef planning_interface::PlanningContext Base;
+
+    /// \brief Construct an SBPL Planning Context with a pre-constructed
     SBPLPlanningContext(
         MoveItRobotModel* robot_model,
         const std::string& name,
         const std::string& group);
+
     virtual ~SBPLPlanningContext();
 
+    /// \sa planning_interface::PlanningContext::solve(planning_interface::MotionPlanResponse&)
     virtual bool solve(planning_interface::MotionPlanResponse& res);
+
+    /// \sa planning_interface::PlanningContext::solve(planning_interface::MotionPlanDetailedResponse&)
     virtual bool solve(planning_interface::MotionPlanDetailedResponse& res);
+
+    /// \sa planning_interface::PlanningContext::terminate
     virtual bool terminate();
+
+    /// \sa planning_interface::PlanningContext::clear
     virtual void clear();
 
+    /// \brief Initialize the SBPL Planning Context
+    ///
+    /// This phase of initialization only initializes structures that do not
+    /// depend on having an active PlanningScene or MotionPlanRequest. A second
+    /// phase of initialization happens on the first call to solve() which will
+    /// initialize structures dependant on either of these things.
+    ///
+    /// The MoveItRobotModel passed to the constructor must be initialized
+    /// before this initialization is possible.
     bool init(const std::map<std::string, std::string>& config);
 
 private:
@@ -55,12 +74,16 @@ private:
     double m_rpy_snap_thresh;
     double m_xyzrpy_snap_thresh;
     double m_short_dist_mprims_thresh;
+
+    double m_epsilon;
+
     bool m_shortcut_path;
 
     bool m_use_bfs_heuristic;
     double m_bfs_res_x;
     double m_bfs_res_y;
     double m_bfs_res_z;
+    double m_bfs_sphere_radius;
 
     /// \brief Initialize SBPL constructs
     /// \param[out] Reason for failure if initialization is unsuccessful
