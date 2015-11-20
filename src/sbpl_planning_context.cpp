@@ -8,6 +8,8 @@
 #include <sbpl_arm_planner/sbpl_arm_planner_interface.h>
 #include <sbpl_manipulation_components/motion_primitive.h>
 
+#include "collision_world_sbpl.h"
+
 namespace moveit_msgs {
 
 static std::string to_string(moveit_msgs::MoveItErrorCodes code)
@@ -99,8 +101,6 @@ SBPLPlanningContext::~SBPLPlanningContext()
 
 bool SBPLPlanningContext::solve(planning_interface::MotionPlanResponse& res)
 {
-    ROS_INFO("SBPLPlanningContext::solve()");
-
     planning_scene::PlanningSceneConstPtr scene = getPlanningScene();
     moveit::core::RobotModelConstPtr robot = scene->getRobotModel();
     const planning_interface::MotionPlanRequest& req = getMotionPlanRequest();
@@ -139,7 +139,7 @@ bool SBPLPlanningContext::solve(planning_interface::MotionPlanResponse& res)
     moveit_msgs::MotionPlanResponse res_msg;
     bool result = m_planner->solve(scene_msg, req_msg, res_msg);
     if (result) {
-        ROS_INFO("Call to SBPLArmPlannerInterface::solve() succeeded");
+        ROS_DEBUG("Call to solve() succeeded");
 
         moveit::core::RobotState ref_state(robot);
         robot_state::RobotStatePtr start_state =
@@ -380,63 +380,10 @@ bool SBPLPlanningContext::initSBPL(std::string& why)
     // Distance Field Initalization
     /////////////////////////////////
 
-    // TODO: find the transform from the workspace to the planning frame and
-    // use as the origin
-
-    // create a distance field in the planning frame that represents the
-    // workspace boundaries
-
-    moveit_msgs::OrientedBoundingBox workspace_aabb;
-    getPlanningFrameWorkspaceAABB(
-            req.workspace_parameters, *scene, workspace_aabb);
-
-    ROS_INFO("AABB of workspace in planning frame:");
-    ROS_INFO("  pose:");
-    ROS_INFO("    position: (%0.3f, %0.3f, %0.3f)", workspace_aabb.pose.position.x, workspace_aabb.pose.position.y, workspace_aabb.pose.position.z);
-    ROS_INFO("    orientation: (%0.3f, %0.3f, %0.3f, %0.3f)", workspace_aabb.pose.orientation.w, workspace_aabb.pose.orientation.x, workspace_aabb.pose.orientation.y, workspace_aabb.pose.orientation.z);
-
-    // TODO: block off sections of the aabb that do not include the original
-    // workspace
-
-    const double size_x = workspace_aabb.extents.x;
-    const double size_y = workspace_aabb.extents.y;
-    const double size_z = workspace_aabb.extents.z;
-
-    // TODO: need to either plan in the workspace frame here rather than the
-    // common joint root...or need to expand the size of the distance field to
-    // match the axis-aligned bb of the workspace and then fill cells outside of
-    // the workspace
-
-    const double res_m = 0.02;
-    const double max_distance = 0.2;
-    const bool propagate_negative_distances = false;
-
-    Eigen::Affine3d T_planning_workspace;
-    T_planning_workspace = Eigen::Translation3d(
-            workspace_aabb.pose.position.x - 0.5 * workspace_aabb.extents.x,
-            workspace_aabb.pose.position.y - 0.5 * workspace_aabb.extents.y,
-            workspace_aabb.pose.position.z - 0.5 * workspace_aabb.extents.z);
-
-    Eigen::Vector3d workspace_pos_in_planning(T_planning_workspace.translation());
-
-    ROS_INFO("Initializing workspace distance field:");
-    ROS_INFO("  size_x: %0.3f", size_x);
-    ROS_INFO("  size_y: %0.3f", size_y);
-    ROS_INFO("  size_z: %0.3f", size_z);
-    ROS_INFO("  res: %0.3f", res_m);
-    ROS_INFO("  origin_x: %0.3f", workspace_pos_in_planning.x());
-    ROS_INFO("  origin_y: %0.3f", workspace_pos_in_planning.y());
-    ROS_INFO("  origin_z: %0.3f", workspace_pos_in_planning.z());
-    ROS_INFO("  propagate_negative_distances: %s", propagate_negative_distances ? "true" : "false");
-
-    m_distance_field.reset(new distance_field::PropagationDistanceField(
-            size_x, size_y, size_z,
-            res_m,
-            workspace_pos_in_planning.x(),
-            workspace_pos_in_planning.y(),
-            workspace_pos_in_planning.z(),
-            max_distance,
-            propagate_negative_distances));
+    if (!initHeuristicGrid(*scene, req.workspace_parameters)) {
+        why = "Failed to initialize heuristic information";
+        return false;
+    }
 
     // TODO: add octomap and collision objects to the distance field
 
@@ -549,6 +496,119 @@ bool SBPLPlanningContext::getPlanningFrameWorkspaceAABB(
     aabb.extents.z = size_z;
 
     return true;
+}
+
+bool SBPLPlanningContext::initHeuristicGrid(
+    const planning_scene::PlanningScene& scene,
+    const moveit_msgs::WorkspaceParameters& workspace)
+{
+    // TODO: find the transform from the workspace to the planning frame and
+    // use as the origin
+
+    // create a distance field in the planning frame that represents the
+    // workspace boundaries
+
+    const auto& req = getMotionPlanRequest();
+
+    /////////////////////////////////////////
+    // Determine Distance Field Parameters //
+    /////////////////////////////////////////
+
+    moveit_msgs::OrientedBoundingBox workspace_aabb;
+    getPlanningFrameWorkspaceAABB(
+            req.workspace_parameters, scene, workspace_aabb);
+
+    ROS_DEBUG("AABB of workspace in planning frame:");
+    ROS_DEBUG("  pose:");
+    ROS_DEBUG("    position: (%0.3f, %0.3f, %0.3f)", workspace_aabb.pose.position.x, workspace_aabb.pose.position.y, workspace_aabb.pose.position.z);
+    ROS_DEBUG("    orientation: (%0.3f, %0.3f, %0.3f, %0.3f)", workspace_aabb.pose.orientation.w, workspace_aabb.pose.orientation.x, workspace_aabb.pose.orientation.y, workspace_aabb.pose.orientation.z);
+
+    // TODO: block off sections of the aabb that do not include the original
+    // workspace
+
+    const double size_x = workspace_aabb.extents.x;
+    const double size_y = workspace_aabb.extents.y;
+    const double size_z = workspace_aabb.extents.z;
+
+    // TODO: need to either plan in the workspace frame here rather than the
+    // common joint root...or need to expand the size of the distance field to
+    // match the axis-aligned bb of the workspace and then fill cells outside of
+    // the workspace
+
+    const double res_m = 0.02;
+    const double max_distance = 0.2;
+    const bool propagate_negative_distances = false;
+
+    Eigen::Affine3d T_planning_workspace;
+    T_planning_workspace = Eigen::Translation3d(
+            workspace_aabb.pose.position.x - 0.5 * workspace_aabb.extents.x,
+            workspace_aabb.pose.position.y - 0.5 * workspace_aabb.extents.y,
+            workspace_aabb.pose.position.z - 0.5 * workspace_aabb.extents.z);
+
+    Eigen::Vector3d workspace_pos_in_planning(T_planning_workspace.translation());
+
+    ROS_INFO("Initializing workspace distance field:");
+    ROS_INFO("  size_x: %0.3f", size_x);
+    ROS_INFO("  size_y: %0.3f", size_y);
+    ROS_INFO("  size_z: %0.3f", size_z);
+    ROS_INFO("  res: %0.3f", res_m);
+    ROS_INFO("  origin_x: %0.3f", workspace_pos_in_planning.x());
+    ROS_INFO("  origin_y: %0.3f", workspace_pos_in_planning.y());
+    ROS_INFO("  origin_z: %0.3f", workspace_pos_in_planning.z());
+    ROS_INFO("  propagate_negative_distances: %s", propagate_negative_distances ? "true" : "false");
+
+    m_distance_field.reset(new distance_field::PropagationDistanceField(
+            size_x, size_y, size_z,
+            res_m,
+            workspace_pos_in_planning.x(),
+            workspace_pos_in_planning.y(),
+            workspace_pos_in_planning.z(),
+            max_distance,
+            propagate_negative_distances));
+
+    /////////////////////////
+    // Fill Distance Field //
+    /////////////////////////
+
+    collision_detection::CollisionWorldConstPtr cworld =
+            scene.getCollisionWorld();
+    const collision_detection::CollisionWorldSBPL* sbpl_cworld =
+            dynamic_cast<const collision_detection::CollisionWorldSBPL*>(
+                    cworld.get());
+    if (!sbpl_cworld) {
+        ROS_WARN("Not using SBPL collision model...bad BFS heuristic for you");
+        return true;
+    }
+
+    ROS_INFO("Using collision information from Collision World SBPL for heuristic!!!");
+
+    const distance_field::PropagationDistanceField* df =
+            sbpl_cworld->distanceField();
+    if (!df) {
+        ROS_WARN("Just kidding! Collision World SBPL's distance field is uninitialized");
+        return true;
+    }
+
+    // copy the collision information 
+    ROS_INFO("Copying collision information");
+
+    EigenSTL::vector_Vector3d points;
+    for (int x = 0; x < m_distance_field->getXNumCells(); ++x) {
+        for (int y = 0; y < m_distance_field->getYNumCells(); ++y) {
+            for (int z = 0; z < m_distance_field->getZNumCells(); ++z) {
+                double wx, wy, wz;
+                m_distance_field->gridToWorld(x, y, z, wx, wy, wz);
+                if (df->getDistance(wx, wy, wz) <= 0.0) {
+                    // convert x, y, z to world space
+                    // transform back into the world frame
+                    points.emplace_back(wx, wy, wz);
+                }
+            }
+        }
+    }
+
+    ROS_INFO("Adding %zu points to the bfs distance field", points.size());
+    m_distance_field->addPointsToField(points);
 }
 
 } // namespace sbpl_interface

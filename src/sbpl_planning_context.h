@@ -57,6 +57,11 @@ private:
     double m_short_dist_mprims_thresh;
     bool m_shortcut_path;
 
+    bool m_use_bfs_heuristic;
+    double m_bfs_res_x;
+    double m_bfs_res_y;
+    double m_bfs_res_z;
+
     /// \brief Initialize SBPL constructs
     /// \param[out] Reason for failure if initialization is unsuccessful
     /// \return true if successful; false otherwise
@@ -68,6 +73,10 @@ private:
         const moveit_msgs::WorkspaceParameters& workspace,
         const planning_scene::PlanningScene& scene,
         moveit_msgs::OrientedBoundingBox& aabb);
+
+    bool initHeuristicGrid(
+        const planning_scene::PlanningScene& scene,
+        const moveit_msgs::WorkspaceParameters& workspace);
 };
 
 MOVEIT_CLASS_FORWARD(SBPLPlanningContext);
