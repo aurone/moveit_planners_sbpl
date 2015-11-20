@@ -317,6 +317,12 @@ bool CollisionWorldSBPL::initialized() const
     return (!getWorld() || m_cspace);
 }
 
+const distance_field::PropagationDistanceField*
+CollisionWorldSBPL::distanceField() const
+{
+    return m_dfield.get();
+}
+
 void CollisionWorldSBPL::registerWorldCallback()
 {
     ROS_INFO("Registering world observer callback");
@@ -416,7 +422,7 @@ moveit_msgs::OrientedBoundingBox CollisionWorldSBPL::computeWorldAABB(
         const World::Object& object = *oit->second;
         const std::string& object_id = object.id_;
         size_t num_shapes = object.shapes_.size();
-        ROS_INFO("%zu shapes in object", num_shapes);
+        ROS_DEBUG("%zu shapes in object", num_shapes);
         for (size_t i = 0; i < num_shapes; ++i) {
             const Eigen::Affine3d& pose = object.shape_poses_[i];
             shapes::ShapeConstPtr shape = object.shapes_[i];
@@ -454,7 +460,7 @@ bool CollisionWorldSBPL::emptyBoundingBox(
 void CollisionWorldSBPL::addWorldToCollisionSpace(const World& world)
 {
     for (auto oit = world.begin(); oit != world.end(); ++oit) {
-        ROS_INFO("Adding object '%s' to the configuration space", oit->first.c_str());
+        ROS_DEBUG("Adding object '%s' to the configuration space", oit->first.c_str());
         assert(oit->second.get());
 
         const std::string& name = oit->first;

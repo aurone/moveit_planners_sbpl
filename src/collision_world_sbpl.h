@@ -110,6 +110,8 @@ public:
     // was attempted
     bool initialized() const;
 
+    const distance_field::PropagationDistanceField* distanceField() const;
+
 private:
 
     const sbpl_interface::MoveItRobotModel* m_sbpl_robot_model;
