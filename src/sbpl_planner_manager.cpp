@@ -3,9 +3,9 @@
 #include <moveit/planning_scene/planning_scene.h>
 #include <moveit/robot_state/conversions.h>
 
-#include "collision_detector_allocator_sbpl.h"
 #include "sbpl_planning_context.h"
-#include "collision_world_sbpl.h"
+#include <moveit_planners_sbpl/collision_detector_allocator_sbpl.h>
+#include <moveit_planners_sbpl/collision_world_sbpl.h>
 
 static const char* xmlTypeToString(XmlRpc::XmlRpcValue::Type type)
 {

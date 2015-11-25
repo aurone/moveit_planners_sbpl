@@ -1,12 +1,53 @@
+////////////////////////////////////////////////////////////////////////////////
+// Copyright (c) 2015, Andrew Dornbush
+// All rights reserved.
+//
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions are met:
+//
+// 1. Redistributions of source code must retain the above copyright notice,
+// this list of conditions and the following disclaimer.
+//
+// 2. Redistributions in binary form must reproduce the above copyright notice,
+// this list of conditions and the following disclaimer in the documentation
+// and/or other materials provided with the distribution.
+//
+// 3. Neither the name of the copyright holder nor the names of its contributors
+// may be used to endorse or promote products derived from this software without
+// specific prior written permission.
+//
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+// ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+// LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+// CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+// SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+// INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+// CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+// ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+// POSSIBILITY OF SUCH DAMAGE.
+////////////////////////////////////////////////////////////////////////////////
+
 #ifndef collision_detection_CollisionWorldSBPL_h
 #define collision_detection_CollisionWorldSBPL_h
 
+// standard includes
 #include <memory>
+#include <string>
+#include <vector>
 
-#include <moveit_msgs/OrientedBoundingBox.h>
+// system includes
 #include <moveit/collision_detection/collision_world.h>
-
+#include <moveit/distance_field/propagation_distance_field.h>
+#include <moveit_msgs/OrientedBoundingBox.h>
+#include <ros/ros.h>
 #include <sbpl_collision_checking/sbpl_collision_space.h>
+#include <sbpl_collision_checking/collision_model_config.h>
+#include <sbpl_manipulation_components/occupancy_grid.h>
+
+// project includes
+#include <moveit_planners_sbpl/moveit_robot_model.h>
 
 namespace sbpl_interface {
 class MoveItRobotModel;
@@ -89,7 +130,7 @@ public:
         const AllowedCollisionMatrix& acm) const;
 
     virtual double distanceWorld(const CollisionWorld& world) const;
-    
+
     virtual double distanceWorld(
         const CollisionWorld& world,
         const AllowedCollisionMatrix& acm) const;
@@ -181,6 +222,24 @@ private:
 
     std::vector<double> extractPlanningVariables(
         const moveit::core::RobotState& state) const;
+
+    void processWorldUpdateUninitialized(const World::Object& object);
+    void processWorldUpdateCreate(const World::Object& object);
+    void processWorldUpdateDestroy(const World::Object& object);
+    void processWorldUpdateMoveShape(const World::Object& object);
+    void processWorldUpdateAddShape(const World::Object& object);
+    void processWorldUpdateRemoveShape(const World::Object& object);
+
+    // Converts a world object to a collision object.
+    // The collision object's frame_id is the planning frame and the operation
+    // is unspecified via this call
+    bool worldObjectToCollisionObjectMsgFull(
+        const World::Object& object,
+        moveit_msgs::CollisionObject& collision_object) const;
+
+    bool worldObjectToCollisionObjectMsgName(
+        const World::Object& object,
+        moveit_msgs::CollisionObject& collision_object) const;
 };
 
 } // namespace collision_detection

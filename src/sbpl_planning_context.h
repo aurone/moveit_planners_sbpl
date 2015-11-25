@@ -11,7 +11,8 @@
 #include <moveit_msgs/MotionPlanRequest.h>
 #include <sbpl_arm_planner/sbpl_arm_planner_interface.h>
 
-#include "moveit_robot_model.h"
+#include <moveit_planners_sbpl/moveit_robot_model.h>
+
 #include "moveit_collision_checker.h"
 
 namespace sbpl_interface {

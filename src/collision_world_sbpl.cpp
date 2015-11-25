@@ -1,11 +1,44 @@
-#include "collision_world_sbpl.h"
+////////////////////////////////////////////////////////////////////////////////
+// Copyright (c) 2015, Andrew Dornbush
+// All rights reserved.
+//
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions are met:
+//
+// 1. Redistributions of source code must retain the above copyright notice,
+// this list of conditions and the following disclaimer.
+//
+// 2. Redistributions in binary form must reproduce the above copyright notice,
+// this list of conditions and the following disclaimer in the documentation
+// and/or other materials provided with the distribution.
+//
+// 3. Neither the name of the copyright holder nor the names of its contributors
+// may be used to endorse or promote products derived from this software without
+// specific prior written permission.
+//
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+// ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+// LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+// CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+// SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+// INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+// CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+// ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+// POSSIBILITY OF SUCH DAMAGE.
+////////////////////////////////////////////////////////////////////////////////
 
+#include <moveit_planners_sbpl/collision_world_sbpl.h>
+
+// system includes
 #include <ros/ros.h>
 #include <geometric_shapes/shape_operations.h>
 #include <leatherman/print.h>
 #include <eigen_conversions/eigen_msg.h>
 
-#include "moveit_robot_model.h"
+// project includes
+#include <moveit_planners_sbpl/moveit_robot_model.h>
 
 namespace collision_detection {
 
@@ -139,7 +172,7 @@ void CollisionWorldSBPL::checkWorldCollision(
     const AllowedCollisionMatrix& acm) const
 {
     ROS_INFO("checkWorldCollision(req, res, other_world, acm)");
-    
+
     if (checkDegenerateCollision(res)) {
         return;
     }
@@ -335,28 +368,33 @@ void CollisionWorldSBPL::worldUpdate(
     World::Action action)
 {
     ROS_INFO("CollisionWorldSBPL::worldUpdate()");
-    if (action & World::ActionBits::UNINITIALIZED) {
-        ROS_INFO("  action: UNINITIALIZED");
-    }
-    else if (action & World::ActionBits::CREATE) {
-        ROS_INFO("  action: CREATE");
-    }
-    else if (action & World::ActionBits::DESTROY) {
-        ROS_INFO("  action: DESTROY");
-    }
-    else if (action & World::ActionBits::MOVE_SHAPE) {
-        ROS_INFO("  action: MOVE_SHAPE");
-    }
-    else if (action & World::ActionBits::ADD_SHAPE) {
-        ROS_INFO("  action: ADD_SHAPE");
-    }
-    else if (action & World::ActionBits::REMOVE_SHAPE)  {
-        ROS_INFO("  action: REMOVE_SHAPE");
-    }
-
     ROS_INFO("  id: %s", object->id_.c_str());
     ROS_INFO("  shapes: %zu", object->shapes_.size());
     ROS_INFO("  shape_poses: %zu", object->shape_poses_.size());
+    if (action & World::ActionBits::UNINITIALIZED) {
+        ROS_INFO("  action: UNINITIALIZED");
+        processWorldUpdateUninitialized(*object);
+    }
+    else if (action & World::ActionBits::CREATE) {
+        ROS_INFO("  action: CREATE");
+        processWorldUpdateCreate(*object);
+    }
+    else if (action & World::ActionBits::DESTROY) {
+        ROS_INFO("  action: DESTROY");
+        processWorldUpdateDestroy(*object);
+    }
+    else if (action & World::ActionBits::MOVE_SHAPE) {
+        ROS_INFO("  action: MOVE_SHAPE");
+        processWorldUpdateMoveShape(*object);
+    }
+    else if (action & World::ActionBits::ADD_SHAPE) {
+        ROS_INFO("  action: ADD_SHAPE");
+        processWorldUpdateAddShape(*object);
+    }
+    else if (action & World::ActionBits::REMOVE_SHAPE)  {
+        ROS_INFO("  action: REMOVE_SHAPE");
+        processWorldUpdateRemoveShape(*object);
+    }
 }
 
 bool CollisionWorldSBPL::checkDegenerateCollision(CollisionResult& res) const
@@ -468,94 +506,10 @@ void CollisionWorldSBPL::addWorldToCollisionSpace(const World& world)
 
         // convert to World::Object to moveit_msgs::CollisionObject
         moveit_msgs::CollisionObject obj_msg;
-        obj_msg.header.seq = 0;
-        obj_msg.header.stamp = ros::Time(0);
-
-        // TODO: safe to assume that the world frame will always be the world
-        // frame or should we try to transform things here somehow
-        obj_msg.header.frame_id = m_cw_config.world_frame;
-
-        obj_msg.id = name;
-
-        assert(object.shape_poses_.size() == object.shapes_.size());
-        for (size_t sind = 0; sind < object.shapes_.size(); ++sind) {
-            const Eigen::Affine3d& shape_transform = object.shape_poses_[sind];
-            const shapes::ShapeConstPtr& shape = object.shapes_[sind];
-
-            // convert shape to corresponding shape_msgs type
-            switch (shape->type) {
-            case shapes::UNKNOWN_SHAPE:
-            {
-                ROS_WARN("Skipping shape of unknown type");
-                continue;
-            }   break;
-            case shapes::SPHERE:
-            {
-                const shapes::Sphere* sphere =
-                        dynamic_cast<const shapes::Sphere*>(shape.get());
-
-                shape_msgs::SolidPrimitive prim;
-                prim.type = shape_msgs::SolidPrimitive::SPHERE;
-                prim.dimensions.resize(1);
-                prim.dimensions[0] = sphere->radius;
-                obj_msg.primitives.push_back(prim);
-
-                geometry_msgs::Pose pose;
-                tf::poseEigenToMsg(shape_transform, pose);
-                obj_msg.primitive_poses.push_back(pose);
-            }   break;
-            case shapes::CYLINDER:
-            {
-                const shapes::Cylinder* cylinder = 
-                        dynamic_cast<const shapes::Cylinder*>(shape.get());
-
-                shape_msgs::SolidPrimitive prim;
-                prim.type = shape_msgs::SolidPrimitive::CYLINDER;
-                prim.dimensions.resize(2);
-                prim.dimensions[0] = cylinder->radius;
-                prim.dimensions[1] = cylinder->length;
-                obj_msg.primitives.push_back(prim);
-
-                geometry_msgs::Pose pose;
-                tf::poseEigenToMsg(shape_transform, pose);
-                obj_msg.primitive_poses.push_back(pose);
-            }   break;
-            case shapes::CONE:
-            {
-                ROS_ERROR("Unsupported object type: Cone");
-            }   break;
-            case shapes::BOX:
-            {
-                const shapes::Box* box = 
-                        dynamic_cast<const shapes::Box*>(shape.get());
-
-                shape_msgs::SolidPrimitive prim;
-                prim.type = shape_msgs::SolidPrimitive::BOX;
-                prim.dimensions.resize(3);
-                prim.dimensions[0] = box->size[0];
-                prim.dimensions[1] = box->size[1];
-                prim.dimensions[2] = box->size[2];
-                obj_msg.primitives.push_back(prim);
-
-                geometry_msgs::Pose pose;
-                tf::poseEigenToMsg(shape_transform, pose);
-                obj_msg.primitive_poses.push_back(pose);
-            }   break;
-            case shapes::PLANE:
-            {
-                ROS_ERROR("Unsupported object type: Plane");
-            }   break;
-            case shapes::MESH:
-            {
-                ROS_ERROR("Unsupported object type: Mesh");
-            }   break;
-            case shapes::OCTREE:
-            {
-                ROS_ERROR("Unsupported object type: OcTree");
-            }   break;
-            }
+        if (!worldObjectToCollisionObjectMsgFull(object, obj_msg)) {
+            ROS_WARN("Failed to convert world object '%s' to collision object", object.id_.c_str());
+            continue;
         }
-
         obj_msg.operation = moveit_msgs::CollisionObject::ADD;
         m_cspace->processCollisionObject(obj_msg);
     }
@@ -628,11 +582,10 @@ void CollisionWorldSBPL::checkRobotCollisionMutable(
 
     double dist;
     bool check_res = m_cspace->isStateValid(pvars, req.verbose, req.verbose, dist);
-//    if (!check_res) {
-//        ROS_INFO("State %s is invalid", to_string(pvars).c_str());
-//        auto markers = m_cspace->getCollisionModelVisualization(pvars);
-//        m_cspace_pub.publish(markers);
-//    }
+    if (req.verbose) {
+        auto markers = m_cspace->getCollisionModelVisualization(pvars);
+        m_cspace_pub.publish(markers);
+    }
 
     res.collision = !check_res;
     if (req.distance) {
@@ -678,6 +631,171 @@ std::vector<double> CollisionWorldSBPL::extractPlanningVariables(
         pvars[avind] = state.getVariablePositions()[vind];
     }
     return pvars;
+}
+
+void CollisionWorldSBPL::processWorldUpdateUninitialized(
+    const World::Object& object)
+{
+
+}
+
+void CollisionWorldSBPL::processWorldUpdateCreate(
+    const World::Object& object)
+{
+    if (!m_cspace) {
+        ROS_ERROR("Collision Space has not been initialized");
+        return;
+    }
+
+    // convert to collision object
+    moveit_msgs::CollisionObject collision_object;
+    if (!worldObjectToCollisionObjectMsgFull(object, collision_object)) {
+        ROS_ERROR("Failed to convert world object '%s' to collision object", object.id_.c_str());
+        return;
+    }
+    collision_object.operation = moveit_msgs::CollisionObject::ADD;
+
+    m_cspace->processCollisionObject(collision_object);
+}
+
+void CollisionWorldSBPL::processWorldUpdateDestroy(
+    const World::Object& object)
+{
+    moveit_msgs::CollisionObject collision_object;
+    if (!worldObjectToCollisionObjectMsgName(object, collision_object)) {
+        ROS_ERROR("Failed to convert world object '%s' to collision object", object.id_.c_str());
+        return;
+    }
+    collision_object.operation = moveit_msgs::CollisionObject::REMOVE;
+
+    m_cspace->processCollisionObject(collision_object);
+}
+
+void CollisionWorldSBPL::processWorldUpdateMoveShape(
+    const World::Object& object)
+{
+
+}
+
+void CollisionWorldSBPL::processWorldUpdateAddShape(
+    const World::Object& object)
+{
+
+}
+
+void CollisionWorldSBPL::processWorldUpdateRemoveShape(
+    const World::Object& object)
+{
+
+}
+
+bool CollisionWorldSBPL::worldObjectToCollisionObjectMsgFull(
+    const World::Object& object,
+    moveit_msgs::CollisionObject& collision_object) const
+{
+    moveit_msgs::CollisionObject obj_msg;
+
+    obj_msg.header.stamp = ros::Time(0);
+
+    // TODO: safe to assume that the world frame will always be the world
+    // frame or should we try to transform things here somehow
+    obj_msg.header.frame_id = m_cw_config.world_frame;
+
+    obj_msg.id = object.id_;
+
+    assert(object.shape_poses_.size() == object.shapes_.size());
+    for (size_t sind = 0; sind < object.shapes_.size(); ++sind) {
+        const Eigen::Affine3d& shape_transform = object.shape_poses_[sind];
+        const shapes::ShapeConstPtr& shape = object.shapes_[sind];
+
+        // convert shape to corresponding shape_msgs type
+        switch (shape->type) {
+        case shapes::UNKNOWN_SHAPE:
+        {
+            ROS_WARN("Object '%s' contains shape of unknown type", object.id_.c_str());
+            return false;
+        }   break;
+        case shapes::SPHERE:
+        {
+            const shapes::Sphere* sphere =
+                    dynamic_cast<const shapes::Sphere*>(shape.get());
+
+            shape_msgs::SolidPrimitive prim;
+            prim.type = shape_msgs::SolidPrimitive::SPHERE;
+            prim.dimensions.resize(1);
+            prim.dimensions[0] = sphere->radius;
+            obj_msg.primitives.push_back(prim);
+
+            geometry_msgs::Pose pose;
+            tf::poseEigenToMsg(shape_transform, pose);
+            obj_msg.primitive_poses.push_back(pose);
+        }   break;
+        case shapes::CYLINDER:
+        {
+            const shapes::Cylinder* cylinder =
+                    dynamic_cast<const shapes::Cylinder*>(shape.get());
+
+            shape_msgs::SolidPrimitive prim;
+            prim.type = shape_msgs::SolidPrimitive::CYLINDER;
+            prim.dimensions.resize(2);
+            prim.dimensions[0] = cylinder->radius;
+            prim.dimensions[1] = cylinder->length;
+            obj_msg.primitives.push_back(prim);
+
+            geometry_msgs::Pose pose;
+            tf::poseEigenToMsg(shape_transform, pose);
+            obj_msg.primitive_poses.push_back(pose);
+        }   break;
+        case shapes::CONE:
+        {
+            ROS_ERROR("Unsupported object type: Cone");
+        }   break;
+        case shapes::BOX:
+        {
+            const shapes::Box* box =
+                    dynamic_cast<const shapes::Box*>(shape.get());
+
+            shape_msgs::SolidPrimitive prim;
+            prim.type = shape_msgs::SolidPrimitive::BOX;
+            prim.dimensions.resize(3);
+            prim.dimensions[0] = box->size[0];
+            prim.dimensions[1] = box->size[1];
+            prim.dimensions[2] = box->size[2];
+            obj_msg.primitives.push_back(prim);
+
+            geometry_msgs::Pose pose;
+            tf::poseEigenToMsg(shape_transform, pose);
+            obj_msg.primitive_poses.push_back(pose);
+        }   break;
+        case shapes::PLANE:
+        {
+            ROS_ERROR("Unsupported object type: Plane");
+        }   break;
+        case shapes::MESH:
+        {
+            ROS_ERROR("Unsupported object type: Mesh");
+        }   break;
+        case shapes::OCTREE:
+        {
+            ROS_ERROR("Unsupported object type: OcTree");
+        }   break;
+        }
+    }
+
+    collision_object = std::move(obj_msg);
+    return true;
+}
+
+bool CollisionWorldSBPL::worldObjectToCollisionObjectMsgName(
+    const World::Object& object,
+    moveit_msgs::CollisionObject& collision_object) const
+{
+    moveit_msgs::CollisionObject obj_msg;
+    obj_msg.header.stamp = ros::Time(0);
+    obj_msg.header.frame_id = m_cw_config.world_frame;
+    obj_msg.id = object.id_;
+    collision_object = std::move(obj_msg);
+    return true;
 }
 
 } // collision_detection

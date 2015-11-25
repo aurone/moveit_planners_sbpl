@@ -8,7 +8,7 @@
 #include <sbpl_arm_planner/sbpl_arm_planner_interface.h>
 #include <sbpl_manipulation_components/motion_primitive.h>
 
-#include "collision_world_sbpl.h"
+#include <moveit_planners_sbpl/collision_world_sbpl.h>
 
 namespace moveit_msgs {
 
@@ -662,7 +662,7 @@ bool SBPLPlanningContext::initHeuristicGrid(
         return true;
     }
 
-    // copy the collision information 
+    // copy the collision information
     ROS_INFO("Copying collision information");
 
     EigenSTL::vector_Vector3d points;

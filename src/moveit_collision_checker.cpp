@@ -1,21 +1,21 @@
 ////////////////////////////////////////////////////////////////////////////////
 // Copyright (c) 2015, Andrew Dornbush
 // All rights reserved.
-// 
+//
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are met:
-// 
+//
 // 1. Redistributions of source code must retain the above copyright notice,
 // this list of conditions and the following disclaimer.
-// 
+//
 // 2. Redistributions in binary form must reproduce the above copyright notice,
 // this list of conditions and the following disclaimer in the documentation
 // and/or other materials provided with the distribution.
-// 
+//
 // 3. Neither the name of the copyright holder nor the names of its contributors
 // may be used to endorse or promote products derived from this software without
 // specific prior written permission.
-// 
+//
 // THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
 // AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
 // IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -40,7 +40,7 @@
 #include <ros/console.h>
 #include <sbpl_geometry_utils/interpolation.h>
 
-#include "moveit_robot_model.h"
+#include <moveit_planners_sbpl/moveit_robot_model.h>
 
 namespace sbpl_interface {
 
@@ -203,7 +203,7 @@ bool MoveItCollisionChecker::interpolatePath(
             path);
 }
 
-visualization_msgs::MarkerArray 
+visualization_msgs::MarkerArray
 MoveItCollisionChecker::getCollisionModelVisualization(
     const std::vector<double>& angles)
 {
@@ -224,7 +224,7 @@ MoveItCollisionChecker::getCollisionModelVisualization(
     return marker_arr;
 }
 
-visualization_msgs::MarkerArray 
+visualization_msgs::MarkerArray
 MoveItCollisionChecker::getVisualization(const std::string& type)
 {
     return visualization_msgs::MarkerArray();

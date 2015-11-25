@@ -5,7 +5,7 @@
 #include <moveit/macros/class_forward.h>
 #include <moveit/planning_interface/planning_interface.h>
 
-#include "moveit_robot_model.h"
+#include <moveit_planners_sbpl/moveit_robot_model.h>
 
 namespace sbpl_interface {
 
@@ -62,7 +62,7 @@ private:
 
     // per-group sbpl robot model
     std::map<std::string, MoveItRobotModel> m_sbpl_models;
-    
+
     // per-group sbpl collision allocators
     typedef collision_detection::CollisionDetectorAllocatorPtr
     CollisionCheckerAllocatorPtr;
