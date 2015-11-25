@@ -773,7 +773,30 @@ bool CollisionWorldSBPL::worldObjectToCollisionObjectMsgFull(
         }   break;
         case shapes::MESH:
         {
-            ROS_ERROR("Unsupported object type: Mesh");
+            const shapes::Mesh* mesh =
+                    dynamic_cast<const shapes::Mesh*>(shape.get());
+
+            obj_msg.meshes.push_back(shape_msgs::Mesh());
+            shape_msgs::Mesh& mesh_msg = obj_msg.meshes.back();
+
+            // convert shapes::Mesh to shape_msgs::Mesh
+            mesh_msg.vertices.resize(mesh->vertex_count);
+            for (int i = 0; i < mesh->vertex_count; ++i) {
+                mesh_msg.vertices[i].x = mesh->vertices[3 * i + 0];
+                mesh_msg.vertices[i].y = mesh->vertices[3 * i + 1];
+                mesh_msg.vertices[i].z = mesh->vertices[3 * i + 2];
+            }
+
+            mesh_msg.triangles.resize(mesh->triangle_count);
+            for (int i = 0; i < mesh->triangle_count; ++i) {
+                mesh_msg.triangles[i].vertex_indices[0] = mesh->triangles[3 * i + 0];
+                mesh_msg.triangles[i].vertex_indices[1] = mesh->triangles[3 * i + 1];
+                mesh_msg.triangles[i].vertex_indices[2] = mesh->triangles[3 * i + 2];
+            }
+
+            geometry_msgs::Pose pose;
+            tf::poseEigenToMsg(shape_transform, pose);
+            obj_msg.mesh_poses.push_back(pose);
         }   break;
         case shapes::OCTREE:
         {
