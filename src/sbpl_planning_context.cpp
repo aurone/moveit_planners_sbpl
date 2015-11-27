@@ -268,11 +268,20 @@ bool SBPLPlanningContext::init(const std::map<std::string, std::string>& config)
     bool use_rpy_snap_mprim = config.at("use_rpy_snap_mprim") == "true";
     bool use_xyzrpy_snap_mprim = config.at("use_xyzrpy_snap_mprim") == "true";
     bool use_short_dist_mprims = config.at("use_short_dist_mprims") == "true";
-    double xyz_snap_thresh = config.at("xyz_snap_dist_thresh") == "true";
-    double rpy_snap_thresh = config.at("rpy_snap_dist_thresh") == "true";
-    double xyzrpy_snap_thresh = config.at("xyzrpy_snap_dist_thresh") == "true";
-    double short_dist_mprims_thresh =
-            config.at("short_dist_mprims_thresh") == "true";
+    double xyz_snap_thresh = 0.0;
+    double rpy_snap_thresh = 0.0;
+    double xyzrpy_snap_thresh = 0.0;
+    double short_dist_mprims_thresh = 0.0;
+    try {
+        xyz_snap_thresh = std::stod(config.at("xyz_snap_dist_thresh"));
+        rpy_snap_thresh = std::stod(config.at("rpy_snap_dist_thresh"));
+        xyzrpy_snap_thresh = std::stod(config.at("xyzrpy_snap_dist_thresh"));
+        short_dist_mprims_thresh = std::stod(config.at("short_dist_mprims_thresh"));
+    }
+    catch (const std::logic_error& ex) {
+        ROS_ERROR("Failed to convert amp distance thresholds to floating-point values");
+        return false;
+    }
 
     double epsilon;
     try {
@@ -383,7 +392,19 @@ bool SBPLPlanningContext::init(const std::map<std::string, std::string>& config)
     ROS_INFO("Action Set:");
     for (auto ait = m_action_set.begin(); ait != m_action_set.end(); ++ait) {
         ROS_INFO("  type: %s", to_string(ait->type).c_str());
-        if (ait->type == sbpl_arm_planner::MotionPrimitive::LONG_DISTANCE ||
+        if (ait->type == sbpl_arm_planner::MotionPrimitive::SNAP_TO_RPY) {
+            ROS_INFO("    enabled: %s", m_action_set.useAmp(sbpl_arm_planner::MotionPrimitive::SNAP_TO_RPY) ? "true" : "false");
+            ROS_INFO("    thresh: %0.3f", m_action_set.ampThresh(sbpl_arm_planner::MotionPrimitive::SNAP_TO_RPY));
+        }
+        else if (ait->type == sbpl_arm_planner::MotionPrimitive::SNAP_TO_XYZ) {
+            ROS_INFO("    enabled: %s", m_action_set.useAmp(sbpl_arm_planner::MotionPrimitive::SNAP_TO_XYZ) ? "true" : "false");
+            ROS_INFO("    thresh: %0.3f", m_action_set.ampThresh(sbpl_arm_planner::MotionPrimitive::SNAP_TO_XYZ));
+        }
+        else if (ait->type == sbpl_arm_planner::MotionPrimitive::SNAP_TO_XYZ_RPY) {
+            ROS_INFO("    enabled: %s", m_action_set.useAmp(sbpl_arm_planner::MotionPrimitive::SNAP_TO_XYZ_RPY) ? "true" : "false");
+            ROS_INFO("    thresh: %0.3f", m_action_set.ampThresh(sbpl_arm_planner::MotionPrimitive::SNAP_TO_XYZ_RPY));
+        }
+        else if (ait->type == sbpl_arm_planner::MotionPrimitive::LONG_DISTANCE ||
             ait->type == sbpl_arm_planner::MotionPrimitive::SHORT_DISTANCE)
         {
             ROS_INFO("    action: %s", to_string(ait->action).c_str());
