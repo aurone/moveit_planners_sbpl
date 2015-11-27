@@ -188,6 +188,21 @@ bool MoveItRobotModel::setPlanningFrame(const std::string& planning_frame)
     return true;
 }
 
+double MoveItRobotModel::minVarLimit(int jidx) const
+{
+    return m_var_min_limits[jidx];
+}
+
+double MoveItRobotModel::maxVarLimit(int jidx) const
+{
+    return m_var_max_limits[jidx];
+}
+
+bool MoveItRobotModel::hasVarLimit(int jidx) const
+{
+    return m_var_continuous[jidx];
+}
+
 bool MoveItRobotModel::checkJointLimits(const std::vector<double>& angles)
 {
     if (!initialized()) {
@@ -359,11 +374,15 @@ bool MoveItRobotModel::computeIK(
     m_robot_state->updateLinkTransforms();
 
     if (m_robot_state->setFromIK(m_joint_group, T_model_link, 10, 0.1)) {
+        if (!m_robot_state->satisfiesBounds(m_joint_group)) {
+            ROS_ERROR("KDL Returned invalid joint angles?");
+        }
         solution.resize(m_active_var_names.size());
         for (size_t avind = 0; avind < m_active_var_names.size(); ++avind) {
             int vind = m_active_var_indices[avind];
             solution[avind] = m_robot_state->getVariablePosition(vind);
         }
+        ROS_INFO("IK Succeeded with solution %s", to_string(solution).c_str());
         return true;
     }
     else {
