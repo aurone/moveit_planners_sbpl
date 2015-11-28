@@ -340,7 +340,7 @@ void CollisionWorldSBPL::construct()
 {
     m_sbpl_robot_model = nullptr;
     m_cspace_pub = m_nh.advertise<visualization_msgs::MarkerArray>(
-            "collision_space", 5);
+            "visualization_markers", 5);
 }
 
 bool CollisionWorldSBPL::initialized() const
@@ -523,12 +523,21 @@ void CollisionWorldSBPL::updateCollisionSpaceJointState(
         ROS_INFO("Initializing collision space joint state");
 
         m_updated_joint_variables.resize(state.getVariableCount());
+        m_is_planning_variable.resize(state.getVariableCount());
         for (size_t vind = 0; vind < state.getVariableCount(); ++vind) {
             const std::string& variable_name = state.getVariableNames()[vind];
             double variable_position = state.getVariablePositions()[vind];
-            m_updated_joint_variables[vind] = variable_position;
+
+            // sync the joint variable
             ROS_DEBUG("Syncing joint variable '%s'", variable_name.c_str());
             m_cspace->setJointPosition(variable_name, variable_position);
+            m_updated_joint_variables[vind] = variable_position;
+
+            // cache planning variables
+            m_is_planning_variable[vind] = std::find(
+                    m_sbpl_robot_model->planningVariableNames().begin(),
+                    m_sbpl_robot_model->planningVariableNames().end(),
+                    variable_name) != m_sbpl_robot_model->planningVariableNames().end();
         }
 
         m_cspace->updateVoxelGroups();
@@ -540,23 +549,33 @@ void CollisionWorldSBPL::updateCollisionSpaceJointState(
 
         ros::Duration(1.0).sleep();
 
-//        std::vector<double> pvars = extractPlanningVariables(state);
-//        markers = m_cspace->getCollisionModelVisualization(pvars);
-//        m_cspace_pub.publish(markers);
-
         ROS_INFO("Collision space joint state initialized");
         return;
     }
 
-    // update only joint variables that have changed
+    // successive updates => update what has changed
+
     assert(m_updated_joint_variables.size() == state.getVariableCount());
+    bool voxel_group_changed = false;
     for (size_t vind = 0; vind < state.getVariableCount(); ++vind) {
         double variable_position = state.getVariablePositions()[vind];
         if (m_updated_joint_variables[vind] != variable_position) {
             const std::string& variable_name = state.getVariableNames()[vind];
-            m_updated_joint_variables[vind];
             m_cspace->setJointPosition(variable_name, variable_position);
+
+            // non planning variable has changed => maybe update voxel groups?
+            if (!m_is_planning_variable[vind]) {
+                voxel_group_changed = true;
+            }
         }
+    }
+
+    if (voxel_group_changed) {
+        ROS_INFO("Voxel groups may have changed!");
+        m_cspace->updateVoxelGroups();
+        visualization_msgs::MarkerArray markers;
+        markers = m_cspace->getOccupiedVoxelsVisualization();
+        m_cspace_pub.publish(markers);
     }
 }
 
