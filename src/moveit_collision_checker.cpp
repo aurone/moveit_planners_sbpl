@@ -143,6 +143,25 @@ bool MoveItCollisionChecker::isStateValid(
     // to this level from the planning context. Once those are propagated, this
     // call will need to be paired with an additional call to isStateConstrained
 
+    Eigen::MatrixXd J;
+    J = m_ref_state->getJacobian(
+            m_robot_model->planningJointGroup(), Eigen::Vector3d(0.17, 0.0, 0.0));
+
+    double weight_lbs = 10.0;
+    double kg_per_lb = 1.0 / 2.2;
+    double gravity_z = -9.8;
+
+    typedef Eigen::Matrix<double, 6, 1> Vector6d;
+    Vector6d f;
+    f(0) = 0.0;
+    f(1) = 0.0;
+    f(2) = gravity_z * weight_lbs * kg_per_lb;
+    f(3) = 0.0;
+    f(4) = 0.0;
+    f(5) = 0.0;
+
+    Eigen::VectorXd t = J.transpose() * f;
+
     if (!m_scene->isStateColliding(
             *m_ref_state, m_robot_model->planningGroupName(), verbose))
     {
