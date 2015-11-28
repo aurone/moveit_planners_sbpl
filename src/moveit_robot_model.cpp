@@ -203,7 +203,9 @@ bool MoveItRobotModel::hasVarLimit(int jidx) const
     return m_var_continuous[jidx];
 }
 
-bool MoveItRobotModel::checkJointLimits(const std::vector<double>& angles)
+bool MoveItRobotModel::checkJointLimits(
+    const std::vector<double>& angles,
+    bool verbose)
 {
     if (!initialized()) {
         ROS_ERROR("MoveIt! Robot Model is uninitialized");
@@ -215,7 +217,25 @@ bool MoveItRobotModel::checkJointLimits(const std::vector<double>& angles)
         return false;
     }
 
-    return m_joint_group->satisfiesPositionBounds(angles.data());
+    for (int vidx = 0; vidx < activeVariableCount(); ++vidx) {
+        const std::string& var_name = planningVariableNames()[vidx];
+        const auto& bounds = m_robot_model->getVariableBounds(var_name);
+        if (bounds.position_bounded_) {
+            if (angles[vidx] < bounds.min_position_ ||
+                angles[vidx] > bounds.max_position_)
+            {
+                if (verbose) {
+                    ROS_WARN("Variable '%s' out of bounds [%0.3f, %0.3f]", var_name.c_str(), bounds.min_position_, bounds.max_position_);
+                }
+                return false;
+            }
+        }
+    }
+
+    return true;
+
+    // TODO: why must the joint values for continuous joints be in the range [-pi, pi]
+//    return m_joint_group->satisfiesPositionBounds(angles_copy.data());
 }
 
 bool MoveItRobotModel::computeFK(
@@ -382,7 +402,7 @@ bool MoveItRobotModel::computeIK(
             int vind = m_active_var_indices[avind];
             solution[avind] = m_robot_state->getVariablePosition(vind);
         }
-        ROS_INFO("IK Succeeded with solution %s", to_string(solution).c_str());
+//        ROS_INFO("IK Succeeded with solution %s", to_string(solution).c_str());
         return true;
     }
     else {
@@ -395,8 +415,8 @@ bool MoveItRobotModel::computeIK(
         q.z = ik_rot.z();
         double r, p, y;
         leatherman::getRPY(q, r, p, y);
-        ROS_ERROR("Failed to compute IK to pose (%0.3f, %0.3f, %0.3f, %0.3f, %0.3f, %0.3f) in %s for joint group '%s'",
-                ik_pos.x(), ik_pos.y(), ik_pos.z(), r, p, y, m_robot_model->getModelFrame().c_str(), m_group_name.c_str());
+//        ROS_ERROR("Failed to compute IK to pose (%0.3f, %0.3f, %0.3f, %0.3f, %0.3f, %0.3f) in %s for joint group '%s'",
+//                ik_pos.x(), ik_pos.y(), ik_pos.z(), r, p, y, m_robot_model->getModelFrame().c_str(), m_group_name.c_str());
 
         return false;
     }
