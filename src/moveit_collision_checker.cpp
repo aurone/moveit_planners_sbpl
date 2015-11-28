@@ -207,12 +207,18 @@ visualization_msgs::MarkerArray
 MoveItCollisionChecker::getCollisionModelVisualization(
     const std::vector<double>& angles)
 {
-    moveit::core::RobotState robot_state(m_robot_model->moveitRobotModel());
+    moveit::core::RobotState robot_state(*m_ref_state);
 
-    const moveit::core::JointModelGroup* joint_group =
-            m_robot_model->planningJointGroup();
-    const std::vector<std::string>& link_names =
-            joint_group->getLinkModelNames();
+    for (size_t vind = 0; vind < angles.size(); ++vind) {
+        int avind = m_robot_model->activeVariableIndices()[vind];
+        robot_state.setVariablePosition(avind, angles[vind]);
+    }
+
+    // TODO: get all links that are descendants of this joint group
+//    const moveit::core::JointModelGroup* joint_group =
+//            m_robot_model->planningJointGroup();
+//    const std::vector<std::string>& link_names =
+//            joint_group->getLinkModelNames();
 
     visualization_msgs::MarkerArray marker_arr;
     std_msgs::ColorRGBA color;
@@ -220,7 +226,7 @@ MoveItCollisionChecker::getCollisionModelVisualization(
     color.g = 0.0;
     color.b = 0.8;
     color.a = 0.8;
-    robot_state.getRobotMarkers(marker_arr, link_names, color, "", ros::Duration(0));
+    robot_state.getRobotMarkers(marker_arr, m_robot_model->moveitRobotModel()->getLinkModelNames(), color, "", ros::Duration(0));
     return marker_arr;
 }
 
