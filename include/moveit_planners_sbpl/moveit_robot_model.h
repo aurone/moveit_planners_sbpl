@@ -55,7 +55,9 @@ public:
     virtual double maxVarLimit(int jidx) const;
     virtual bool   hasVarLimit(int jidx) const;
 
-    virtual bool checkJointLimits(const std::vector<double>& angles);
+    virtual bool checkJointLimits(
+        const std::vector<double>& angles,
+        bool verbose = false);
 
     virtual bool computeFK(
         const std::vector<double>& angles,

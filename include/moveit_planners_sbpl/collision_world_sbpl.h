@@ -168,6 +168,7 @@ private:
     World::ObserverHandle m_observer_handle;
 
     std::vector<double> m_updated_joint_variables;
+    std::vector<bool> m_is_planning_variable;
 
     ros::NodeHandle m_nh;
     ros::Publisher m_cspace_pub;
