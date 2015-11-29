@@ -37,6 +37,7 @@
 #include <limits>
 
 // system includes
+#include <leatherman/print.h>
 #include <ros/console.h>
 #include <sbpl_geometry_utils/interpolation.h>
 
@@ -143,6 +144,14 @@ bool MoveItCollisionChecker::isStateValid(
     // to this level from the planning context. Once those are propagated, this
     // call will need to be paired with an additional call to isStateConstrained
 
+    if (m_scene->isStateColliding(
+            *m_ref_state, m_robot_model->planningGroupName(), verbose))
+    {
+        dist = 0.0;
+        return false;
+    }
+
+    // check torque limits
     Eigen::MatrixXd J;
     J = m_ref_state->getJacobian(
             m_robot_model->planningJointGroup(), Eigen::Vector3d(0.17, 0.0, 0.0));
@@ -162,15 +171,18 @@ bool MoveItCollisionChecker::isStateValid(
 
     Eigen::VectorXd t = J.transpose() * f;
 
-    if (!m_scene->isStateColliding(
-            *m_ref_state, m_robot_model->planningGroupName(), verbose))
-    {
-        return true;
+    std::vector<double> rarm_torque_limits = {
+        30.0, 30.0, 30.0, 30.0, 30.0, 10.0, 10.0
+    };
+
+    for (int i = 0; i < 7; ++i) {
+        if (fabs(t(i)) > rarm_torque_limits[i]) {
+            ROS_INFO("State %s infeasible due to torque limits", to_string(angles).c_str());
+            return false;
+        }
     }
-    else {
-        dist = 0.0;
-        return false;
-    }
+
+    return true;
 }
 
 bool MoveItCollisionChecker::isStateToStateValid(
