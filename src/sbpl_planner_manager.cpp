@@ -79,6 +79,7 @@ void SBPLPlannerManager::getPlanningAlgorithms(
     std::vector<std::string>& algs) const
 {
     algs.push_back("ARA*");
+    algs.push_back("MHA*");
 }
 
 planning_interface::PlanningContextPtr SBPLPlannerManager::getPlanningContext(

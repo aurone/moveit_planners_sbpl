@@ -195,6 +195,10 @@ bool SBPLPlanningContext::init(const std::map<std::string, std::string>& config)
 {
     ROS_INFO("Initializing SBPL Planning Context");
 
+    // TODO: implement a way to pass down planner-specific parameters to the
+    // SBPL Arm Planner Interface from above and to query the interface for
+    // expected parameters
+
     if (!m_robot_model->initialized()) {
         ROS_ERROR("MoveIt! Robot Model is not initialized");
         return false;
