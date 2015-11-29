@@ -601,8 +601,12 @@ bool SBPLPlanningContext::initHeuristicGrid(
     /////////////////////////////////////////
 
     moveit_msgs::OrientedBoundingBox workspace_aabb;
-    getPlanningFrameWorkspaceAABB(
-            req.workspace_parameters, scene, workspace_aabb);
+    if (!getPlanningFrameWorkspaceAABB(
+            req.workspace_parameters, scene, workspace_aabb))
+    {
+        ROS_ERROR("Failed to get workspace boundaries in the planning frame");
+        return false;
+    }
 
     ROS_DEBUG("AABB of workspace in planning frame:");
     ROS_DEBUG("  pose:");
@@ -703,6 +707,8 @@ bool SBPLPlanningContext::initHeuristicGrid(
 
     ROS_INFO("Adding %zu points to the bfs distance field", points.size());
     m_distance_field->addPointsToField(points);
+
+    return true;
 }
 
 } // namespace sbpl_interface
