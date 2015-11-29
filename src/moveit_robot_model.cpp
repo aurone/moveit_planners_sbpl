@@ -154,6 +154,35 @@ bool MoveItRobotModel::init(
     // TODO: consider not-readiness if planning scene or planning frame is
     // unspecified
 
+    // TODO: determine whether the orientation solver is applicable for an
+    // arbitrary joint group and the relevant links and joints that are part of
+    // the spherical wrist
+
+    if (robot_model->getName() == "pr2") {
+        if (group_name == "right_arm") {
+            m_forearm_roll_link = "r_forearm_roll_link";
+            m_wrist_flex_link = "r_wrist_flex_link";
+            m_wrist_roll_link = "r_wrist_roll_link";
+            m_wrist_flex_joint = "r_wrist_flex_joint";
+        }
+        else if (group_name == "left_arm") {
+            m_forearm_roll_link = "l_forearm_roll_link";
+            m_wrist_flex_link = "l_wrist_flex_link";
+            m_wrist_roll_link = "l_wrist_roll_link";
+            m_wrist_flex_joint = "l_wrist_flex_joint";
+        }
+    }
+
+    if (!m_wrist_flex_joint.empty()) {
+        const auto& var_bounds =
+                m_robot_model->getVariableBounds(m_wrist_flex_joint);
+
+        double wrist_pitch_min = var_bounds.min_position_;
+        double wrist_pitch_max = var_bounds.max_position_;
+        ROS_INFO("Instantiating orientation solver with limits [%0.3f, %0.3f]", wrist_pitch_min, wrist_pitch_max);
+        m_rpy_solver.reset(new sbpl_arm_planner::RPYSolver(wrist_pitch_min, wrist_pitch_max));
+    }
+
     return true;
 }
 
@@ -340,7 +369,7 @@ bool MoveItRobotModel::computeIK(
     const std::vector<double>& pose,
     const std::vector<double>& start,
     std::vector<double>& solution,
-    int option)
+    sbpl_arm_planner::ik_option::IkOption option)
 {
     if (!initialized()) {
         ROS_ERROR("MoveIt! Robot Model is uninitialized");
@@ -352,90 +381,11 @@ bool MoveItRobotModel::computeIK(
         return false;
     }
 
-    Eigen::Affine3d T_planning_link;
-//    T_planning_link =
-//            Eigen::Translation3d(pose[0], pose[1], pose[2]) *
-//            Eigen::AngleAxisd(pose[3], Eigen::Vector3d(0.0, 0.0, 1.0)) *
-//            Eigen::AngleAxisd(pose[4], Eigen::Vector3d(0.0, 1.0, 0.0)) *
-//            Eigen::AngleAxisd(pose[5], Eigen::Vector3d(1.0, 0.0, 0.0));
-    T_planning_link =
-            Eigen::Translation3d(pose[0], pose[1], pose[2]) *
-            Eigen::AngleAxisd(pose[5], Eigen::Vector3d(0.0, 0.0, 1.0)) *
-            Eigen::AngleAxisd(pose[4], Eigen::Vector3d(0.0, 1.0, 0.0)) *
-            Eigen::AngleAxisd(pose[3], Eigen::Vector3d(1.0, 0.0, 0.0));
-
-    // get the transform in the model frame
-
-    // return the pose of the link in the planning frame
-    if (!m_planning_scene->knowsFrameTransform(m_planning_frame) ||
-        !m_planning_scene->knowsFrameTransform(m_robot_model->getModelFrame()))
-    {
-        ROS_ERROR("Planning Scene does not contain transforms to planning frame '%s' or model frame '%s'", m_planning_frame.c_str(), m_robot_model->getModelFrame().c_str());
-        return false;
-    }
-
-    const Eigen::Affine3d& T_scene_planning =
-            m_planning_scene->getFrameTransform(m_planning_frame);
-    const Eigen::Affine3d& T_scene_model =
-            m_planning_scene->getFrameTransform(m_robot_model->getModelFrame());
-
-    Eigen::Affine3d T_model_link =
-            T_scene_model.inverse() *
-            T_scene_planning *
-            T_planning_link;
-
-    Eigen::Affine3d T_ik_link = T_model_link;
-    m_robot_state->setToIKSolverFrame(T_ik_link, m_joint_group->getSolverInstance());
-
-    for (size_t sind = 0; sind < start.size(); ++sind) {
-        int avind = m_active_var_indices[sind];
-        m_robot_state->setVariablePosition(avind, start[sind]);
-    }
-    m_robot_state->updateLinkTransforms();
-
-    if (m_robot_state->setFromIK(m_joint_group, T_model_link, 10, 0.1)) {
-        if (!m_robot_state->satisfiesBounds(m_joint_group)) {
-            ROS_ERROR("KDL Returned invalid joint angles?");
-        }
-        solution.resize(m_active_var_names.size());
-        for (size_t avind = 0; avind < m_active_var_names.size(); ++avind) {
-            int vind = m_active_var_indices[avind];
-            solution[avind] = m_robot_state->getVariablePosition(vind);
-        }
-//        ROS_INFO("IK Succeeded with solution %s", to_string(solution).c_str());
-        return true;
-    }
-    else {
-        Eigen::Vector3d ik_pos(T_model_link.translation());
-        Eigen::Quaterniond ik_rot(T_model_link.rotation());
-        geometry_msgs::Quaternion q;
-        q.w = ik_rot.w();
-        q.x = ik_rot.x();
-        q.y = ik_rot.y();
-        q.z = ik_rot.z();
-        double r, p, y;
-        leatherman::getRPY(q, r, p, y);
-//        ROS_ERROR("Failed to compute IK to pose (%0.3f, %0.3f, %0.3f, %0.3f, %0.3f, %0.3f) in %s for joint group '%s'",
-//                ik_pos.x(), ik_pos.y(), ik_pos.z(), r, p, y, m_robot_model->getModelFrame().c_str(), m_group_name.c_str());
-
-        return false;
-    }
-}
-
-bool MoveItRobotModel::computeIK(
-    const std::vector<double>& pose,
-    const std::vector<double>& start,
-    std::vector<std::vector<double>>& solutions,
-    int option)
-{
-    if (!initialized()) {
-        ROS_ERROR("MoveIt! Robot Model is uninitialized");
-        return false;
-    }
-
-    if (!m_tip_link || !m_joint_group->canSetStateFromIK(m_tip_link->getName())) {
-        ROS_WARN_ONCE("computeIK not available for this Robot Model");
-        return false;
+    switch (option) {
+    case sbpl_arm_planner::ik_option::UNRESTRICTED:
+        return computeUnrestrictedIK(pose, start, solution);
+    case sbpl_arm_planner::ik_option::RESTRICT_XYZ_JOINTS:
+        return computeWristIK(pose, start, solution);
     }
 
     return false;
@@ -534,6 +484,143 @@ const std::vector<bool>& MoveItRobotModel::variableContinuous() const
 moveit::core::RobotModelConstPtr MoveItRobotModel::moveitRobotModel() const
 {
     return m_robot_model;
+}
+
+bool MoveItRobotModel::computeIK(
+    const std::vector<double>& pose,
+    const std::vector<double>& start,
+    std::vector<std::vector<double>>& solutions,
+    sbpl_arm_planner::ik_option::IkOption option)
+{
+    if (!initialized()) {
+        ROS_ERROR("MoveIt! Robot Model is uninitialized");
+        return false;
+    }
+
+    if (!m_tip_link || !m_joint_group->canSetStateFromIK(m_tip_link->getName())) {
+        ROS_WARN_ONCE("computeIK not available for this Robot Model");
+        return false;
+    }
+
+    return false;
+}
+
+bool MoveItRobotModel::computeUnrestrictedIK(
+    const std::vector<double>& pose,
+    const std::vector<double>& start,
+    std::vector<double>& solution)
+{
+    Eigen::Affine3d T_planning_link =
+            Eigen::Translation3d(pose[0], pose[1], pose[2]) *
+            Eigen::AngleAxisd(pose[5], Eigen::Vector3d(0.0, 0.0, 1.0)) *
+            Eigen::AngleAxisd(pose[4], Eigen::Vector3d(0.0, 1.0, 0.0)) *
+            Eigen::AngleAxisd(pose[3], Eigen::Vector3d(1.0, 0.0, 0.0));
+
+    // get the transform in the model frame
+
+    // return the pose of the link in the planning frame
+    if (!m_planning_scene->knowsFrameTransform(m_planning_frame) ||
+        !m_planning_scene->knowsFrameTransform(m_robot_model->getModelFrame()))
+    {
+        ROS_ERROR("Planning Scene does not contain transforms to planning frame '%s' or model frame '%s'", m_planning_frame.c_str(), m_robot_model->getModelFrame().c_str());
+        return false;
+    }
+
+    const Eigen::Affine3d& T_scene_planning =
+            m_planning_scene->getFrameTransform(m_planning_frame);
+    const Eigen::Affine3d& T_scene_model =
+            m_planning_scene->getFrameTransform(m_robot_model->getModelFrame());
+
+    Eigen::Affine3d T_model_link =
+            T_scene_model.inverse() *
+            T_scene_planning *
+            T_planning_link;
+
+    for (size_t sind = 0; sind < start.size(); ++sind) {
+        int avind = m_active_var_indices[sind];
+        m_robot_state->setVariablePosition(avind, start[sind]);
+    }
+    m_robot_state->updateLinkTransforms();
+
+    if (m_robot_state->setFromIK(m_joint_group, T_model_link, 10, 0.1)) {
+        if (!m_robot_state->satisfiesBounds(m_joint_group)) {
+            ROS_ERROR("KDL Returned invalid joint angles?");
+        }
+        solution.resize(m_active_var_names.size());
+        for (size_t avind = 0; avind < m_active_var_names.size(); ++avind) {
+            int vind = m_active_var_indices[avind];
+            solution[avind] = m_robot_state->getVariablePosition(vind);
+        }
+//        ROS_INFO("IK Succeeded with solution %s", to_string(solution).c_str());
+        return true;
+    }
+    else {
+        Eigen::Vector3d ik_pos(T_model_link.translation());
+        Eigen::Quaterniond ik_rot(T_model_link.rotation());
+        geometry_msgs::Quaternion q;
+        q.w = ik_rot.w();
+        q.x = ik_rot.x();
+        q.y = ik_rot.y();
+        q.z = ik_rot.z();
+        double r, p, y;
+        leatherman::getRPY(q, r, p, y);
+//        ROS_ERROR("Failed to compute IK to pose (%0.3f, %0.3f, %0.3f, %0.3f, %0.3f, %0.3f) in %s for joint group '%s'",
+//                ik_pos.x(), ik_pos.y(), ik_pos.z(), r, p, y, m_robot_model->getModelFrame().c_str(), m_group_name.c_str());
+
+        return false;
+    }
+}
+
+bool MoveItRobotModel::computeWristIK(
+    const std::vector<double>& pose,
+    const std::vector<double>& start,
+    std::vector<double>& solution)
+{
+    for (size_t sind = 0; sind < start.size(); ++sind) {
+        int avind = m_active_var_indices[sind];
+        m_robot_state->setVariablePosition(avind, start[sind]);
+    }
+    m_robot_state->updateLinkTransforms();
+
+    const Eigen::Affine3d& T_model_forearm =
+            m_robot_state->getGlobalLinkTransform(m_forearm_roll_link);
+    const Eigen::Affine3d& T_model_wrist =
+            m_robot_state->getGlobalLinkTransform(m_wrist_roll_link);
+
+    const Eigen::Vector3d forearm_pos(T_model_forearm.translation());
+    const Eigen::Vector3d wrist_pos(T_model_wrist.translation());
+    const Eigen::Quaterniond forearm_rot(T_model_forearm.rotation());
+    const Eigen::Quaterniond wrist_rot(T_model_wrist.rotation());
+
+    geometry_msgs::Quaternion fq;
+    fq.w = forearm_rot.w();
+    fq.x = forearm_rot.x();
+    fq.y = forearm_rot.y();
+    fq.z = forearm_rot.z();
+
+    geometry_msgs::Quaternion wq;
+    wq.w = wrist_rot.w();
+    wq.x = wrist_rot.x();
+    wq.y = wrist_rot.y();
+    wq.z = wrist_rot.z();
+
+    double fr, fp, fy;
+    leatherman::getRPY(fq, fr, fp, fy);
+
+    double wr, wp, wy;
+    leatherman::getRPY(wq, wr, wp, wy);
+
+    // NOTE: calling fk to get these poses would be more convenient, but may
+    // also pollute the robot state being used internally
+
+    const std::vector<double> rpy = { pose[3], pose[4], pose[5] };
+    const std::vector<double> forearm_roll_link_pose =
+            { forearm_pos.x(), forearm_pos.y(), forearm_pos.z(), fr, fp, fy };
+    const std::vector<double> endeff_link_pose =
+            { wrist_pos.x(), wrist_pos.y(), wrist_pos.z(), wr, wp, wy };
+    const int solnum = 1;
+    return m_rpy_solver->computeRPYOnly(
+            rpy, start, forearm_roll_link_pose, endeff_link_pose, solnum, solution);
 }
 
 } // namespace sbpl_interface

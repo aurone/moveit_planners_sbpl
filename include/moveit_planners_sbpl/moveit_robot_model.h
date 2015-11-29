@@ -38,6 +38,7 @@
 #include <moveit/robot_state/robot_state.h>
 #include <moveit/planning_scene/planning_scene.h>
 #include <sbpl_manipulation_components/robot_model.h>
+#include <sbpl_manipulation_components_pr2/orientation_solver.h>
 
 namespace sbpl_interface {
 
@@ -77,13 +78,13 @@ public:
         const std::vector<double>& pose,
         const std::vector<double>& start,
         std::vector<double>& solution,
-        int option = sbpl_arm_planner::ik_option::UNRESTRICTED);
+        sbpl_arm_planner::ik_option::IkOption option = sbpl_arm_planner::ik_option::UNRESTRICTED);
 
     virtual bool computeIK(
         const std::vector<double>& pose,
         const std::vector<double>& start,
         std::vector<std::vector<double> >& solutions,
-        int option = sbpl_arm_planner::ik_option::UNRESTRICTED);
+        sbpl_arm_planner::ik_option::IkOption option = sbpl_arm_planner::ik_option::UNRESTRICTED);
 
     virtual bool computeFastIK(
         const std::vector<double>& pose,
@@ -165,6 +166,22 @@ private:
     std::vector<bool> m_var_continuous;
 
     std::string m_planning_frame;
+
+    std::shared_ptr<sbpl_arm_planner::RPYSolver> m_rpy_solver;
+    std::string m_forearm_roll_link;
+    std::string m_wrist_flex_link;
+    std::string m_wrist_roll_link;
+    std::string m_wrist_flex_joint;
+
+    bool computeUnrestrictedIK(
+        const std::vector<double>& pose,
+        const std::vector<double>& start,
+        std::vector<double>& solution);
+
+    bool computeWristIK(
+        const std::vector<double>& pose,
+        const std::vector<double>& start,
+        std::vector<double>& solution);
 };
 
 } // namespace sbpl_interface
