@@ -39,6 +39,7 @@
 // system includes
 #include <leatherman/print.h>
 #include <ros/console.h>
+#include <ros/ros.h>
 #include <sbpl_geometry_utils/interpolation.h>
 
 #include <moveit_planners_sbpl/moveit_robot_model.h>
@@ -109,6 +110,10 @@ bool MoveItCollisionChecker::init(
         const std::string& var_name = planning_var_names[vind];
     }
 
+    ros::NodeHandle ph("~");
+    ph.param("check_torques", m_check_torques, false);
+    ROS_INFO("Checking Torques: %s", m_check_torques ? "true" : "false");
+
     return true;
 }
 
@@ -151,8 +156,7 @@ bool MoveItCollisionChecker::isStateValid(
         return false;
     }
 
-    const bool check_torques = true;
-    if (check_torques) {
+    if (m_check_torques) {
         if (!areTorquesValid(*m_ref_state, angles)) {
             return false;
         }

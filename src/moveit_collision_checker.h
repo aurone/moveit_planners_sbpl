@@ -91,6 +91,8 @@ private:
 
     moveit::core::RobotStatePtr m_ref_state;
 
+    bool m_check_torques;
+
     bool areTorquesValid(
         const moveit::core::RobotState& state,
         const std::vector<double>& angles) const;
