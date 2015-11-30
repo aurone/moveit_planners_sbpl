@@ -136,6 +136,16 @@ bool SBPLPlanningContext::solve(planning_interface::MotionPlanResponse& res)
         return false;
     }
 
+    if (req_msg.planner_id == "MHA*") {
+        const double bfs_radius = 0.04;
+        if (!initAndrewsTorqueManifoldHack(*scene)) {
+            ROS_ERROR("Failed to initialize torque manifold hack");
+        }
+//        else if (!m_planner->addBfsHeuristic("torque_manifold", m_torque_manifold.get(), bfs_radius)) {
+//            ROS_ERROR("Failed to add bfs heuristic");
+//        }
+    }
+
     moveit_msgs::MotionPlanResponse res_msg;
     bool result = m_planner->solve(scene_msg, req_msg, res_msg);
     if (result) {
@@ -711,6 +721,68 @@ bool SBPLPlanningContext::initHeuristicGrid(
 
     ROS_INFO("Adding %zu points to the bfs distance field", points.size());
     m_distance_field->addPointsToField(points);
+
+    return true;
+}
+
+bool SBPLPlanningContext::initAndrewsTorqueManifoldHack(
+    const planning_scene::PlanningScene& scene)
+{
+    std::ifstream ifs("/home/aurone/torque_points.csv");
+    if (!ifs.is_open()) {
+        return false;
+    }
+
+    if (!scene.knowsFrameTransform("torso_lift_link") ||
+        !scene.knowsFrameTransform(scene.getPlanningFrame()))
+    {
+        ROS_ERROR("Dunno how to get to the torso");
+        return false;
+    }
+
+    const Eigen::Affine3d& T_scene_torso =
+            scene.getFrameTransform("torso_lift_link");
+    const Eigen::Affine3d& T_scene_planning =
+            scene.getFrameTransform(scene.getPlanningFrame());
+
+    Eigen::Affine3d T_planning_torso = T_scene_planning.inverse() * T_scene_torso;
+
+    double x, y, z;
+    EigenSTL::vector_Vector3d points;
+    while (ifs >> x >> y >> z) {
+        Eigen::Vector3d point = T_planning_torso * Eigen::Vector3d(x, y, z);
+        points.push_back(point);
+    }
+
+    const double max_dist = 0.2;
+    m_torque_manifold.reset(new distance_field::PropagationDistanceField(
+            m_distance_field->getSizeX(),
+            m_distance_field->getSizeY(),
+            m_distance_field->getSizeZ(),
+            m_distance_field->getResolution(),
+            m_distance_field->getOriginX(),
+            m_distance_field->getOriginY(),
+            m_distance_field->getOriginZ(),
+            max_dist));
+
+    ROS_INFO("Torque manifold sampled over %zu points", points.size());
+    m_torque_manifold->addPointsToField(points);
+
+    // add all the obstacle points as well
+    points.clear();
+    for (int gx = 0; gx < m_distance_field->getXNumCells(); ++gx) {
+        for (int gy = 0; gy < m_distance_field->getYNumCells(); ++gy) {
+            for (int gz = 0; gz < m_distance_field->getZNumCells(); ++gz) {
+                if (m_distance_field->getDistance(gx, gy, gz) == 0.0) {
+                    double wx, wy, wz;
+                    m_distance_field->gridToWorld(gx, gy, gz, wx, wy, wz);
+                    points.push_back(Eigen::Vector3d(wx, wy, wz));
+                }
+            }
+        }
+    }
+
+    m_torque_manifold->addPointsToField(points);
 
     return true;
 }
