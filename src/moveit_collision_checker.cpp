@@ -277,7 +277,7 @@ bool MoveItCollisionChecker::areTorquesValid(
 
     for (int i = 0; i < 7; ++i) {
         if (fabs(t(i)) > rarm_torque_limits[i]) {
-            ROS_INFO("State %s infeasible due to torque limits", to_string(angles).c_str());
+            ROS_WARN_THROTTLE(1, "State %s infeasible due to torque limits", to_string(angles).c_str());
             return false;
         }
     }
