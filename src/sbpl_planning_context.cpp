@@ -141,9 +141,9 @@ bool SBPLPlanningContext::solve(planning_interface::MotionPlanResponse& res)
         if (!initAndrewsTorqueManifoldHack(*scene)) {
             ROS_ERROR("Failed to initialize torque manifold hack");
         }
-//        else if (!m_planner->addBfsHeuristic("torque_manifold", m_torque_manifold.get(), bfs_radius)) {
-//            ROS_ERROR("Failed to add bfs heuristic");
-//        }
+        else if (!m_planner->addBfsHeuristic("torque_manifold", m_torque_manifold.get(), bfs_radius)) {
+            ROS_ERROR("Failed to add bfs heuristic");
+        }
     }
 
     moveit_msgs::MotionPlanResponse res_msg;
