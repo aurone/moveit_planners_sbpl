@@ -90,12 +90,6 @@ private:
     planning_scene::PlanningSceneConstPtr m_scene;
 
     moveit::core::RobotStatePtr m_ref_state;
-
-    bool m_check_torques;
-
-    bool areTorquesValid(
-        const moveit::core::RobotState& state,
-        const std::vector<double>& angles) const;
 };
 
 } // namespace sbpl_interface

@@ -110,10 +110,6 @@ bool MoveItCollisionChecker::init(
         const std::string& var_name = planning_var_names[vind];
     }
 
-    ros::NodeHandle ph("~");
-    ph.param("check_torques", m_check_torques, false);
-    ROS_INFO("Checking Torques: %s", m_check_torques ? "true" : "false");
-
     return true;
 }
 
@@ -154,12 +150,6 @@ bool MoveItCollisionChecker::isStateValid(
     {
         dist = 0.0;
         return false;
-    }
-
-    if (m_check_torques) {
-        if (!areTorquesValid(*m_ref_state, angles)) {
-            return false;
-        }
     }
 
     return true;
@@ -245,44 +235,6 @@ visualization_msgs::MarkerArray
 MoveItCollisionChecker::getVisualization(const std::string& type)
 {
     return visualization_msgs::MarkerArray();
-}
-
-bool MoveItCollisionChecker::areTorquesValid(
-    const moveit::core::RobotState& state,
-    const std::vector<double>& angles) const
-{
-    // check torque limits
-    Eigen::MatrixXd J;
-    J = state.getJacobian(
-            m_robot_model->planningJointGroup(), Eigen::Vector3d(0.17, 0.0, 0.0));
-
-    double weight_lbs = 10.0;
-    double kg_per_lb = 1.0 / 2.2;
-    double gravity_z = -9.8;
-
-    typedef Eigen::Matrix<double, 6, 1> Vector6d;
-    Vector6d f;
-    f(0) = 0.0;
-    f(1) = 0.0;
-    f(2) = gravity_z * weight_lbs * kg_per_lb;
-    f(3) = 0.0;
-    f(4) = 0.0;
-    f(5) = 0.0;
-
-    Eigen::VectorXd t = J.transpose() * f;
-
-    std::vector<double> rarm_torque_limits = {
-        30.0, 30.0, 30.0, 30.0, 30.0, 10.0, 10.0
-    };
-
-    for (int i = 0; i < 7; ++i) {
-        if (fabs(t(i)) > rarm_torque_limits[i]) {
-            ROS_WARN_THROTTLE(1, "State %s infeasible due to torque limits", to_string(angles).c_str());
-            return false;
-        }
-    }
-
-    return true;
 }
 
 } // namespace sbpl_interface

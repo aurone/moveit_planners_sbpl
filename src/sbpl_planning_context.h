@@ -101,9 +101,6 @@ private:
     bool initHeuristicGrid(
         const planning_scene::PlanningScene& scene,
         const moveit_msgs::WorkspaceParameters& workspace);
-
-    std::unique_ptr<distance_field::PropagationDistanceField> m_torque_manifold;
-    bool initAndrewsTorqueManifoldHack(const planning_scene::PlanningScene& scene);
 };
 
 MOVEIT_CLASS_FORWARD(SBPLPlanningContext);
