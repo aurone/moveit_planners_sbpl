@@ -224,12 +224,12 @@ private:
     std::vector<double> extractPlanningVariables(
         const moveit::core::RobotState& state) const;
 
-    void processWorldUpdateUninitialized(const World::Object& object);
-    void processWorldUpdateCreate(const World::Object& object);
-    void processWorldUpdateDestroy(const World::Object& object);
-    void processWorldUpdateMoveShape(const World::Object& object);
-    void processWorldUpdateAddShape(const World::Object& object);
-    void processWorldUpdateRemoveShape(const World::Object& object);
+    void processWorldUpdateUninitialized(const World::ObjectConstPtr& object);
+    void processWorldUpdateCreate(const World::ObjectConstPtr& object);
+    void processWorldUpdateDestroy(const World::ObjectConstPtr& object);
+    void processWorldUpdateMoveShape(const World::ObjectConstPtr& object);
+    void processWorldUpdateAddShape(const World::ObjectConstPtr& object);
+    void processWorldUpdateRemoveShape(const World::ObjectConstPtr& object);
 
     // Converts a world object to a collision object.
     // The collision object's frame_id is the planning frame and the operation

@@ -373,27 +373,27 @@ void CollisionWorldSBPL::worldUpdate(
     ROS_INFO("  shape_poses: %zu", object->shape_poses_.size());
     if (action & World::ActionBits::UNINITIALIZED) {
         ROS_INFO("  action: UNINITIALIZED");
-        processWorldUpdateUninitialized(*object);
+        processWorldUpdateUninitialized(object);
     }
     else if (action & World::ActionBits::CREATE) {
         ROS_INFO("  action: CREATE");
-        processWorldUpdateCreate(*object);
+        processWorldUpdateCreate(object);
     }
     else if (action & World::ActionBits::DESTROY) {
         ROS_INFO("  action: DESTROY");
-        processWorldUpdateDestroy(*object);
+        processWorldUpdateDestroy(object);
     }
     else if (action & World::ActionBits::MOVE_SHAPE) {
         ROS_INFO("  action: MOVE_SHAPE");
-        processWorldUpdateMoveShape(*object);
+        processWorldUpdateMoveShape(object);
     }
     else if (action & World::ActionBits::ADD_SHAPE) {
         ROS_INFO("  action: ADD_SHAPE");
-        processWorldUpdateAddShape(*object);
+        processWorldUpdateAddShape(object);
     }
     else if (action & World::ActionBits::REMOVE_SHAPE)  {
         ROS_INFO("  action: REMOVE_SHAPE");
-        processWorldUpdateRemoveShape(*object);
+        processWorldUpdateRemoveShape(object);
     }
 }
 
@@ -500,18 +500,7 @@ void CollisionWorldSBPL::addWorldToCollisionSpace(const World& world)
     for (auto oit = world.begin(); oit != world.end(); ++oit) {
         ROS_DEBUG("Adding object '%s' to the configuration space", oit->first.c_str());
         assert(oit->second.get());
-
-        const std::string& name = oit->first;
-        const World::Object& object = *oit->second;
-
-        // convert to World::Object to moveit_msgs::CollisionObject
-        moveit_msgs::CollisionObject obj_msg;
-        if (!worldObjectToCollisionObjectMsgFull(object, obj_msg)) {
-            ROS_WARN("Failed to convert world object '%s' to collision object", object.id_.c_str());
-            continue;
-        }
-        obj_msg.operation = moveit_msgs::CollisionObject::ADD;
-        m_cspace->processCollisionObject(obj_msg);
+        m_cspace->insertObject(oit->second);
     }
 }
 
@@ -655,59 +644,44 @@ std::vector<double> CollisionWorldSBPL::extractPlanningVariables(
 }
 
 void CollisionWorldSBPL::processWorldUpdateUninitialized(
-    const World::Object& object)
+    const World::ObjectConstPtr& object)
 {
 
 }
 
 void CollisionWorldSBPL::processWorldUpdateCreate(
-    const World::Object& object)
+    const World::ObjectConstPtr& object)
 {
     if (!m_cspace) {
         ROS_ERROR("Collision Space has not been initialized");
         return;
     }
 
-    // convert to collision object
-    moveit_msgs::CollisionObject collision_object;
-    if (!worldObjectToCollisionObjectMsgFull(object, collision_object)) {
-        ROS_ERROR("Failed to convert world object '%s' to collision object", object.id_.c_str());
-        return;
-    }
-    collision_object.operation = moveit_msgs::CollisionObject::ADD;
-
-    m_cspace->processCollisionObject(collision_object);
+    m_cspace->insertObject(object);
 }
 
 void CollisionWorldSBPL::processWorldUpdateDestroy(
-    const World::Object& object)
+    const World::ObjectConstPtr& object)
 {
-    moveit_msgs::CollisionObject collision_object;
-    if (!worldObjectToCollisionObjectMsgName(object, collision_object)) {
-        ROS_ERROR("Failed to convert world object '%s' to collision object", object.id_.c_str());
-        return;
-    }
-    collision_object.operation = moveit_msgs::CollisionObject::REMOVE;
-
-    m_cspace->processCollisionObject(collision_object);
+    m_cspace->removeObject(object);
 }
 
 void CollisionWorldSBPL::processWorldUpdateMoveShape(
-    const World::Object& object)
+    const World::ObjectConstPtr& object)
 {
-
+    m_cspace->moveShapes(object);
 }
 
 void CollisionWorldSBPL::processWorldUpdateAddShape(
-    const World::Object& object)
+    const World::ObjectConstPtr& object)
 {
-
+    m_cspace->insertShapes(object);
 }
 
 void CollisionWorldSBPL::processWorldUpdateRemoveShape(
-    const World::Object& object)
+    const World::ObjectConstPtr& object)
 {
-
+    m_cspace->removeShapes(object);
 }
 
 bool CollisionWorldSBPL::worldObjectToCollisionObjectMsgFull(
