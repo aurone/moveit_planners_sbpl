@@ -567,6 +567,8 @@ void CollisionWorldSBPL::updateCollisionSpaceJointState(
             if (!m_is_planning_variable[vind]) {
                 voxel_group_changed = true;
             }
+
+            m_updated_joint_variables[vind] = variable_position;
         }
     }
 
