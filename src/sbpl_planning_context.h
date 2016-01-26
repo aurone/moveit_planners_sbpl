@@ -79,6 +79,7 @@ private:
     double m_epsilon;
 
     bool m_shortcut_path;
+    bool m_interpolate_path;
 
     bool m_use_bfs_heuristic;
     double m_bfs_res_x;

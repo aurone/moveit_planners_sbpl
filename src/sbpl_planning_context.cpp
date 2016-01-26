@@ -233,7 +233,8 @@ bool SBPLPlanningContext::init(const std::map<std::string, std::string>& config)
         "epsilon",
 
         // post-processing
-        "shortcut_path"
+        "shortcut_path",
+        "interpolate_path"
     };
 
     for (const std::string& req_param : required_params) {
@@ -298,6 +299,7 @@ bool SBPLPlanningContext::init(const std::map<std::string, std::string>& config)
     }
 
     bool shortcut_path = config.at("shortcut_path") == "true";
+    bool interpolate_path = config.at("interpolate_path") == "true";
 
     bool use_bfs_heuristic = config.at("use_bfs_heuristic") == "true";
     double bfs_res_x = 0.0;
@@ -367,6 +369,7 @@ bool SBPLPlanningContext::init(const std::map<std::string, std::string>& config)
     m_epsilon = epsilon;
 
     m_shortcut_path = shortcut_path;
+    m_interpolate_path = interpolate_path;
 
     m_action_set.useAmp(
             sbpl_arm_planner::MotionPrimitive::SNAP_TO_XYZ,
@@ -520,6 +523,7 @@ bool SBPLPlanningContext::initSBPL(std::string& why)
     params.expands_log_level_ = "debug";
     params.expands2_log_level_ = "debug";
     params.shortcut_path_ = m_shortcut_path;
+    params.interpolate_path_ = m_interpolate_path;
 
     if (!m_planner->init(params)) {
         why = "Failed to initialize SBPL Arm Planner Interface";

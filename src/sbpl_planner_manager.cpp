@@ -496,7 +496,8 @@ bool SBPLPlannerManager::loadPlannerConfigurationMapping(
         "rpy_snap_dist_thresh",
         "xyzrpy_snap_dist_thresh",
         "short_dist_mprims_thresh",
-        "shortcut_path"
+        "shortcut_path",
+        "interpolate_path"
     };
 
     const std::vector<std::string>& joint_group_names =
