@@ -137,6 +137,10 @@ bool SBPLPlanningContext::solve(planning_interface::MotionPlanResponse& res)
         return false;
     }
 
+    robot_state::RobotStatePtr start_state =
+            scene->getCurrentStateUpdated(req_msg.start_state);
+    moveit::core::robotStateToRobotStateMsg(*start_state, req_msg.start_state);
+
     moveit_msgs::MotionPlanResponse res_msg;
     bool result = m_planner->solve(scene_msg, req_msg, res_msg);
     if (result) {

@@ -152,6 +152,10 @@ planning_interface::PlanningContextPtr SBPLPlannerManager::getPlanningContext(
         ROS_INFO("Using default collision checker");
     }
 
+    ///////////////////////////////////////////
+    // Initialize a new SBPL Planning Context
+    ///////////////////////////////////////////
+
 //    logPlanningScene(*diff_scene);
     logMotionRequest(req);
 
