@@ -1,0 +1,7 @@
+<library path="libcollision_detection_sbpl">
+    <class name="collision_detection/CollisionPluginSBPL"
+            type="collision_detection::CollisionPluginSBPL"
+            base_class_type="collision_detection::CollisionPlugin">
+        <description></description>
+    </class>
+</library>

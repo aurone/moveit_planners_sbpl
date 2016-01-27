@@ -34,6 +34,7 @@ include_directories(include)
 
 add_library(
     collision_detection_sbpl
+    src/collision_plugin_sbpl.cpp
     src/collision_detector_allocator_sbpl.cpp
     src/collision_robot_sbpl.cpp
     src/collision_world_sbpl.cpp)
@@ -57,10 +58,13 @@ install(
     FILES_MATCHING PATTERN "*.h")
 
 install(
-    FILES sbpl_interface_plugin_description.xml
+    FILES
+        sbpl_interface_plugin_description.xml
+        collision_detection_sbpl_plugin_description.xml
     DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION})
 
 install(
     TARGETS moveit_sbpl_planner_plugin collision_detection_sbpl
+    RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
     ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
     LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION})

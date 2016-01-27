@@ -21,5 +21,6 @@
 
     <export>
         <moveit_core plugin="${prefix}/sbpl_interface_plugin_description.xml"/>
+        <moveit_core plugin="${prefix}/collision_detection_sbpl_plugin_description.xml"/>
     </export>
 </package>
