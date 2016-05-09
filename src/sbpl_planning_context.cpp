@@ -103,7 +103,9 @@ SBPLPlanningContext::~SBPLPlanningContext()
 bool SBPLPlanningContext::solve(planning_interface::MotionPlanResponse& res)
 {
     planning_scene::PlanningSceneConstPtr scene = getPlanningScene();
+    assert(scene);
     moveit::core::RobotModelConstPtr robot = scene->getRobotModel();
+    assert(robot);
     const planning_interface::MotionPlanRequest& req = getMotionPlanRequest();
 
     if (req.goal_constraints.empty()) {
@@ -125,10 +127,8 @@ bool SBPLPlanningContext::solve(planning_interface::MotionPlanResponse& res)
 
     ROS_INFO("Successfully initialized SBPL");
 
+    // translate planning scene to planning scene message
     moveit_msgs::PlanningScenePtr scene_msg(new moveit_msgs::PlanningScene);
-
-    assert(scene.get()); // otherwise initialization would have failed
-
     scene->getPlanningSceneMsg(*scene_msg);
 
     moveit_msgs::MotionPlanRequest req_msg;
@@ -137,8 +137,12 @@ bool SBPLPlanningContext::solve(planning_interface::MotionPlanResponse& res)
         return false;
     }
 
-    robot_state::RobotStatePtr start_state =
+    robot_state::RobotStateConstPtr start_state =
             scene->getCurrentStateUpdated(req_msg.start_state);
+    if (!start_state) {
+        ROS_WARN("Unable to update start state with requested start state overrides");
+        return false;
+    }
     moveit::core::robotStateToRobotStateMsg(*start_state, req_msg.start_state);
 
     moveit_msgs::MotionPlanResponse res_msg;
@@ -146,25 +150,16 @@ bool SBPLPlanningContext::solve(planning_interface::MotionPlanResponse& res)
     if (result) {
         ROS_DEBUG("Call to solve() succeeded");
 
-        moveit::core::RobotState ref_state(robot);
-        robot_state::RobotStatePtr start_state =
-                scene->getCurrentStateUpdated(req.start_state);
-
         ROS_INFO("Creating RobotTrajectory from path with %zu joint trajectory points and %zu multi-dof joint trajectory points",
                     res_msg.trajectory.joint_trajectory.points.size(),
                     res_msg.trajectory.multi_dof_joint_trajectory.points.size());
         robot_trajectory::RobotTrajectoryPtr traj(
-                new robot_trajectory::RobotTrajectory(
-                        robot, getGroupName()));
-        traj->setRobotTrajectoryMsg(
-                *start_state, res_msg.trajectory);
+                new robot_trajectory::RobotTrajectory(robot, getGroupName()));
+        traj->setRobotTrajectoryMsg(*start_state, res_msg.trajectory);
 
-        // res_msg
-        //     trajectory_start
-        //     group_name
-        //     trajectory
-        //     planning_time
-        //     error_code
+        // TODO: Is there any reason to use res_msg.trajectory_start as the
+        // reference state or res_msg.group_name in the above RobotTrajectory
+        // constructor?
 
         ROS_INFO("Motion Plan Response:");
         ROS_INFO("  Trajectory: %zu points", traj->getWayPointCount());
@@ -172,6 +167,11 @@ bool SBPLPlanningContext::solve(planning_interface::MotionPlanResponse& res)
         ROS_INFO("  Error Code: %d (%s)", res_msg.error_code.val, to_string(res_msg.error_code).c_str());
 
         res.trajectory_ = traj;
+        res.planning_time_ = res_msg.planning_time;
+        res.error_code_ = res_msg.error_code;
+    }
+    else {
+        res.trajectory_.reset();
         res.planning_time_ = res_msg.planning_time;
         res.error_code_ = res_msg.error_code;
     }
@@ -638,9 +638,10 @@ bool SBPLPlanningContext::initHeuristicGrid(
     // match the axis-aligned bb of the workspace and then fill cells outside of
     // the workspace
 
-    const double res_x_m = m_use_bfs_heuristic ? m_bfs_res_x : 0.02;
-    const double res_y_m = m_use_bfs_heuristic ? m_bfs_res_y : 0.02;
-    const double res_z_m = m_use_bfs_heuristic ? m_bfs_res_z : 0.02;
+    const double default_bfs_res = 0.02;
+    const double res_x_m = m_use_bfs_heuristic ? m_bfs_res_x : default_bfs_res;
+    const double res_y_m = m_use_bfs_heuristic ? m_bfs_res_y : default_bfs_res;
+    const double res_z_m = m_use_bfs_heuristic ? m_bfs_res_z : default_bfs_res;
 
     const double max_distance = m_use_bfs_heuristic ? m_bfs_sphere_radius + res_x_m : res_x_m;
     const bool propagate_negative_distances = false;
