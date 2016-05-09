@@ -97,7 +97,7 @@ planning_interface::PlanningContextPtr SBPLPlannerManager::getPlanningContext(
     }
 
     if (!planning_scene) {
-        ROS_WARN("Planning Context is null");
+        ROS_WARN("Planning Scene is null");
         return context;
     }
 
