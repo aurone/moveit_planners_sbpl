@@ -5,17 +5,27 @@ set(CMAKE_BUILD_TYPE Release)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 
 find_package(sbpl REQUIRED)
+find_package(Boost REQUIRED)
+
+find_package(Qt4 REQUIRED)
+include(${QT_USE_FILE})
 
 find_package(catkin REQUIRED
     COMPONENTS
+    actionlib
     eigen_conversions
+    geometric_shapes
     leatherman
     moveit_core
+    moveit_msgs
     moveit_ros_planning
     roscpp
+    rviz
     sbpl_geometry_utils
     sbpl_manipulation
-    pluginlib)
+    sensor_msgs
+    pluginlib
+    visualization_msgs)
 
 catkin_package(
     INCLUDE_DIRS include
@@ -28,9 +38,26 @@ catkin_package(
         roscpp
     DEPENDS)
 
+include_directories(${Boost_INCLUDE_DIRS})
 include_directories(${SBPL_INCLUDE_DIRS})
 include_directories(${catkin_INCLUDE_DIRS})
 include_directories(include)
+
+qt4_wrap_cpp(
+    MOVE_GROUP_COMMAND_PANEL_MOC_SOURCES
+    src/joint_variable_command_widget.h
+    src/move_group_command_model.h
+    src/move_group_command_panel.h)
+add_library(
+    move_group_command_panel_plugin
+    ${MOVE_GROUP_COMMAND_PANEL_MOC_SOURCES}
+    src/joint_variable_command_widget.cpp
+    src/move_group_command_model.cpp
+    src/move_group_command_panel.cpp)
+target_link_libraries(
+    move_group_command_panel_plugin
+    ${QT_LIBRARIES}
+    ${catkin_LIBRARIES})
 
 add_library(
     collision_detection_sbpl
@@ -61,10 +88,14 @@ install(
     FILES
         sbpl_interface_plugin_description.xml
         collision_detection_sbpl_plugin_description.xml
+        move_group_command_panel_plugin_description.xml
     DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION})
 
 install(
-    TARGETS moveit_sbpl_planner_plugin collision_detection_sbpl
+    TARGETS
+        collision_detection_sbpl
+        moveit_sbpl_planner_plugin
+        move_group_command_panel_plugin
     RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
     ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
     LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION})

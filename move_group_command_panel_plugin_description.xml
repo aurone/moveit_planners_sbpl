@@ -1,0 +1,8 @@
+<library path="lib/libmove_group_command_panel_plugin">
+    <class name="move_group_interface/Move Group Command Panel"
+            type="sbpl_interface::MoveGroupCommandPanel"
+            base_class_type="rviz::Panel">
+        <description>
+            A panel widget for controlling a phantom robot for specifying move group commands
+        </description>
+</library>
