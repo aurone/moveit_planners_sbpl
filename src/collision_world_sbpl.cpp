@@ -295,7 +295,7 @@ bool CollisionWorldSBPL::init(
     m_grid.reset(new sbpl_arm_planner::OccupancyGrid(m_dfield.get()));
     m_grid->setReferenceFrame(collision_world_config.world_frame);
     ROS_INFO("  Constructing Collision Space");
-    m_cspace.reset(new sbpl::collision::SBPLCollisionSpace(m_grid.get()));
+    m_cspace.reset(new sbpl::collision::CollisionSpace(m_grid.get()));
 
     ROS_INFO("  Initializing Collision Space");
     if (!m_cspace->init(

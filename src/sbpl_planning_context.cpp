@@ -1,5 +1,7 @@
 #include "sbpl_planning_context.h"
 
+// system includes
+#include <moveit/collision_detection/world.h>
 #include <eigen_conversions/eigen_msg.h>
 #include <leatherman/print.h>
 #include <moveit/planning_scene/planning_scene.h>
@@ -9,6 +11,7 @@
 #include <sbpl_arm_planner/sbpl_arm_planner_interface.h>
 #include <sbpl_manipulation_components/motion_primitive.h>
 
+// project includes
 #include <moveit_planners_sbpl/collision_world_sbpl.h>
 
 namespace moveit_msgs {
@@ -687,40 +690,64 @@ bool SBPLPlanningContext::initHeuristicGrid(
     const collision_detection::CollisionWorldSBPL* sbpl_cworld =
             dynamic_cast<const collision_detection::CollisionWorldSBPL*>(
                     cworld.get());
-    if (!sbpl_cworld) {
-        ROS_WARN("Not using SBPL collision model...bad BFS heuristic for you");
-        return true;
-    }
+    if (sbpl_cworld) {
+        ROS_INFO("Using collision information from Collision World SBPL for heuristic!!!");
 
-    ROS_INFO("Using collision information from Collision World SBPL for heuristic!!!");
+        const distance_field::PropagationDistanceField* df =
+                sbpl_cworld->distanceField();
+        if (!df) {
+            ROS_WARN("Just kidding! Collision World SBPL's distance field is uninitialized");
+            return true;
+        }
 
-    const distance_field::PropagationDistanceField* df =
-            sbpl_cworld->distanceField();
-    if (!df) {
-        ROS_WARN("Just kidding! Collision World SBPL's distance field is uninitialized");
-        return true;
-    }
+        // copy the collision information
+        ROS_INFO("Copying collision information");
 
-    // copy the collision information
-    ROS_INFO("Copying collision information");
-
-    EigenSTL::vector_Vector3d points;
-    for (int x = 0; x < m_distance_field->getXNumCells(); ++x) {
-        for (int y = 0; y < m_distance_field->getYNumCells(); ++y) {
-            for (int z = 0; z < m_distance_field->getZNumCells(); ++z) {
-                double wx, wy, wz;
-                m_distance_field->gridToWorld(x, y, z, wx, wy, wz);
-                if (df->getDistance(wx, wy, wz) <= 0.0) {
-                    // convert x, y, z to world space
-                    // transform back into the world frame
-                    points.emplace_back(wx, wy, wz);
+        EigenSTL::vector_Vector3d points;
+        for (int x = 0; x < m_distance_field->getXNumCells(); ++x) {
+            for (int y = 0; y < m_distance_field->getYNumCells(); ++y) {
+                for (int z = 0; z < m_distance_field->getZNumCells(); ++z) {
+                    double wx, wy, wz;
+                    m_distance_field->gridToWorld(x, y, z, wx, wy, wz);
+                    if (df->getDistance(wx, wy, wz) <= 0.0) {
+                        // convert x, y, z to world space
+                        // transform back into the world frame
+                        points.emplace_back(wx, wy, wz);
+                    }
                 }
             }
         }
-    }
 
-    ROS_INFO("Adding %zu points to the bfs distance field", points.size());
-    m_distance_field->addPointsToField(points);
+        ROS_INFO("Adding %zu points to the bfs distance field", points.size());
+        m_distance_field->addPointsToField(points);
+        return true;
+    }
+    else {
+        sbpl_arm_planner::OccupancyGrid grid(m_distance_field.get());
+        grid.setReferenceFrame(scene.getPlanningFrame());
+        sbpl::collision::CollisionWorld cmodel(&grid);
+
+        // insert world objects into the collision model
+        collision_detection::WorldConstPtr world = cworld->getWorld();
+        if (world) {
+            int insert_count = 0;
+            for (auto oit = world->begin(); oit != world->end(); ++oit) {
+                if (!cmodel.insertObject(oit->second)) {
+                    ROS_WARN("Failed to insert object '%s' into heuristic grid", oit->first.c_str());
+                }
+                else {
+                    ++insert_count;
+                }
+            }
+            ROS_INFO("Inserted %d objects into the heuristic grid", insert_count);
+        }
+        else {
+            ROS_WARN("Attempt to insert null World into heuristic grid");
+        }
+
+        // note: collision world and occupancy grid going out of scope here will
+        // not destroy the prepared distance field
+    }
 
     return true;
 }
