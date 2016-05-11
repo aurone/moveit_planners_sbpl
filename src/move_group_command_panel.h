@@ -53,6 +53,9 @@ public Q_SLOTS:
     void setGoalPositionTolerance(double tol_m);
     void setGoalOrientationTolerance(double tol_deg);
 
+    void setCurrentPlanner(const QString& name);
+    void setCurrentPlannerID(const QString& id);
+
 private:
 
     ros::NodeHandle m_nh;

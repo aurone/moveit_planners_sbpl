@@ -60,6 +60,12 @@ public:
 
     bool copyCurrentState();
 
+    const std::vector<moveit_msgs::PlannerInterfaceDescription>&
+    plannerInterfaces() const;
+
+    const std::string plannerName() const;
+    const std::string plannerID() const;
+
     double goalJointTolerance() const;
     double goalPositionTolerance() const;
     double goalOrientationTolerance() const;
@@ -70,6 +76,8 @@ public Q_SLOTS:
     void setGoalJointTolerance(double tol_deg);
     void setGoalPositionTolerance(double tol_m);
     void setGoalOrientationTolerance(double tol_deg);
+    void setPlannerName(const std::string& planner_name);
+    void setPlannerID(const std::string& planner_id);
 
 Q_SIGNALS:
 
@@ -93,15 +101,24 @@ private:
 
     // move_group API
     std::unique_ptr<ros::ServiceClient> m_check_state_validity_client;
+    std::unique_ptr<ros::ServiceClient> m_query_planner_interface_client;
 
     typedef actionlib::SimpleActionClient<moveit_msgs::MoveGroupAction> MoveGroupActionClient;
     std::unique_ptr<MoveGroupActionClient> m_move_group_client;
 
+    std::vector<moveit_msgs::PlannerInterfaceDescription> m_planner_interfaces;
+    int m_curr_planner_idx;
+    int m_curr_planner_id_idx;
+
+    /// \name MotionPlanRequest settings
+    ///@{
     double m_joint_tol_rad;
     double m_pos_tol_m;
     double m_rot_tol_rad;
+    ///@}
 
     void reinitCheckStateValidityService();
+    void reinitQueryPlannerInterfaceService();
 
     void logRobotModelInfo(const moveit::core::RobotModel& rm) const;
     void logPlanningSceneMonitor(

@@ -133,11 +133,55 @@ void MoveGroupCommandPanel::setupGUI()
         setupRobotGUI();
     }
 
+    // Planner Settings
+    QGroupBox* planner_settings_group = new QGroupBox(tr("Planner Settings"));
+    QGridLayout* planner_settings_layout = new QGridLayout;
+
+    QLabel* planner_name_label = new QLabel(tr("Planner Name:"));
+    QLabel* planner_id_label = new QLabel(tr("Planner ID:"));
+
+    QComboBox* planner_name_combobox = new QComboBox;
+    QComboBox* planner_id_combobox = new QComboBox;
+    for (const auto& planner_interface : m_model->plannerInterfaces()) {
+        const std::string& planner_name = planner_interface.name;
+        planner_name_combobox->addItem(QString::fromStdString(planner_name));
+        for (const auto& planner_id : planner_interface.planner_ids) {
+            planner_id_combobox->addItem(QString::fromStdString(planner_id));
+        }
+    }
+
+    for (int i = 0; i < planner_name_combobox->count(); ++i) {
+        if (planner_name_combobox->itemText(i).toStdString() == m_model->plannerName()) {
+            planner_name_combobox->setCurrentIndex(i);
+            break;
+        }
+    }
+
+    for (int i = 0; i < planner_id_combobox->count(); ++i) {
+        if (planner_id_combobox->itemText(i).toStdString() == m_model->plannerID()) {
+            planner_id_combobox->setCurrentIndex(i);
+            break;
+        }
+    }
+
+    planner_settings_layout->addWidget(planner_name_label,      0, 0);
+    planner_settings_layout->addWidget(planner_name_combobox,   0, 1);
+    planner_settings_layout->addWidget(planner_id_label,        1, 0);
+    planner_settings_layout->addWidget(planner_id_combobox,     1, 1);
+
+    connect(planner_name_combobox, SIGNAL(currentIndexChanged(const QString&)),
+            this, SLOT(setCurrentPlanner(const QString&)));
+    connect(planner_id_combobox, SIGNAL(currentIndexChanged(const QString&)),
+            this, SLOT(setCurrentPlannerID(const QString&)));
+
+    planner_settings_group->setLayout(planner_settings_layout);
+    main_layout->addWidget(planner_settings_group);
+
     // Goal Constraints
     QGroupBox* goal_constraints_group = new QGroupBox(tr("Goal Constraints"));
     QGridLayout* goal_constraints_layout = new QGridLayout;
 
-    QLabel* joint_tol_label = new QLabel(tr("Goal Joint Tolerance (deg)"));
+    QLabel* joint_tol_label = new QLabel(tr("Goal Joint Tolerance (deg):"));
 
     m_joint_tol_spinbox = new QDoubleSpinBox;
     m_joint_tol_spinbox->setMinimum(-180.0);
@@ -146,7 +190,7 @@ void MoveGroupCommandPanel::setupGUI()
     m_joint_tol_spinbox->setWrapping(false);
     m_joint_tol_spinbox->setValue(m_model->goalJointTolerance());
 
-    QLabel* pos_tol_label = new QLabel(tr("Goal Position Tolerance (m)"));
+    QLabel* pos_tol_label = new QLabel(tr("Goal Position Tolerance (m):"));
 
     m_pos_tol_spinbox = new QDoubleSpinBox;
     m_pos_tol_spinbox->setMinimum(-1.0);
@@ -155,7 +199,7 @@ void MoveGroupCommandPanel::setupGUI()
     m_pos_tol_spinbox->setWrapping(false);
     m_pos_tol_spinbox->setValue(m_model->goalPositionTolerance());
 
-    QLabel* rot_tol_label = new QLabel(tr("Goal Orientation Tolerance (deg)"));
+    QLabel* rot_tol_label = new QLabel(tr("Goal Orientation Tolerance (deg):"));
 
     m_rot_tol_spinbox = new QDoubleSpinBox;
     m_rot_tol_spinbox->setMinimum(0.0);
@@ -387,6 +431,16 @@ void MoveGroupCommandPanel::setGoalPositionTolerance(double tol_m)
 void MoveGroupCommandPanel::setGoalOrientationTolerance(double tol_deg)
 {
     m_model->setGoalOrientationTolerance(tol_deg);
+}
+
+void MoveGroupCommandPanel::setCurrentPlanner(const QString& name)
+{
+    m_model->setPlannerName(name.toStdString());
+}
+
+void MoveGroupCommandPanel::setCurrentPlannerID(const QString& id)
+{
+    m_model->setPlannerID(id.toStdString());
 }
 
 bool MoveGroupCommandPanel::isVariableAngle(int vind) const

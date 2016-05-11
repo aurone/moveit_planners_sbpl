@@ -1,6 +1,7 @@
 #include "move_group_command_model.h"
 
 // standard includes
+#include <assert.h>
 #include <stack>
 
 // system includes
@@ -8,6 +9,7 @@
 #include <moveit/robot_state/conversions.h>
 #include <moveit_msgs/GetStateValidity.h>
 #include <moveit_msgs/PlanningSceneWorld.h>
+#include <moveit_msgs/QueryPlannerInterfaces.h>
 #include <ros/console.h>
 #include <sbpl_geometry_utils/utils.h>
 
@@ -89,12 +91,35 @@ MoveGroupCommandModel::MoveGroupCommandModel(QObject* parent) :
     m_validity(boost::indeterminate),
     m_scene_monitor(),
     m_check_state_validity_client(),
+    m_query_planner_interface_client(),
     m_move_group_client(),
+    m_planner_interfaces(),
+    m_curr_planner_idx(-1),
+    m_curr_planner_id_idx(-1),
     m_pos_tol_m(DefaultGoalPositionTolerance_m),
     m_rot_tol_rad(sbpl::utils::ToRadians(DefaultGoalOrientationTolerance_deg)),
     m_joint_tol_rad(sbpl::utils::ToRadians(DefaultGoalJointTolerance_deg))
 {
     reinitCheckStateValidityService();
+    reinitQueryPlannerInterfaceService();
+
+    if (m_query_planner_interface_client->exists()) {
+        moveit_msgs::QueryPlannerInterfaces::Request req;
+        moveit_msgs::QueryPlannerInterfaces::Response res;
+        if (!m_query_planner_interface_client->call(req, res)) {
+            ROS_ERROR("Failed to call service '%s'", m_query_planner_interface_client->getService().c_str());
+        }
+        else {
+            m_planner_interfaces = res.planner_interfaces;
+            if (!m_planner_interfaces.empty()) {
+                m_curr_planner_idx = 0;
+                if (!m_planner_interfaces[0].planner_ids.empty()) {
+                    m_curr_planner_id_idx = 0;
+                }
+            }
+        }
+    }
+
     m_move_group_client.reset(new MoveGroupActionClient("move_group", false));
 }
 
@@ -168,6 +193,11 @@ bool MoveGroupCommandModel::readyToPlan() const
         return false;
     }
 
+    if (plannerName() == "UNKNOWN" || plannerID() == "UNKNOWN") {
+        ROS_WARN("Cannot plan without planner specified");
+        return false;
+    }
+
     return true;
 }
 
@@ -201,7 +231,7 @@ bool MoveGroupCommandModel::planToGoalPose(const std::string& group_name)
     req.start_state.is_diff = true;
     ops.planning_scene_diff.robot_state.is_diff = true;
 
-    req.planner_id = "ARA*";
+    req.planner_id = plannerID();
     req.group_name = group_name;
     req.num_planning_attempts = 1;
     req.allowed_planning_time = 10.0;
@@ -237,6 +267,46 @@ bool MoveGroupCommandModel::copyCurrentState()
     }
     else {
         return false;
+    }
+}
+
+const std::vector<moveit_msgs::PlannerInterfaceDescription>&
+MoveGroupCommandModel::plannerInterfaces() const
+{
+    return m_planner_interfaces;
+}
+
+const std::string MoveGroupCommandModel::plannerName() const
+{
+    assert(m_curr_planner_idx != -1 ?
+                m_curr_planner_idx > 0 &&
+                m_curr_planner_idx < (int)m_planner_interfaces.size()
+            :
+                true);
+    if (m_curr_planner_idx == -1) {
+        return "UNKNOWN";
+    }
+    else {
+        return m_planner_interfaces[m_curr_planner_idx].name;
+    }
+}
+
+const std::string MoveGroupCommandModel::plannerID() const
+{
+    assert(m_curr_planner_id_idx != -1 ?
+            m_curr_planner_idx != -1 &&
+            m_curr_planner_idx > 0 &&
+            m_curr_planner_idx < (int)m_planner_interfaces.size() &&
+            m_curr_planner_id_idx > 0 &&
+            m_curr_planner_id_idx < (int)m_planner_interfaces[m_curr_planner_idx].planner_ids.size()
+            :
+            true);
+    if (m_curr_planner_id_idx == -1) {
+        return "UNKNOWN";
+    }
+    else {
+        return m_planner_interfaces[m_curr_planner_idx]
+                .planner_ids[m_curr_planner_id_idx];
     }
 }
 
@@ -332,12 +402,52 @@ void MoveGroupCommandModel::setGoalOrientationTolerance(double tol_deg)
     }
 }
 
+void MoveGroupCommandModel::setPlannerName(const std::string& planner_name)
+{
+    for (size_t i = 0; i < m_planner_interfaces.size(); ++i) {
+        if (m_planner_interfaces[i].name == planner_name) {
+            m_curr_planner_idx = (int)i;
+            return;
+        }
+    }
+
+    ROS_ERROR("Planner '%s' was not found in the planner descriptions", planner_name.c_str());
+}
+
+void MoveGroupCommandModel::setPlannerID(const std::string& planner_id)
+{
+    if (m_curr_planner_idx == -1) {
+        ROS_ERROR("No planner selected");
+        return;
+    }
+
+    const moveit_msgs::PlannerInterfaceDescription& planner_desc =
+            m_planner_interfaces[m_curr_planner_idx];
+    for (size_t i = 0; i < planner_desc.planner_ids.size(); ++i) {
+        const std::string& id = planner_desc.planner_ids[i];
+        if (id == planner_id) {
+            m_curr_planner_id_idx = (int)i;
+            return;
+        }
+    }
+
+    ROS_ERROR("Planner ID '%s' was not found in planner '%s'", planner_id.c_str(), planner_desc.name.c_str());
+}
+
 void MoveGroupCommandModel::reinitCheckStateValidityService()
 {
     m_check_state_validity_client.reset(new ros::ServiceClient);
     *m_check_state_validity_client =
             m_nh.serviceClient<moveit_msgs::GetStateValidity>(
                     "check_state_validity");
+}
+
+void MoveGroupCommandModel::reinitQueryPlannerInterfaceService()
+{
+    m_query_planner_interface_client.reset(new ros::ServiceClient);
+    *m_query_planner_interface_client =
+            m_nh.serviceClient<moveit_msgs::QueryPlannerInterfaces>(
+                    "query_planner_interface");
 }
 
 void MoveGroupCommandModel::logRobotModelInfo(
