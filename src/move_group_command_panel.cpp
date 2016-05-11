@@ -20,9 +20,9 @@ MoveGroupCommandPanel::MoveGroupCommandPanel(QWidget* parent) :
     m_arm_commands_group(nullptr),
     m_marker_pub(),
     m_var_cmd_widget(nullptr),
-    m_table_x_spinbox(nullptr),
-    m_table_y_spinbox(nullptr),
-    m_table_z_spinbox(nullptr)
+    m_rot_tol_spinbox(nullptr),
+    m_joint_tol_spinbox(nullptr),
+    m_pos_tol_spinbox(nullptr)
 {
     setupGUI();
 
@@ -133,6 +133,56 @@ void MoveGroupCommandPanel::setupGUI()
         setupRobotGUI();
     }
 
+    // Goal Constraints
+    QGroupBox* goal_constraints_group = new QGroupBox(tr("Goal Constraints"));
+    QGridLayout* goal_constraints_layout = new QGridLayout;
+
+    QLabel* joint_tol_label = new QLabel(tr("Goal Joint Tolerance (deg)"));
+
+    m_joint_tol_spinbox = new QDoubleSpinBox;
+    m_joint_tol_spinbox->setMinimum(-180.0);
+    m_joint_tol_spinbox->setMaximum( 180.0);
+    m_joint_tol_spinbox->setSingleStep(1.0);
+    m_joint_tol_spinbox->setWrapping(false);
+    m_joint_tol_spinbox->setValue(m_model->goalJointTolerance());
+
+    QLabel* pos_tol_label = new QLabel(tr("Goal Position Tolerance (m)"));
+
+    m_pos_tol_spinbox = new QDoubleSpinBox;
+    m_pos_tol_spinbox->setMinimum(-1.0);
+    m_pos_tol_spinbox->setMaximum( 1.0);
+    m_pos_tol_spinbox->setSingleStep(0.01);
+    m_pos_tol_spinbox->setWrapping(false);
+    m_pos_tol_spinbox->setValue(m_model->goalPositionTolerance());
+
+    QLabel* rot_tol_label = new QLabel(tr("Goal Orientation Tolerance (deg)"));
+
+    m_rot_tol_spinbox = new QDoubleSpinBox;
+    m_rot_tol_spinbox->setMinimum(0.0);
+    m_rot_tol_spinbox->setMaximum(180.0);
+    m_rot_tol_spinbox->setSingleStep(1.0);
+    m_rot_tol_spinbox->setWrapping(false);
+    m_rot_tol_spinbox->setValue(m_model->goalOrientationTolerance());
+
+    goal_constraints_layout->addWidget(pos_tol_label,       0, 0);
+    goal_constraints_layout->addWidget(m_pos_tol_spinbox,   0, 1);
+    goal_constraints_layout->addWidget(rot_tol_label,       1, 0);
+    goal_constraints_layout->addWidget(m_rot_tol_spinbox,   1, 1);
+    goal_constraints_layout->addWidget(joint_tol_label,     2, 0);
+    goal_constraints_layout->addWidget(m_joint_tol_spinbox, 2, 1);
+
+    connect(m_joint_tol_spinbox, SIGNAL(valueChanged(double)),
+            this, SLOT(setGoalJointTolerance(double)));
+
+    connect(m_pos_tol_spinbox, SIGNAL(valueChanged(double)),
+            this, SLOT(setGoalPositionTolerance(double)));
+
+    connect(m_rot_tol_spinbox, SIGNAL(valueChanged(double)),
+            this, SLOT(setGoalOrientationTolerance(double)));
+
+    goal_constraints_group->setLayout(goal_constraints_layout);
+    main_layout->addWidget(goal_constraints_group);
+
 //    main_layout->addStretch();
 }
 
@@ -173,44 +223,17 @@ void MoveGroupCommandPanel::setupRobotGUI()
 
     m_plan_to_position_button = new QPushButton(tr("Plan to Position"));
     connect(m_plan_to_position_button, SIGNAL(clicked()),
-            this, SLOT(planToPosition()));
+            this, SLOT(planToGoalPose()));
 
     m_copy_current_state_button = new QPushButton(tr("Copy Current State"));
     connect(m_copy_current_state_button, SIGNAL(clicked()),
             this, SLOT(copyCurrentState()));
-
-    m_table_x_spinbox = new QDoubleSpinBox;
-    m_table_x_spinbox->setMinimum(-10.0);
-    m_table_x_spinbox->setMaximum( 10.0);
-    m_table_x_spinbox->setSingleStep(0.10);
-    m_table_x_spinbox->setWrapping(false);
-    connect(m_table_x_spinbox, SIGNAL(valueChanged(double)),
-            this, SLOT(setTableX(double)));
-
-    m_table_y_spinbox = new QDoubleSpinBox;
-    m_table_y_spinbox->setMinimum(-10.0);
-    m_table_y_spinbox->setMaximum( 10.0);
-    m_table_y_spinbox->setSingleStep(0.10);
-    m_table_y_spinbox->setWrapping(false);
-    connect(m_table_y_spinbox, SIGNAL(valueChanged(double)),
-            this, SLOT(setTableY(double)));
-
-    m_table_z_spinbox = new QDoubleSpinBox;
-    m_table_z_spinbox->setMinimum(-10.0);
-    m_table_z_spinbox->setMaximum( 10.0);
-    m_table_z_spinbox->setSingleStep(0.10);
-    m_table_z_spinbox->setWrapping(false);
-    connect(m_table_z_spinbox, SIGNAL(valueChanged(double)),
-            this, SLOT(setTableZ(double)));
 
     QVBoxLayout* vlayout = qobject_cast<QVBoxLayout*>(layout());
     vlayout->insertWidget(vlayout->count(), m_joint_groups_combo_box);
     vlayout->insertWidget(vlayout->count(), m_var_cmd_widget);
     vlayout->insertWidget(vlayout->count(), m_plan_to_position_button);
     vlayout->insertWidget(vlayout->count(), m_copy_current_state_button);
-    vlayout->insertWidget(vlayout->count(), m_table_x_spinbox);
-    vlayout->insertWidget(vlayout->count(), m_table_y_spinbox);
-    vlayout->insertWidget(vlayout->count(), m_table_z_spinbox);
     vlayout->addStretch();
 }
 
@@ -339,11 +362,11 @@ void MoveGroupCommandPanel::setJointGroup(const QString& joint_group_name)
     updateJointVariableCommandWidget(joint_group_name.toStdString());
 }
 
-void MoveGroupCommandPanel::planToPosition()
+void MoveGroupCommandPanel::planToGoalPose()
 {
     std::string current_joint_group =
             m_joint_groups_combo_box->currentText().toStdString();
-    m_model->planToPosition(current_joint_group);
+    m_model->planToGoalPose(current_joint_group);
 }
 
 void MoveGroupCommandPanel::copyCurrentState()
@@ -351,19 +374,19 @@ void MoveGroupCommandPanel::copyCurrentState()
     m_model->copyCurrentState();
 }
 
-void MoveGroupCommandPanel::setTableX(double x)
+void MoveGroupCommandPanel::setGoalJointTolerance(double tol_deg)
 {
-
+    m_model->setGoalJointTolerance(tol_deg);
 }
 
-void MoveGroupCommandPanel::setTableY(double y)
+void MoveGroupCommandPanel::setGoalPositionTolerance(double tol_m)
 {
-
+    m_model->setGoalPositionTolerance(tol_m);
 }
 
-void MoveGroupCommandPanel::setTableZ(double z)
+void MoveGroupCommandPanel::setGoalOrientationTolerance(double tol_deg)
 {
-
+    m_model->setGoalOrientationTolerance(tol_deg);
 }
 
 bool MoveGroupCommandPanel::isVariableAngle(int vind) const

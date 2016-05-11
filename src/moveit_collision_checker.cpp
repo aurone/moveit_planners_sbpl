@@ -227,7 +227,12 @@ MoveItCollisionChecker::getCollisionModelVisualization(
     color.g = 0.0;
     color.b = 0.8;
     color.a = 0.8;
-    robot_state.getRobotMarkers(marker_arr, m_robot_model->moveitRobotModel()->getLinkModelNames(), color, "", ros::Duration(0));
+    robot_state.getRobotMarkers(
+            marker_arr,
+            m_robot_model->moveitRobotModel()->getLinkModelNames(),
+            color,
+            "",
+            ros::Duration(0));
     return marker_arr;
 }
 

@@ -46,12 +46,12 @@ public Q_SLOTS:
 
     void setJointVariableFromSpinBox(double value);
     void setJointGroup(const QString& joint_group_name);
-    void planToPosition();
+    void planToGoalPose();
     void copyCurrentState();
 
-    void setTableX(double x);
-    void setTableY(double y);
-    void setTableZ(double z);
+    void setGoalJointTolerance(double tol_deg);
+    void setGoalPositionTolerance(double tol_m);
+    void setGoalOrientationTolerance(double tol_deg);
 
 private:
 
@@ -72,9 +72,9 @@ private:
 
     JointVariableCommandWidget* m_var_cmd_widget;
 
-    QDoubleSpinBox* m_table_x_spinbox;
-    QDoubleSpinBox* m_table_y_spinbox;
-    QDoubleSpinBox* m_table_z_spinbox;
+    QDoubleSpinBox* m_joint_tol_spinbox;
+    QDoubleSpinBox* m_pos_tol_spinbox;
+    QDoubleSpinBox* m_rot_tol_spinbox;
 
     /// \brief Setup the baseline GUI for loading robots from URDF parameter
     void setupGUI();

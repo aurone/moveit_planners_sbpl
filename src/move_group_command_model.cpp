@@ -89,7 +89,10 @@ MoveGroupCommandModel::MoveGroupCommandModel(QObject* parent) :
     m_validity(boost::indeterminate),
     m_scene_monitor(),
     m_check_state_validity_client(),
-    m_move_group_client()
+    m_move_group_client(),
+    m_pos_tol_m(DefaultGoalPositionTolerance_m),
+    m_rot_tol_rad(sbpl::utils::ToRadians(DefaultGoalOrientationTolerance_deg)),
+    m_joint_tol_rad(sbpl::utils::ToRadians(DefaultGoalJointTolerance_deg))
 {
     reinitCheckStateValidityService();
     m_move_group_client.reset(new MoveGroupActionClient("move_group", false));
@@ -158,60 +161,6 @@ moveit::core::RobotStateConstPtr MoveGroupCommandModel::robotState() const
     return m_robot_state;
 }
 
-std::map<std::string, double>
-MoveGroupCommandModel::getRightArmTorques(
-    double fx, double fy, double fz,
-    double ta, double tb, double tc) const
-{
-    // T = J^T() * forces;
-    std::map<std::string, double> torques;
-
-    const moveit::core::JointModelGroup* jmg =
-            m_robot_model->getJointModelGroup(JGOI_HACK);
-
-    Eigen::MatrixXd J;
-    J = m_robot_state->getJacobian(jmg, Eigen::Vector3d(0.17, 0.0, 0.0));
-
-    ROS_DEBUG_STREAM("Jacobian = " << J.rows() << " x " << J.cols() << '\n' << J);
-
-    typedef Eigen::Matrix<double, 6, 1> Vector6d;
-    Vector6d f;
-    f(0) = fx;
-    f(1) = fy;
-    f(2) = fz;
-    f(3) = ta;
-    f(4) = tb;
-    f(5) = tc;
-
-    Eigen::VectorXd t = J.transpose() * f;
-
-    ROS_INFO("Torques = (%0.3f, %0.3f, %0.3f, %0.3f, %0.3f, %0.3f, %0.3f)", t(0), t(1), t(2), t(3), t(4), t(5), t(6));
-
-    const std::vector<std::string> rarm_joint_names =
-    {
-        "r_shoulder_pan_joint",
-        "r_shoulder_lift_joint",
-        "r_upper_arm_roll_joint",
-        "r_elbow_flex_joint",
-        "r_forearm_roll_joint",
-        "r_wrist_flex_joint",
-        "r_wrist_roll_joint"
-    };
-
-    torques =
-    {
-        { rarm_joint_names[0], t(0) },
-        { rarm_joint_names[1], t(1) },
-        { rarm_joint_names[2], t(2) },
-        { rarm_joint_names[3], t(3) },
-        { rarm_joint_names[4], t(4) },
-        { rarm_joint_names[5], t(5) },
-        { rarm_joint_names[6], t(6) },
-    };
-
-    return torques;
-}
-
 bool MoveGroupCommandModel::readyToPlan() const
 {
     if (!isRobotLoaded()) {
@@ -222,7 +171,7 @@ bool MoveGroupCommandModel::readyToPlan() const
     return true;
 }
 
-bool MoveGroupCommandModel::planToPosition(const std::string& group_name)
+bool MoveGroupCommandModel::planToGoalPose(const std::string& group_name)
 {
     if (!readyToPlan()) {
         return false;
@@ -273,6 +222,13 @@ bool MoveGroupCommandModel::planToPosition(const std::string& group_name)
     return true;
 }
 
+bool MoveGroupCommandModel::planToGoalConfiguration(
+    const std::string& group_name)
+{
+    ROS_ERROR("planToGoalConfiguration unimplemented");
+    return false;
+}
+
 bool MoveGroupCommandModel::copyCurrentState()
 {
     if (getActualState(*m_robot_state)) {
@@ -282,6 +238,21 @@ bool MoveGroupCommandModel::copyCurrentState()
     else {
         return false;
     }
+}
+
+double MoveGroupCommandModel::goalJointTolerance() const
+{
+    return sbpl::utils::ToDegrees(m_joint_tol_rad);
+}
+
+double MoveGroupCommandModel::goalPositionTolerance() const
+{
+    return m_pos_tol_m;
+}
+
+double MoveGroupCommandModel::goalOrientationTolerance() const
+{
+    return sbpl::utils::ToDegrees(m_rot_tol_rad);
 }
 
 void MoveGroupCommandModel::setJointVariable(int jidx, double value)
@@ -337,6 +308,27 @@ void MoveGroupCommandModel::setJointVariable(int jidx, double value)
         }
 
         Q_EMIT robotStateChanged();
+    }
+}
+
+void MoveGroupCommandModel::setGoalJointTolerance(double tol_deg)
+{
+    if (tol_deg != sbpl::utils::ToDegrees(m_joint_tol_rad)) {
+        m_joint_tol_rad = sbpl::utils::ToRadians(tol_deg);
+    }
+}
+
+void MoveGroupCommandModel::setGoalPositionTolerance(double tol_m)
+{
+    if (tol_m != m_pos_tol_m) {
+        m_pos_tol_m = tol_m;
+    }
+}
+
+void MoveGroupCommandModel::setGoalOrientationTolerance(double tol_deg)
+{
+    if (tol_deg != sbpl::utils::ToDegrees(m_rot_tol_rad)) {
+        m_rot_tol_rad = sbpl::utils::ToRadians(tol_deg);
     }
 }
 
@@ -563,9 +555,13 @@ bool MoveGroupCommandModel::fillGoalConstraints(
     const std::string& tip_link = solver->getTipFrames().front();
     ROS_INFO("Planning for pose of tip link '%s' of kinematic chain", tip_link.c_str());
 
-    const Eigen::Affine3d& T_model_tip = m_robot_state->getGlobalLinkTransform(tip_link);
+    const Eigen::Vector3d target_offset(0.535, 0.0, 0.13);
+    const Eigen::Affine3d& T_model_tip =
+            m_robot_state->getGlobalLinkTransform(tip_link);
+    const Eigen::Affine3d& T_model_tgtoff =
+            T_model_tip * Eigen::Translation3d(target_offset);
     geometry_msgs::Pose tip_link_pose;
-    tf::poseEigenToMsg(T_model_tip, tip_link_pose);
+    tf::poseEigenToMsg(T_model_tgtoff, tip_link_pose);
 
     // Position constraint on the tip link
 
@@ -577,14 +573,14 @@ bool MoveGroupCommandModel::fillGoalConstraints(
 
     goal_pos_constraint.link_name = tip_link;
 
-    goal_pos_constraint.target_point_offset.x = 0.0;
-    goal_pos_constraint.target_point_offset.y = 0.0;
-    goal_pos_constraint.target_point_offset.z = 0.0;
+    goal_pos_constraint.target_point_offset.x = target_offset.x();
+    goal_pos_constraint.target_point_offset.y = target_offset.y();
+    goal_pos_constraint.target_point_offset.z = target_offset.z();
 
     // specify region within 5cm of the goal position
     shape_msgs::SolidPrimitive tolerance_volume;
     tolerance_volume.type = shape_msgs::SolidPrimitive::SPHERE;
-    tolerance_volume.dimensions = { 0.05 };
+    tolerance_volume.dimensions = { m_pos_tol_m };
     goal_pos_constraint.constraint_region.primitives.push_back(tolerance_volume);
     goal_pos_constraint.constraint_region.primitive_poses.push_back(tip_link_pose);
 
@@ -603,9 +599,9 @@ bool MoveGroupCommandModel::fillGoalConstraints(
 
     goal_rot_constraint.link_name = tip_link;
 
-    goal_rot_constraint.absolute_x_axis_tolerance = sbpl::utils::ToRadians(10.0);
-    goal_rot_constraint.absolute_y_axis_tolerance = sbpl::utils::ToRadians(10.0);
-    goal_rot_constraint.absolute_z_axis_tolerance = sbpl::utils::ToRadians(10.0);
+    goal_rot_constraint.absolute_x_axis_tolerance = m_rot_tol_rad;
+    goal_rot_constraint.absolute_y_axis_tolerance = m_rot_tol_rad;
+    goal_rot_constraint.absolute_z_axis_tolerance = m_rot_tol_rad;
 
     goal_rot_constraint.weight = 1.0;
 

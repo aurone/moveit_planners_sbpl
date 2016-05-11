@@ -29,6 +29,10 @@ class MoveGroupCommandModel : public QObject
 
 public:
 
+    static constexpr double DefaultGoalPositionTolerance_m = 0.05;
+    static constexpr double DefaultGoalOrientationTolerance_deg = 10.0;
+    static constexpr double DefaultGoalJointTolerance_deg = 5.0;
+
     MoveGroupCommandModel(QObject* parent = 0);
 
     /// \brief Load a robot into the command model.
@@ -47,21 +51,25 @@ public:
     moveit::core::RobotModelConstPtr robotModel() const;
     moveit::core::RobotStateConstPtr robotState() const;
 
-    std::map<std::string, double>
-    getRightArmTorques(
-        double fx, double fy, double fz,
-        double ta, double tb, double tc) const;
-
     boost::tribool robotStateValidity() const { return m_validity; }
 
     bool readyToPlan() const;
-    bool planToPosition(const std::string& group_name);
+
+    bool planToGoalPose(const std::string& group_name);
+    bool planToGoalConfiguration(const std::string& group_name);
 
     bool copyCurrentState();
+
+    double goalJointTolerance() const;
+    double goalPositionTolerance() const;
+    double goalOrientationTolerance() const;
 
 public Q_SLOTS:
 
     void setJointVariable(int jidx, double value);
+    void setGoalJointTolerance(double tol_deg);
+    void setGoalPositionTolerance(double tol_m);
+    void setGoalOrientationTolerance(double tol_deg);
 
 Q_SIGNALS:
 
@@ -88,6 +96,10 @@ private:
 
     typedef actionlib::SimpleActionClient<moveit_msgs::MoveGroupAction> MoveGroupActionClient;
     std::unique_ptr<MoveGroupActionClient> m_move_group_client;
+
+    double m_joint_tol_rad;
+    double m_pos_tol_m;
+    double m_rot_tol_rad;
 
     void reinitCheckStateValidityService();
 
