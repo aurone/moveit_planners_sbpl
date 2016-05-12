@@ -266,7 +266,7 @@ MoveGroupCommandModel::plannerInterfaces() const
 const std::string MoveGroupCommandModel::plannerName() const
 {
     assert(m_curr_planner_idx != -1 ?
-                m_curr_planner_idx > 0 &&
+                m_curr_planner_idx >= 0 &&
                 m_curr_planner_idx < (int)m_planner_interfaces.size()
             :
                 true);
@@ -282,9 +282,9 @@ const std::string MoveGroupCommandModel::plannerID() const
 {
     assert(m_curr_planner_id_idx != -1 ?
             m_curr_planner_idx != -1 &&
-            m_curr_planner_idx > 0 &&
+            m_curr_planner_idx >= 0 &&
             m_curr_planner_idx < (int)m_planner_interfaces.size() &&
-            m_curr_planner_id_idx > 0 &&
+            m_curr_planner_id_idx >= 0 &&
             m_curr_planner_id_idx < (int)m_planner_interfaces[m_curr_planner_idx].planner_ids.size()
             :
             true);
