@@ -101,7 +101,8 @@ MoveGroupCommandModel::MoveGroupCommandModel(QObject* parent) :
     m_rot_tol_rad(sbpl::utils::ToRadians(DefaultGoalOrientationTolerance_deg)),
     m_joint_tol_rad(sbpl::utils::ToRadians(DefaultGoalJointTolerance_deg)),
     m_num_planning_attempts(DefaultNumPlanningAttempts),
-    m_allowed_planning_time_s(DefaultAllowedPlanningTime_s)
+    m_allowed_planning_time_s(DefaultAllowedPlanningTime_s),
+    m_im_server("move_group_control")
 {
     reinitCheckStateValidityService();
     reinitQueryPlannerInterfaceService();
@@ -206,40 +207,29 @@ bool MoveGroupCommandModel::readyToPlan() const
 
 bool MoveGroupCommandModel::planToGoalPose(const std::string& group_name)
 {
-    if (!readyToPlan()) {
-        return false;
-    }
-
-    if (!m_move_group_client->isServerConnected()) {
-        ROS_ERROR("Connection Failure: Unable to send Move Group Action");
-        return false;
-    }
-
-    moveit_msgs::MoveGroupGoal move_group_goal;
-
-    moveit_msgs::MotionPlanRequest& req = move_group_goal.request;
-    moveit_msgs::PlanningOptions& ops = move_group_goal.planning_options;
-
-    const ros::Time now = ros::Time::now();
-
-    if (!fillWorkspaceParameters(now, group_name, req) ||
-//        !fillStartState(now, group_name, req) ||
-        !fillGoalConstraints(now, group_name, req) ||
-        !fillPathConstraints(now, group_name, req) ||
-        !fillTrajectoryConstraints(now, group_name, req))
-    {
-        return false;
-    }
-
-    req.start_state.is_diff = true;
+    moveit_msgs::PlanningOptions ops;
     ops.planning_scene_diff.robot_state.is_diff = true;
+    ops.look_around = false;
+    ops.look_around_attempts = 0;
+    ops.max_safe_execution_cost = 1.0;
+    ops.plan_only = true;
+    ops.replan = false;
+    ops.replan_attempts = 0;
+    ops.replan_delay = 0.0;
+    return sendMoveGroupPoseGoal(group_name, ops);
+}
 
-    req.planner_id = plannerID();
-    req.group_name = group_name;
-    req.num_planning_attempts = m_num_planning_attempts;
-    req.allowed_planning_time = m_allowed_planning_time_s;
-    req.max_velocity_scaling_factor = 1.0;
+bool MoveGroupCommandModel::planToGoalConfiguration(
+    const std::string& group_name)
+{
+    ROS_ERROR("planToGoalConfiguration unimplemented");
+    return false;
+}
 
+bool MoveGroupCommandModel::moveToGoalPose(const std::string& group_name)
+{
+    moveit_msgs::PlanningOptions ops;
+    ops.planning_scene_diff.robot_state.is_diff = true;
     ops.look_around = false;
     ops.look_around_attempts = 0;
     ops.max_safe_execution_cost = 1.0;
@@ -247,18 +237,12 @@ bool MoveGroupCommandModel::planToGoalPose(const std::string& group_name)
     ops.replan = false;
     ops.replan_attempts = 0;
     ops.replan_delay = 0.0;
-
-    auto result_callback = boost::bind(
-            &MoveGroupCommandModel::moveGroupResultCallback, this, _1, _2);
-    m_move_group_client->sendGoal(move_group_goal, result_callback);
-
-    return true;
+    return sendMoveGroupPoseGoal(group_name, ops);
 }
 
-bool MoveGroupCommandModel::planToGoalConfiguration(
-    const std::string& group_name)
+bool MoveGroupCommandModel::moveToGoalConfiguration(const std::string& group_name)
 {
-    ROS_ERROR("planToGoalConfiguration unimplemented");
+    ROS_ERROR("moveToGoalConfiguration unimplemented");
     return false;
 }
 
@@ -926,6 +910,49 @@ void MoveGroupCommandModel::logMotionPlanResponse(
 
     // planning_time
     ROS_INFO("planning_time: %0.6f", res.planning_time);
+}
+
+bool MoveGroupCommandModel::sendMoveGroupPoseGoal(
+    const std::string& group_name,
+    const moveit_msgs::PlanningOptions& ops)
+{
+    if (!readyToPlan()) {
+        return false;
+    }
+
+    if (!m_move_group_client->isServerConnected()) {
+        ROS_ERROR("Connection Failure: Unable to send Move Group Action");
+        return false;
+    }
+
+    moveit_msgs::MoveGroupGoal move_group_goal;
+
+    const ros::Time now = ros::Time::now();
+
+    moveit_msgs::MotionPlanRequest& req = move_group_goal.request;
+    if (!fillWorkspaceParameters(now, group_name, req) ||
+//        !fillStartState(now, group_name, req) ||
+        !fillGoalConstraints(now, group_name, req) ||
+        !fillPathConstraints(now, group_name, req) ||
+        !fillTrajectoryConstraints(now, group_name, req))
+    {
+        return false;
+    }
+
+    req.start_state.is_diff = true;
+    req.planner_id = plannerID();
+    req.group_name = group_name;
+    req.num_planning_attempts = m_num_planning_attempts;
+    req.allowed_planning_time = m_allowed_planning_time_s;
+    req.max_velocity_scaling_factor = 1.0;
+
+    move_group_goal.planning_options = ops;
+
+    auto result_callback = boost::bind(
+            &MoveGroupCommandModel::moveGroupResultCallback, this, _1, _2);
+    m_move_group_client->sendGoal(move_group_goal, result_callback);
+
+    return true;
 }
 
 void MoveGroupCommandModel::moveGroupResultCallback(

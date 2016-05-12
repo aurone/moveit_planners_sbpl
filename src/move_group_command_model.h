@@ -12,6 +12,7 @@
 #include <boost/logic/tribool.hpp>
 #include <ros/ros.h>
 #include <sensor_msgs/JointState.h>
+#include <interactive_markers/interactive_marker_server.h>
 #include <moveit/planning_scene_monitor/planning_scene_monitor.h>
 #include <moveit/robot_model/robot_model.h>
 #include <moveit/robot_model_loader/robot_model_loader.h>
@@ -59,6 +60,8 @@ public:
 
     bool planToGoalPose(const std::string& group_name);
     bool planToGoalConfiguration(const std::string& group_name);
+    bool moveToGoalPose(const std::string& group_name);
+    bool moveToGoalConfiguration(const std::string& group_name);
 
     bool copyCurrentState();
 
@@ -127,6 +130,8 @@ private:
     double m_allowed_planning_time_s;
     ///@}
 
+    interactive_markers::InteractiveMarkerServer m_im_server;
+
     void reinitCheckStateValidityService();
     void reinitQueryPlannerInterfaceService();
 
@@ -161,6 +166,10 @@ private:
         const moveit_msgs::MotionPlanResponse& res) const;
     void logMotionPlanResponse(
         const moveit_msgs::MoveGroupResult& res) const;
+
+    bool sendMoveGroupPoseGoal(
+        const std::string& group_name,
+        const moveit_msgs::PlanningOptions& ops);
 
     void moveGroupResultCallback(
         const actionlib::SimpleClientGoalState& state,

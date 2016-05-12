@@ -137,8 +137,8 @@ void MoveGroupCommandPanel::setupGUI()
     QGroupBox* planner_settings_group = new QGroupBox(tr("Planner Settings"));
     QGridLayout* planner_settings_layout = new QGridLayout;
 
-    QLabel* planner_name_label = new QLabel(tr("Planner Name:"));
-    QLabel* planner_id_label = new QLabel(tr("Planner ID:"));
+    QLabel* planner_name_label = new QLabel(tr("Name:"));
+    QLabel* planner_id_label = new QLabel(tr("ID:"));
 
     QComboBox* planner_name_combobox = new QComboBox;
     QComboBox* planner_id_combobox = new QComboBox;
@@ -164,14 +164,14 @@ void MoveGroupCommandPanel::setupGUI()
         }
     }
 
-    QLabel* num_attempts_label = new QLabel(tr("Num Planning Attempts"));
+    QLabel* num_attempts_label = new QLabel(tr("Num Attempts"));
     m_num_planning_attempts_spinbox = new QSpinBox;
     m_num_planning_attempts_spinbox->setMinimum(1);
     m_num_planning_attempts_spinbox->setMaximum(100);
     m_num_planning_attempts_spinbox->setWrapping(false);
     m_num_planning_attempts_spinbox->setValue(m_model->numPlanningAttempts());
 
-    QLabel* allowed_planning_time_label = new QLabel(tr("Allowed Planning Time (s)"));
+    QLabel* allowed_planning_time_label = new QLabel(tr("Allowed Time (s)"));
     m_allowed_planning_time_spinbox = new QDoubleSpinBox;
     m_allowed_planning_time_spinbox->setMinimum(1.0);
     m_allowed_planning_time_spinbox->setMaximum(120.0);
@@ -204,7 +204,7 @@ void MoveGroupCommandPanel::setupGUI()
     QGroupBox* goal_constraints_group = new QGroupBox(tr("Goal Constraints"));
     QGridLayout* goal_constraints_layout = new QGridLayout;
 
-    QLabel* joint_tol_label = new QLabel(tr("Goal Joint Tolerance (deg):"));
+    QLabel* joint_tol_label = new QLabel(tr("Joint Tolerance (deg):"));
 
     m_joint_tol_spinbox = new QDoubleSpinBox;
     m_joint_tol_spinbox->setMinimum(-180.0);
@@ -213,7 +213,7 @@ void MoveGroupCommandPanel::setupGUI()
     m_joint_tol_spinbox->setWrapping(false);
     m_joint_tol_spinbox->setValue(m_model->goalJointTolerance());
 
-    QLabel* pos_tol_label = new QLabel(tr("Goal Position Tolerance (m):"));
+    QLabel* pos_tol_label = new QLabel(tr("Position Tolerance (m):"));
 
     m_pos_tol_spinbox = new QDoubleSpinBox;
     m_pos_tol_spinbox->setMinimum(-1.0);
@@ -222,7 +222,7 @@ void MoveGroupCommandPanel::setupGUI()
     m_pos_tol_spinbox->setWrapping(false);
     m_pos_tol_spinbox->setValue(m_model->goalPositionTolerance());
 
-    QLabel* rot_tol_label = new QLabel(tr("Goal Orientation Tolerance (deg):"));
+    QLabel* rot_tol_label = new QLabel(tr("Orientation Tolerance (deg):"));
 
     m_rot_tol_spinbox = new QDoubleSpinBox;
     m_rot_tol_spinbox->setMinimum(0.0);
@@ -292,15 +292,29 @@ void MoveGroupCommandPanel::setupRobotGUI()
     connect(m_plan_to_position_button, SIGNAL(clicked()),
             this, SLOT(planToGoalPose()));
 
+    m_move_to_position_button = new QPushButton(tr("Move to Position"));
+    connect(m_move_to_position_button, SIGNAL(clicked()),
+            this, SLOT(moveToGoalPose()));
+
     m_copy_current_state_button = new QPushButton(tr("Copy Current State"));
     connect(m_copy_current_state_button, SIGNAL(clicked()),
             this, SLOT(copyCurrentState()));
 
     QVBoxLayout* vlayout = qobject_cast<QVBoxLayout*>(layout());
+
+    // Commands
+    QGroupBox* commands_group_box = new QGroupBox(tr("Commands"));
+    QVBoxLayout* commands_group_layout = new QVBoxLayout;
+
+    commands_group_layout->addWidget(m_plan_to_position_button);
+    commands_group_layout->addWidget(m_move_to_position_button);
+    commands_group_layout->addWidget(m_copy_current_state_button);
+
+    commands_group_box->setLayout(commands_group_layout);
+
     vlayout->insertWidget(vlayout->count(), m_joint_groups_combo_box);
     vlayout->insertWidget(vlayout->count(), m_var_cmd_widget);
-    vlayout->insertWidget(vlayout->count(), m_plan_to_position_button);
-    vlayout->insertWidget(vlayout->count(), m_copy_current_state_button);
+    vlayout->insertWidget(vlayout->count(), commands_group_box);
     vlayout->addStretch();
 }
 
@@ -433,7 +447,18 @@ void MoveGroupCommandPanel::planToGoalPose()
 {
     std::string current_joint_group =
             m_joint_groups_combo_box->currentText().toStdString();
-    m_model->planToGoalPose(current_joint_group);
+    if (!m_model->planToGoalPose(current_joint_group)) {
+        ROS_ERROR("This should be a message box");
+    }
+}
+
+void MoveGroupCommandPanel::moveToGoalPose()
+{
+    std::string curr_joint_group =
+            m_joint_groups_combo_box->currentText().toStdString();
+    if (!m_model->moveToGoalPose(curr_joint_group)) {
+        ROS_ERROR("This should also be a message box");
+    }
 }
 
 void MoveGroupCommandPanel::copyCurrentState()
