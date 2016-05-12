@@ -168,6 +168,15 @@ private:
 
     // Get the state of the real robot, if it's available
     bool getActualState(moveit::core::RobotState& robot_state) const;
+
+    std::vector<std::string>
+    getTipLinks(const moveit::core::JointModelGroup& jmg) const;
+
+    void getTipLinks(
+        const moveit::core::JointModelGroup& jmg,
+        const moveit::core::LinkModel& link,
+        std::string& tip,
+        std::vector<std::string>& tips) const;
 };
 
 } // namespace sbpl_interface

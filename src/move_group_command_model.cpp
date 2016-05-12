@@ -530,13 +530,50 @@ void MoveGroupCommandModel::logRobotModelInfo(
             rm.getJointModelGroups();
     for (const moveit::core::JointModelGroup* jmg : jmgs) {
         ROS_INFO("Name: %s", jmg->getName().c_str());
-        ROS_INFO("  Joints:");
-        for (const std::string& name : jmg->getJointModelNames()) {
-            ROS_INFO("    %s", name.c_str());
-        }
         ROS_INFO("  Chain: %s", jmg->isChain() ? "true" : "false");
         ROS_INFO("  Only Single-DoF Joints: %s", jmg->isSingleDOFJoints() ? "true" : "false");
         ROS_INFO("  End Effector: %s", jmg->isEndEffector() ? "true" : "false");
+        if (jmg->isEndEffector()) {
+            ROS_INFO("    End Effector Name: %s", jmg->getEndEffectorName().c_str());
+        }
+        ROS_INFO("  Maximum Extent: %0.3f", jmg->getMaximumExtent());
+        ROS_INFO("  Active Joints:");
+        for (const moveit::core::JointModel* jm : jmg->getActiveJointModels()) {
+            ROS_INFO("    %s", jm->getName().c_str());
+        }
+        ROS_INFO("  Non-Active Joints:");
+        for (const moveit::core::JointModel* jm : jmg->getJointModels()) {
+            if (std::find(
+                    jmg->getActiveJointModels().begin(),
+                    jmg->getActiveJointModels().end(),
+                    jm) ==
+                jmg->getActiveJointModels().end())
+            {
+                ROS_INFO("    %s", jm->getName().c_str());
+            }
+        }
+        ROS_INFO("  Attached End Effectors:");
+        for (const std::string& name : jmg->getAttachedEndEffectorNames()) {
+            ROS_INFO("    %s", name.c_str());
+        }
+        ROS_INFO("  Common Root: %s", jmg->getCommonRoot() ? jmg->getCommonRoot()->getName().c_str() : "null");
+        ROS_INFO("  Links for Setting IK:");
+        for (const moveit::core::LinkModel* lm : jmg->getLinkModels()) {
+            if (jmg->canSetStateFromIK(lm->getName())) {
+                ROS_INFO("    %s", lm->getName().c_str());
+            }
+        }
+        ROS_INFO("  End Effector Tips:");
+        std::vector<const moveit::core::LinkModel*> ee_tips;
+        if (jmg->getEndEffectorTips(ee_tips)) {
+            for (const moveit::core::LinkModel* ee_tip : ee_tips) {
+                ROS_INFO("    %s", ee_tip->getName().c_str());
+            }
+        }
+        ROS_INFO("  Tip Links:");
+        for (const std::string& tip : getTipLinks(*jmg)) {
+            ROS_INFO("    %s", tip.c_str());
+        }
     }
 
     ROS_INFO("--- Joint Variables ---");
@@ -923,6 +960,44 @@ bool MoveGroupCommandModel::getActualState(
     m_scene_monitor->unlockSceneRead();
 
     return true;
+}
+
+std::vector<std::string> MoveGroupCommandModel::getTipLinks(
+    const moveit::core::JointModelGroup& jmg) const
+{
+    std::vector<std::string> tips;
+    for (const moveit::core::JointModel* jm : jmg.getJointRoots()) {
+        std::string tip;
+        getTipLinks(jmg, *jm->getParentLinkModel(), tip, tips);
+    }
+    return tips;
+}
+
+void MoveGroupCommandModel::getTipLinks(
+    const moveit::core::JointModelGroup& jmg,
+    const moveit::core::LinkModel& link,
+    std::string& tip,
+    std::vector<std::string>& tips) const
+{
+    if (jmg.canSetStateFromIK(link.getName())) {
+        tip = link.getName();
+    }
+
+    std::vector<const moveit::core::LinkModel*> child_links;
+    for (const moveit::core::JointModel* cjm : link.getChildJointModels()) {
+        if (jmg.hasJointModel(cjm->getName())) {
+            child_links.push_back(cjm->getChildLinkModel());
+        }
+    }
+
+    if (child_links.empty()) {
+        tips.push_back(tip);
+    }
+
+    for (const moveit::core::LinkModel* clm : child_links) {
+        std::string ctip;
+        getTipLinks(jmg, *clm, ctip, tips);
+    }
 }
 
 } // namespace sbpl_interface
