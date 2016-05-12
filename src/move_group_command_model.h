@@ -32,6 +32,8 @@ public:
     static constexpr double DefaultGoalPositionTolerance_m = 0.05;
     static constexpr double DefaultGoalOrientationTolerance_deg = 10.0;
     static constexpr double DefaultGoalJointTolerance_deg = 5.0;
+    static const int DefaultNumPlanningAttempts = 1;
+    static constexpr double DefaultAllowedPlanningTime_s = 10.0;
 
     MoveGroupCommandModel(QObject* parent = 0);
 
@@ -70,6 +72,9 @@ public:
     double goalPositionTolerance() const;
     double goalOrientationTolerance() const;
 
+    int numPlanningAttempts() const;
+    double allowedPlanningTime() const;
+
 public Q_SLOTS:
 
     void setJointVariable(int jidx, double value);
@@ -78,6 +83,8 @@ public Q_SLOTS:
     void setGoalOrientationTolerance(double tol_deg);
     void setPlannerName(const std::string& planner_name);
     void setPlannerID(const std::string& planner_id);
+    void setNumPlanningAttempts(int num_planning_attempts);
+    void setAllowedPlanningTime(double allowed_planning_time_s);
 
 Q_SIGNALS:
 
@@ -115,6 +122,9 @@ private:
     double m_joint_tol_rad;
     double m_pos_tol_m;
     double m_rot_tol_rad;
+
+    int m_num_planning_attempts;
+    double m_allowed_planning_time_s;
     ///@}
 
     void reinitCheckStateValidityService();

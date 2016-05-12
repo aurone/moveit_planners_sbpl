@@ -2,6 +2,7 @@
 
 // standard includes
 #include <assert.h>
+#include <chrono>
 #include <stack>
 
 // system includes
@@ -98,7 +99,9 @@ MoveGroupCommandModel::MoveGroupCommandModel(QObject* parent) :
     m_curr_planner_id_idx(-1),
     m_pos_tol_m(DefaultGoalPositionTolerance_m),
     m_rot_tol_rad(sbpl::utils::ToRadians(DefaultGoalOrientationTolerance_deg)),
-    m_joint_tol_rad(sbpl::utils::ToRadians(DefaultGoalJointTolerance_deg))
+    m_joint_tol_rad(sbpl::utils::ToRadians(DefaultGoalJointTolerance_deg)),
+    m_num_planning_attempts(DefaultNumPlanningAttempts),
+    m_allowed_planning_time_s(DefaultAllowedPlanningTime_s)
 {
     reinitCheckStateValidityService();
     reinitQueryPlannerInterfaceService();
@@ -233,8 +236,8 @@ bool MoveGroupCommandModel::planToGoalPose(const std::string& group_name)
 
     req.planner_id = plannerID();
     req.group_name = group_name;
-    req.num_planning_attempts = 1;
-    req.allowed_planning_time = 10.0;
+    req.num_planning_attempts = m_num_planning_attempts;
+    req.allowed_planning_time = m_allowed_planning_time_s;
     req.max_velocity_scaling_factor = 1.0;
 
     ops.look_around = false;
@@ -325,6 +328,16 @@ double MoveGroupCommandModel::goalOrientationTolerance() const
     return sbpl::utils::ToDegrees(m_rot_tol_rad);
 }
 
+int MoveGroupCommandModel::numPlanningAttempts() const
+{
+    return m_num_planning_attempts;
+}
+
+double MoveGroupCommandModel::allowedPlanningTime() const
+{
+    return m_allowed_planning_time_s;
+}
+
 void MoveGroupCommandModel::setJointVariable(int jidx, double value)
 {
     if (!isRobotLoaded()) {
@@ -404,6 +417,8 @@ void MoveGroupCommandModel::setGoalOrientationTolerance(double tol_deg)
 
 void MoveGroupCommandModel::setPlannerName(const std::string& planner_name)
 {
+    // TODO: check previous value
+
     for (size_t i = 0; i < m_planner_interfaces.size(); ++i) {
         if (m_planner_interfaces[i].name == planner_name) {
             m_curr_planner_idx = (int)i;
@@ -416,6 +431,8 @@ void MoveGroupCommandModel::setPlannerName(const std::string& planner_name)
 
 void MoveGroupCommandModel::setPlannerID(const std::string& planner_id)
 {
+    // TODO: check previous value
+
     if (m_curr_planner_idx == -1) {
         ROS_ERROR("No planner selected");
         return;
@@ -432,6 +449,20 @@ void MoveGroupCommandModel::setPlannerID(const std::string& planner_id)
     }
 
     ROS_ERROR("Planner ID '%s' was not found in planner '%s'", planner_id.c_str(), planner_desc.name.c_str());
+}
+
+void MoveGroupCommandModel::setNumPlanningAttempts(int num_planning_attempts)
+{
+    if (m_num_planning_attempts != num_planning_attempts) {
+        m_num_planning_attempts = num_planning_attempts;
+    }
+}
+
+void MoveGroupCommandModel::setAllowedPlanningTime(double allowed_planning_time_s)
+{
+     if (m_allowed_planning_time_s != allowed_planning_time_s) {
+        m_allowed_planning_time_s = allowed_planning_time_s;
+     }
 }
 
 void MoveGroupCommandModel::reinitCheckStateValidityService()

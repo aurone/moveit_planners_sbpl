@@ -79,6 +79,9 @@ private:
     QDoubleSpinBox* m_pos_tol_spinbox;
     QDoubleSpinBox* m_rot_tol_spinbox;
 
+    QSpinBox* m_num_planning_attempts_spinbox;
+    QDoubleSpinBox* m_allowed_planning_time_spinbox;
+
     /// \brief Setup the baseline GUI for loading robots from URDF parameter
     void setupGUI();
 

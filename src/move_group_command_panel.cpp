@@ -164,15 +164,38 @@ void MoveGroupCommandPanel::setupGUI()
         }
     }
 
-    planner_settings_layout->addWidget(planner_name_label,      0, 0);
-    planner_settings_layout->addWidget(planner_name_combobox,   0, 1);
-    planner_settings_layout->addWidget(planner_id_label,        1, 0);
-    planner_settings_layout->addWidget(planner_id_combobox,     1, 1);
+    QLabel* num_attempts_label = new QLabel(tr("Num Planning Attempts"));
+    m_num_planning_attempts_spinbox = new QSpinBox;
+    m_num_planning_attempts_spinbox->setMinimum(1);
+    m_num_planning_attempts_spinbox->setMaximum(100);
+    m_num_planning_attempts_spinbox->setWrapping(false);
+    m_num_planning_attempts_spinbox->setValue(m_model->numPlanningAttempts());
+
+    QLabel* allowed_planning_time_label = new QLabel(tr("Allowed Planning Time (s)"));
+    m_allowed_planning_time_spinbox = new QDoubleSpinBox;
+    m_allowed_planning_time_spinbox->setMinimum(1.0);
+    m_allowed_planning_time_spinbox->setMaximum(120.0);
+    m_allowed_planning_time_spinbox->setSingleStep(1.0);
+    m_allowed_planning_time_spinbox->setWrapping(false);
+    m_allowed_planning_time_spinbox->setValue(m_model->allowedPlanningTime());
+
+    planner_settings_layout->addWidget(planner_name_label,              0, 0);
+    planner_settings_layout->addWidget(planner_name_combobox,           0, 1);
+    planner_settings_layout->addWidget(planner_id_label,                1, 0);
+    planner_settings_layout->addWidget(planner_id_combobox,             1, 1);
+    planner_settings_layout->addWidget(num_attempts_label,              2, 0);
+    planner_settings_layout->addWidget(m_num_planning_attempts_spinbox, 2, 1);
+    planner_settings_layout->addWidget(allowed_planning_time_label,     3, 0);
+    planner_settings_layout->addWidget(m_allowed_planning_time_spinbox, 3, 1);
 
     connect(planner_name_combobox, SIGNAL(currentIndexChanged(const QString&)),
             this, SLOT(setCurrentPlanner(const QString&)));
     connect(planner_id_combobox, SIGNAL(currentIndexChanged(const QString&)),
             this, SLOT(setCurrentPlannerID(const QString&)));
+    connect(m_num_planning_attempts_spinbox, SIGNAL(valueChanged(int)),
+            m_model.get(), SLOT(setNumPlanningAttempts(int)));
+    connect(m_allowed_planning_time_spinbox, SIGNAL(valueChanged(double)),
+            m_model.get(), SLOT(setAllowedPlanningTime(double)));
 
     planner_settings_group->setLayout(planner_settings_layout);
     main_layout->addWidget(planner_settings_group);
