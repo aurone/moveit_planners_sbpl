@@ -80,6 +80,7 @@ void SBPLPlannerManager::getPlanningAlgorithms(
 {
     algs.push_back("ARA*");
     algs.push_back("MHA*");
+    algs.push_back("LARA*");
 }
 
 planning_interface::PlanningContextPtr SBPLPlannerManager::getPlanningContext(
