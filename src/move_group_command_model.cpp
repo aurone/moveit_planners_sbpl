@@ -723,7 +723,7 @@ bool MoveGroupCommandModel::fillGoalConstraints(
     const Eigen::Affine3d& T_model_tgtoff =
             T_model_tip * Eigen::Translation3d(target_offset);
     geometry_msgs::Pose tip_link_pose;
-    tf::poseEigenToMsg(T_model_tgtoff, tip_link_pose);
+    tf::poseEigenToMsg(T_model_tip, tip_link_pose);
 
     // Position constraint on the tip link
 
