@@ -42,14 +42,14 @@
 
 namespace sbpl_interface {
 
-class MoveItRobotModel : public sbpl_arm_planner::RobotModel
+class MoveItRobotModel : public sbpl::manip::RobotModel
 {
 public:
 
     MoveItRobotModel();
     virtual ~MoveItRobotModel();
 
-    /// \name sbpl_arm_planner::RobotModel API Requirements
+    /// \name sbpl::manip::RobotModel API Requirements
     ///@{
 
     virtual double minVarLimit(int jidx) const;
@@ -78,13 +78,13 @@ public:
         const std::vector<double>& pose,
         const std::vector<double>& start,
         std::vector<double>& solution,
-        sbpl_arm_planner::ik_option::IkOption option = sbpl_arm_planner::ik_option::UNRESTRICTED);
+        sbpl::manip::ik_option::IkOption option = sbpl::manip::ik_option::UNRESTRICTED);
 
     virtual bool computeIK(
         const std::vector<double>& pose,
         const std::vector<double>& start,
         std::vector<std::vector<double> >& solutions,
-        sbpl_arm_planner::ik_option::IkOption option = sbpl_arm_planner::ik_option::UNRESTRICTED);
+        sbpl::manip::ik_option::IkOption option = sbpl::manip::ik_option::UNRESTRICTED);
 
     virtual bool computeFastIK(
         const std::vector<double>& pose,
@@ -167,7 +167,7 @@ private:
 
     std::string m_planning_frame;
 
-    std::shared_ptr<sbpl_arm_planner::RPYSolver> m_rpy_solver;
+    std::shared_ptr<sbpl::manip::RPYSolver> m_rpy_solver;
     std::string m_forearm_roll_link;
     std::string m_wrist_flex_link;
     std::string m_wrist_roll_link;

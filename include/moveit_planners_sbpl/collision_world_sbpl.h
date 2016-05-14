@@ -162,7 +162,7 @@ private:
     CollisionWorldConfig m_cw_config;
 
     std::unique_ptr<distance_field::PropagationDistanceField> m_dfield;
-    std::unique_ptr<sbpl_arm_planner::OccupancyGrid> m_grid;
+    std::unique_ptr<sbpl::OccupancyGrid> m_grid;
     std::unique_ptr<sbpl::collision::CollisionSpace> m_cspace;
 
     World::ObserverHandle m_observer_handle;

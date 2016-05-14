@@ -180,7 +180,7 @@ bool MoveItRobotModel::init(
         double wrist_pitch_min = var_bounds.min_position_;
         double wrist_pitch_max = var_bounds.max_position_;
         ROS_INFO("Instantiating orientation solver with limits [%0.3f, %0.3f]", wrist_pitch_min, wrist_pitch_max);
-        m_rpy_solver.reset(new sbpl_arm_planner::RPYSolver(wrist_pitch_min, wrist_pitch_max));
+        m_rpy_solver.reset(new sbpl::manip::RPYSolver(wrist_pitch_min, wrist_pitch_max));
     }
 
     return true;
@@ -369,7 +369,7 @@ bool MoveItRobotModel::computeIK(
     const std::vector<double>& pose,
     const std::vector<double>& start,
     std::vector<double>& solution,
-    sbpl_arm_planner::ik_option::IkOption option)
+    sbpl::manip::ik_option::IkOption option)
 {
     if (!initialized()) {
         ROS_ERROR("MoveIt! Robot Model is uninitialized");
@@ -382,9 +382,9 @@ bool MoveItRobotModel::computeIK(
     }
 
     switch (option) {
-    case sbpl_arm_planner::ik_option::UNRESTRICTED:
+    case sbpl::manip::ik_option::UNRESTRICTED:
         return computeUnrestrictedIK(pose, start, solution);
-    case sbpl_arm_planner::ik_option::RESTRICT_XYZ_JOINTS:
+    case sbpl::manip::ik_option::RESTRICT_XYZ_JOINTS:
         return computeWristIK(pose, start, solution);
     }
 
@@ -410,7 +410,7 @@ bool MoveItRobotModel::computeFastIK(
     }
 
     return computeIK(
-            pose, start, solution, sbpl_arm_planner::ik_option::UNRESTRICTED);
+            pose, start, solution, sbpl::manip::ik_option::UNRESTRICTED);
 }
 
 void MoveItRobotModel::printRobotModelInformation()
@@ -490,7 +490,7 @@ bool MoveItRobotModel::computeIK(
     const std::vector<double>& pose,
     const std::vector<double>& start,
     std::vector<std::vector<double>>& solutions,
-    sbpl_arm_planner::ik_option::IkOption option)
+    sbpl::manip::ik_option::IkOption option)
 {
     if (!initialized()) {
         ROS_ERROR("MoveIt! Robot Model is uninitialized");

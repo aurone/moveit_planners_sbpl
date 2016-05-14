@@ -292,7 +292,7 @@ bool CollisionWorldSBPL::init(
             df_max_distance,
             false));
     ROS_INFO("  Constructing Occupancy Grid");
-    m_grid.reset(new sbpl_arm_planner::OccupancyGrid(m_dfield.get()));
+    m_grid.reset(new sbpl::OccupancyGrid(m_dfield.get()));
     m_grid->setReferenceFrame(collision_world_config.world_frame);
     ROS_INFO("  Constructing Collision Space");
     m_cspace.reset(new sbpl::collision::CollisionSpace(m_grid.get()));

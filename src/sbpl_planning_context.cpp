@@ -344,8 +344,8 @@ bool SBPLPlanningContext::init(const std::map<std::string, std::string>& config)
 
     const std::string& action_filename = config.at("mprim_filename");
 
-    sbpl_arm_planner::ActionSet as;
-    if (!sbpl_arm_planner::ActionSet::Load(action_filename, as)) {
+    sbpl::manip::ActionSet as;
+    if (!sbpl::manip::ActionSet::Load(action_filename, as)) {
         ROS_ERROR("Failed to load action set from '%s'", action_filename.c_str());
         return false;
     }
@@ -379,48 +379,48 @@ bool SBPLPlanningContext::init(const std::map<std::string, std::string>& config)
     m_interpolate_path = interpolate_path;
 
     m_action_set.useAmp(
-            sbpl_arm_planner::MotionPrimitive::SNAP_TO_XYZ,
+            sbpl::manip::MotionPrimitive::SNAP_TO_XYZ,
             use_xyz_snap_mprim);
     m_action_set.useAmp(
-            sbpl_arm_planner::MotionPrimitive::SNAP_TO_RPY,
+            sbpl::manip::MotionPrimitive::SNAP_TO_RPY,
             use_rpy_snap_mprim);
     m_action_set.useAmp(
-            sbpl_arm_planner::MotionPrimitive::SNAP_TO_XYZ_RPY,
+            sbpl::manip::MotionPrimitive::SNAP_TO_XYZ_RPY,
             use_xyzrpy_snap_mprim);
     m_action_set.useAmp(
-            sbpl_arm_planner::MotionPrimitive::SHORT_DISTANCE,
+            sbpl::manip::MotionPrimitive::SHORT_DISTANCE,
             use_short_dist_mprims);
 
     m_action_set.ampThresh(
-            sbpl_arm_planner::MotionPrimitive::SNAP_TO_XYZ,
+            sbpl::manip::MotionPrimitive::SNAP_TO_XYZ,
             xyz_snap_thresh);
     m_action_set.ampThresh(
-            sbpl_arm_planner::MotionPrimitive::SNAP_TO_RPY,
+            sbpl::manip::MotionPrimitive::SNAP_TO_RPY,
             rpy_snap_thresh);
     m_action_set.ampThresh(
-            sbpl_arm_planner::MotionPrimitive::SNAP_TO_XYZ_RPY,
+            sbpl::manip::MotionPrimitive::SNAP_TO_XYZ_RPY,
             xyzrpy_snap_thresh);
     m_action_set.ampThresh(
-            sbpl_arm_planner::MotionPrimitive::SHORT_DISTANCE,
+            sbpl::manip::MotionPrimitive::SHORT_DISTANCE,
             short_dist_mprims_thresh);
 
     ROS_INFO("Action Set:");
     for (auto ait = m_action_set.begin(); ait != m_action_set.end(); ++ait) {
         ROS_INFO("  type: %s", to_string(ait->type).c_str());
-        if (ait->type == sbpl_arm_planner::MotionPrimitive::SNAP_TO_RPY) {
-            ROS_INFO("    enabled: %s", m_action_set.useAmp(sbpl_arm_planner::MotionPrimitive::SNAP_TO_RPY) ? "true" : "false");
-            ROS_INFO("    thresh: %0.3f", m_action_set.ampThresh(sbpl_arm_planner::MotionPrimitive::SNAP_TO_RPY));
+        if (ait->type == sbpl::manip::MotionPrimitive::SNAP_TO_RPY) {
+            ROS_INFO("    enabled: %s", m_action_set.useAmp(sbpl::manip::MotionPrimitive::SNAP_TO_RPY) ? "true" : "false");
+            ROS_INFO("    thresh: %0.3f", m_action_set.ampThresh(sbpl::manip::MotionPrimitive::SNAP_TO_RPY));
         }
-        else if (ait->type == sbpl_arm_planner::MotionPrimitive::SNAP_TO_XYZ) {
-            ROS_INFO("    enabled: %s", m_action_set.useAmp(sbpl_arm_planner::MotionPrimitive::SNAP_TO_XYZ) ? "true" : "false");
-            ROS_INFO("    thresh: %0.3f", m_action_set.ampThresh(sbpl_arm_planner::MotionPrimitive::SNAP_TO_XYZ));
+        else if (ait->type == sbpl::manip::MotionPrimitive::SNAP_TO_XYZ) {
+            ROS_INFO("    enabled: %s", m_action_set.useAmp(sbpl::manip::MotionPrimitive::SNAP_TO_XYZ) ? "true" : "false");
+            ROS_INFO("    thresh: %0.3f", m_action_set.ampThresh(sbpl::manip::MotionPrimitive::SNAP_TO_XYZ));
         }
-        else if (ait->type == sbpl_arm_planner::MotionPrimitive::SNAP_TO_XYZ_RPY) {
-            ROS_INFO("    enabled: %s", m_action_set.useAmp(sbpl_arm_planner::MotionPrimitive::SNAP_TO_XYZ_RPY) ? "true" : "false");
-            ROS_INFO("    thresh: %0.3f", m_action_set.ampThresh(sbpl_arm_planner::MotionPrimitive::SNAP_TO_XYZ_RPY));
+        else if (ait->type == sbpl::manip::MotionPrimitive::SNAP_TO_XYZ_RPY) {
+            ROS_INFO("    enabled: %s", m_action_set.useAmp(sbpl::manip::MotionPrimitive::SNAP_TO_XYZ_RPY) ? "true" : "false");
+            ROS_INFO("    thresh: %0.3f", m_action_set.ampThresh(sbpl::manip::MotionPrimitive::SNAP_TO_XYZ_RPY));
         }
-        else if (ait->type == sbpl_arm_planner::MotionPrimitive::LONG_DISTANCE ||
-            ait->type == sbpl_arm_planner::MotionPrimitive::SHORT_DISTANCE)
+        else if (ait->type == sbpl::manip::MotionPrimitive::LONG_DISTANCE ||
+            ait->type == sbpl::manip::MotionPrimitive::SHORT_DISTANCE)
         {
             ROS_INFO("    action: %s", to_string(ait->action).c_str());
         }
@@ -482,13 +482,13 @@ bool SBPLPlanningContext::initSBPL(std::string& why)
     // SBPL Arm Planner Interface Initialization //
     ///////////////////////////////////////////////
 
-    m_planner.reset(new sbpl_arm_planner::SBPLArmPlannerInterface(
+    m_planner.reset(new sbpl::manip::SBPLArmPlannerInterface(
             m_robot_model,
             &m_collision_checker,
             &m_action_set,
             m_distance_field.get()));
 
-    sbpl_arm_planner::PlanningParams params;
+    sbpl::manip::PlanningParams params;
 
     // number of discretizations in a circle
     std::vector<int> discretization(m_robot_model->activeVariableCount());
@@ -723,7 +723,7 @@ bool SBPLPlanningContext::initHeuristicGrid(
         return true;
     }
     else {
-        sbpl_arm_planner::OccupancyGrid grid(m_distance_field.get());
+        sbpl::OccupancyGrid grid(m_distance_field.get());
         grid.setReferenceFrame(scene.getPlanningFrame());
         sbpl::collision::CollisionWorld cmodel(&grid);
 
