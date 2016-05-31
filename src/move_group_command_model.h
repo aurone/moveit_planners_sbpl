@@ -78,6 +78,8 @@ public:
     int numPlanningAttempts() const;
     double allowedPlanningTime() const;
 
+    const std::string& planningJointGroupName() const;
+
 public Q_SLOTS:
 
     void setJointVariable(int jidx, double value);
@@ -88,6 +90,7 @@ public Q_SLOTS:
     void setPlannerID(const std::string& planner_id);
     void setNumPlanningAttempts(int num_planning_attempts);
     void setAllowedPlanningTime(double allowed_planning_time_s);
+    void setPlanningJointGroup(const std::string& joint_group_name);
 
 Q_SIGNALS:
 
@@ -128,6 +131,8 @@ private:
 
     int m_num_planning_attempts;
     double m_allowed_planning_time_s;
+
+    std::string m_curr_joint_group_name;
     ///@}
 
     interactive_markers::InteractiveMarkerServer m_im_server;

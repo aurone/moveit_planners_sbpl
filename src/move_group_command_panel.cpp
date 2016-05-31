@@ -441,6 +441,7 @@ void MoveGroupCommandPanel::setJointVariableFromSpinBox(double value)
 void MoveGroupCommandPanel::setJointGroup(const QString& joint_group_name)
 {
     updateJointVariableCommandWidget(joint_group_name.toStdString());
+    m_model->setPlanningJointGroup(joint_group_name.toStdString());
 }
 
 void MoveGroupCommandPanel::planToGoalPose()

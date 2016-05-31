@@ -16,7 +16,6 @@
 
 namespace sbpl_interface {
 
-static const std::string JGOI_HACK = "manipulator";
 static const std::string WORKSPACE_BOUNDARIES_FRAME = "base_link";
 
 static std::string to_string(moveit_msgs::MoveItErrorCodes code)
@@ -322,6 +321,11 @@ double MoveGroupCommandModel::allowedPlanningTime() const
     return m_allowed_planning_time_s;
 }
 
+const std::string& MoveGroupCommandModel::planningJointGroupName() const
+{
+    return m_curr_joint_group_name;
+}
+
 void MoveGroupCommandModel::setJointVariable(int jidx, double value)
 {
     if (!isRobotLoaded()) {
@@ -354,7 +358,7 @@ void MoveGroupCommandModel::setJointVariable(int jidx, double value)
             moveit_msgs::GetStateValidity::Response res;
 
             moveit::core::robotStateToRobotStateMsg(*m_robot_state, req.robot_state);
-            req.group_name = JGOI_HACK;
+            req.group_name = m_curr_joint_group_name;
             // req.constraints;
 
             if (!m_check_state_validity_client->call(req, res)) {
@@ -444,9 +448,17 @@ void MoveGroupCommandModel::setNumPlanningAttempts(int num_planning_attempts)
 
 void MoveGroupCommandModel::setAllowedPlanningTime(double allowed_planning_time_s)
 {
-     if (m_allowed_planning_time_s != allowed_planning_time_s) {
+    if (m_allowed_planning_time_s != allowed_planning_time_s) {
         m_allowed_planning_time_s = allowed_planning_time_s;
-     }
+    }
+}
+
+void MoveGroupCommandModel::setPlanningJointGroup(
+    const std::string& joint_group_name)
+{
+    if (m_curr_joint_group_name != joint_group_name) {
+        m_curr_joint_group_name = joint_group_name;
+    }
 }
 
 void MoveGroupCommandModel::reinitCheckStateValidityService()
