@@ -204,6 +204,9 @@ private:
 
     void processInteractiveMarkerFeedback(
         const visualization_msgs::InteractiveMarkerFeedbackConstPtr& msg);
+
+    std::string markerNameFromTipName(const std::string& tip_name) const;
+    std::string tipNameFromMarkerName(const std::string& marker_name) const;
 };
 
 } // namespace sbpl_interface

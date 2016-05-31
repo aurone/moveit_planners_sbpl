@@ -654,7 +654,7 @@ void MoveGroupCommandModel::reinitInteractiveMarkers()
                 m_robot_state->getGlobalLinkTransform(tip_link);
         tf::poseEigenToMsg(T_model_tip, tip_marker.pose);
 
-        tip_marker.name = tip_link->getName() + "_controls";
+        tip_marker.name = markerNameFromTipName(tip_link->getName());
         tip_marker.description = "ik control of link " + tip_link->getName();
         tip_marker.scale = 0.5f;
 
@@ -725,9 +725,8 @@ void MoveGroupCommandModel::reinitInteractiveMarkers()
 void MoveGroupCommandModel::updateInteractiveMarkers()
 {
     for (const std::string& marker_name : m_int_marker_names) {
-
         // stuff the current pose
-        std::string tip_link_name = marker_name.substr(0, marker_name.rfind("_control"));
+        std::string tip_link_name = tipNameFromMarkerName(marker_name);
         const Eigen::Affine3d& T_model_tip =
                 m_robot_state->getGlobalLinkTransform(tip_link_name);
 
@@ -1193,6 +1192,46 @@ void MoveGroupCommandModel::processInteractiveMarkerFeedback(
     ROS_INFO("  Marker: %s", msg->marker_name.c_str());
     ROS_INFO("  Control: %s", msg->control_name.c_str());
     ROS_INFO("  Event Type: %u", (unsigned)msg->event_type);
+
+    switch (msg->event_type) {
+    case visualization_msgs::InteractiveMarkerFeedback::KEEP_ALIVE:
+        break;
+    case visualization_msgs::InteractiveMarkerFeedback::POSE_UPDATE:
+    {
+        const moveit::core::JointModelGroup* jg =
+                m_robot_state->getJointModelGroup(m_curr_joint_group_name);
+        if (!jg) {
+            ROS_ERROR("Failed to retrieve joint group '%s'", m_curr_joint_group_name.c_str());
+            break;
+        }
+
+        // run ik from this tip link
+        if (!m_robot_state->setFromIK(jg, msg->pose)) {
+            // TODO: anything special here?
+        }
+        m_robot_state->updateLinkTransforms();
+        updateInteractiveMarkers();
+        Q_EMIT robotStateChanged();
+    }   break;
+    case visualization_msgs::InteractiveMarkerFeedback::MENU_SELECT:
+    case visualization_msgs::InteractiveMarkerFeedback::BUTTON_CLICK:
+    default:
+        break;
+    }
+    std::string tip_link_name = tipNameFromMarkerName(msg->marker_name);
+
+}
+
+std::string MoveGroupCommandModel::markerNameFromTipName(
+    const std::string& tip_name) const
+{
+    return tip_name + "_controls";
+}
+
+std::string MoveGroupCommandModel::tipNameFromMarkerName(
+    const std::string& marker_name) const
+{
+    return marker_name.substr(0, marker_name.rfind("_control"));
 }
 
 } // namespace sbpl_interface
