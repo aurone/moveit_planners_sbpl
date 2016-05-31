@@ -31,17 +31,17 @@ public:
 
 public Q_SLOTS:
 
-    /// \brief Load the robot with the parameter in the Robot Description line
+    /// \brief Load the robot using the ROS param in the Robot Description line
     ///     edit box
     void loadRobot();
 
-    /// \brief Update the GUI and visualizations
+    /// \brief Update the GUI and visualizations when a new robot is loaded
     void updateRobot();
 
     void syncRobot();
+    void syncModelConfig();
 
-    /// \brief Update the robot visualization to reflect the current state of
-    ///     the robot
+    /// \brief Update the robot visualization to reflect the state of the robot
     void updateRobotVisualization();
 
     void setJointVariableFromSpinBox(double value);
@@ -81,6 +81,8 @@ private:
     QDoubleSpinBox* m_pos_tol_spinbox;
     QDoubleSpinBox* m_rot_tol_spinbox;
 
+    QComboBox* m_planner_name_combo_box;
+    QComboBox* m_planner_id_combo_box;
     QSpinBox* m_num_planning_attempts_spinbox;
     QDoubleSpinBox* m_allowed_planning_time_spinbox;
 
@@ -96,7 +98,15 @@ private:
     JointVariableCommandWidget* setupJointVariableCommandWidget();
     void updateJointVariableCommandWidget(const std::string& joint_group_name);
 
+    void syncPlannerNameComboBox();
+    void syncPlannerIdComboBox();
+    void syncNumPlanningAttemptsSpinBox();
+    void syncAllowedPlanningTimeSpinBox();
+    void syncPlanningJointGroupComboBox();
     void syncSpinBoxes();
+    void syncGoalPositionToleranceSpinBox();
+    void syncGoalOrientationToleranceSpinBox();
+    void syncGoalJointToleranceSpinBox();
 
     bool isVariableAngle(int vind) const;
 };

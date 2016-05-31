@@ -22,7 +22,9 @@ MoveGroupCommandPanel::MoveGroupCommandPanel(QWidget* parent) :
     m_var_cmd_widget(nullptr),
     m_rot_tol_spinbox(nullptr),
     m_joint_tol_spinbox(nullptr),
-    m_pos_tol_spinbox(nullptr)
+    m_pos_tol_spinbox(nullptr),
+    m_planner_name_combo_box(nullptr),
+    m_planner_id_combo_box(nullptr)
 {
     setupGUI();
 
@@ -31,6 +33,8 @@ MoveGroupCommandPanel::MoveGroupCommandPanel(QWidget* parent) :
             this, SLOT(updateRobot()));
     connect(m_model.get(), SIGNAL(robotStateChanged()),
             this, SLOT(syncRobot()));
+    connect(m_model.get(), SIGNAL(configChanged()),
+            this, SLOT(syncModelConfig()));
 
     m_marker_pub = m_nh.advertise<visualization_msgs::MarkerArray>(
             "visualization_markers", 5);
@@ -43,30 +47,15 @@ MoveGroupCommandPanel::~MoveGroupCommandPanel()
 void MoveGroupCommandPanel::load(const rviz::Config& config)
 {
     rviz::Panel::load(config);
-
     ROS_INFO("Loading config for '%s'", this->getName().toStdString().c_str());
-
-    QString robot_description;
-    config.mapGetString("robot_description", &robot_description);
-
-    ROS_INFO("Robot Description: %s", robot_description.toStdString().c_str());
-
-    if (m_model->loadRobot(robot_description.toStdString())) {
-        m_robot_description_line_edit->setText(robot_description);
-    }
+    m_model->load(config);
 }
 
 void MoveGroupCommandPanel::save(rviz::Config config) const
 {
     rviz::Panel::save(config);
-
     ROS_INFO("Saving config for '%s'", this->getName().toStdString().c_str());
-
-    config.mapSetValue(
-            "robot_description",
-            QString::fromStdString(m_model->robotDescription()));
-
-    // TODO: save the state of the MoveGroupCommandModel
+    m_model->save(config);
 }
 
 void MoveGroupCommandPanel::loadRobot()
@@ -93,6 +82,14 @@ void MoveGroupCommandPanel::loadRobot()
 
 void MoveGroupCommandPanel::updateRobot()
 {
+    const std::string& robot_description = m_model->robotDescription();
+    if (m_robot_description_line_edit->text().toStdString() !=
+        robot_description)
+    {
+        m_robot_description_line_edit->setText(
+                QString::fromStdString(robot_description));
+    }
+
     setupRobotGUI();
     syncRobot();
 }
@@ -101,6 +98,20 @@ void MoveGroupCommandPanel::syncRobot()
 {
     syncSpinBoxes();
     updateRobotVisualization();
+    Q_EMIT configChanged();
+}
+
+void MoveGroupCommandPanel::syncModelConfig()
+{
+    syncPlannerNameComboBox();
+    syncPlannerIdComboBox();
+    syncNumPlanningAttemptsSpinBox();
+    syncAllowedPlanningTimeSpinBox();
+    syncPlanningJointGroupComboBox();
+    syncGoalPositionToleranceSpinBox();
+    syncGoalOrientationToleranceSpinBox();
+    syncGoalJointToleranceSpinBox();
+    Q_EMIT configChanged();
 }
 
 void MoveGroupCommandPanel::setupGUI()
@@ -140,36 +151,40 @@ void MoveGroupCommandPanel::setupGUI()
     QLabel* planner_name_label = new QLabel(tr("Name:"));
     QLabel* planner_id_label = new QLabel(tr("ID:"));
 
-    QComboBox* planner_name_combobox = new QComboBox;
-    QComboBox* planner_id_combobox = new QComboBox;
-    for (const auto& planner_interface : m_model->plannerInterfaces()) {
+    m_planner_name_combo_box = new QComboBox;
+    m_planner_id_combo_box = new QComboBox;
+
+    // add all planner names as items in the combo box
+    const auto& planner_interfaces = m_model->plannerInterfaces();
+    for (const auto& planner_interface : planner_interfaces) {
         const std::string& planner_name = planner_interface.name;
-        planner_name_combobox->addItem(QString::fromStdString(planner_name));
-        for (const auto& planner_id : planner_interface.planner_ids) {
-            planner_id_combobox->addItem(QString::fromStdString(planner_id));
+        m_planner_name_combo_box->addItem(QString::fromStdString(planner_name));
+    }
+
+    // add all planner ids part of the current planner as items in the combo box
+    const std::string planner_name = m_model->plannerName();
+    if (planner_name != "UNKNOWN") {
+        size_t pidx;
+        for (pidx = 0; pidx < planner_interfaces.size(); ++pidx) {
+            if (planner_interfaces[pidx].name == planner_name) {
+                break;
+            }
+        }
+
+        for (const auto& planner_id : planner_interfaces[pidx].planner_ids) {
+            m_planner_id_combo_box->addItem(QString::fromStdString(planner_id));
         }
     }
 
-    for (int i = 0; i < planner_name_combobox->count(); ++i) {
-        if (planner_name_combobox->itemText(i).toStdString() == m_model->plannerName()) {
-            planner_name_combobox->setCurrentIndex(i);
-            break;
-        }
-    }
-
-    for (int i = 0; i < planner_id_combobox->count(); ++i) {
-        if (planner_id_combobox->itemText(i).toStdString() == m_model->plannerID()) {
-            planner_id_combobox->setCurrentIndex(i);
-            break;
-        }
-    }
+    syncPlannerNameComboBox();
+    syncPlannerIdComboBox();
 
     QLabel* num_attempts_label = new QLabel(tr("Num Attempts"));
     m_num_planning_attempts_spinbox = new QSpinBox;
     m_num_planning_attempts_spinbox->setMinimum(1);
     m_num_planning_attempts_spinbox->setMaximum(100);
     m_num_planning_attempts_spinbox->setWrapping(false);
-    m_num_planning_attempts_spinbox->setValue(m_model->numPlanningAttempts());
+    syncNumPlanningAttemptsSpinBox();
 
     QLabel* allowed_planning_time_label = new QLabel(tr("Allowed Time (s)"));
     m_allowed_planning_time_spinbox = new QDoubleSpinBox;
@@ -177,20 +192,20 @@ void MoveGroupCommandPanel::setupGUI()
     m_allowed_planning_time_spinbox->setMaximum(120.0);
     m_allowed_planning_time_spinbox->setSingleStep(1.0);
     m_allowed_planning_time_spinbox->setWrapping(false);
-    m_allowed_planning_time_spinbox->setValue(m_model->allowedPlanningTime());
+    syncAllowedPlanningTimeSpinBox();
 
     planner_settings_layout->addWidget(planner_name_label,              0, 0);
-    planner_settings_layout->addWidget(planner_name_combobox,           0, 1);
+    planner_settings_layout->addWidget(m_planner_name_combo_box,        0, 1);
     planner_settings_layout->addWidget(planner_id_label,                1, 0);
-    planner_settings_layout->addWidget(planner_id_combobox,             1, 1);
+    planner_settings_layout->addWidget(m_planner_id_combo_box,          1, 1);
     planner_settings_layout->addWidget(num_attempts_label,              2, 0);
     planner_settings_layout->addWidget(m_num_planning_attempts_spinbox, 2, 1);
     planner_settings_layout->addWidget(allowed_planning_time_label,     3, 0);
     planner_settings_layout->addWidget(m_allowed_planning_time_spinbox, 3, 1);
 
-    connect(planner_name_combobox, SIGNAL(currentIndexChanged(const QString&)),
+    connect(m_planner_name_combo_box, SIGNAL(currentIndexChanged(const QString&)),
             this, SLOT(setCurrentPlanner(const QString&)));
-    connect(planner_id_combobox, SIGNAL(currentIndexChanged(const QString&)),
+    connect(m_planner_id_combo_box, SIGNAL(currentIndexChanged(const QString&)),
             this, SLOT(setCurrentPlannerID(const QString&)));
     connect(m_num_planning_attempts_spinbox, SIGNAL(valueChanged(int)),
             m_model.get(), SLOT(setNumPlanningAttempts(int)));
@@ -211,7 +226,7 @@ void MoveGroupCommandPanel::setupGUI()
     m_joint_tol_spinbox->setMaximum( 180.0);
     m_joint_tol_spinbox->setSingleStep(1.0);
     m_joint_tol_spinbox->setWrapping(false);
-    m_joint_tol_spinbox->setValue(m_model->goalJointTolerance());
+    syncGoalJointToleranceSpinBox();
 
     QLabel* pos_tol_label = new QLabel(tr("Position Tolerance (m):"));
 
@@ -220,7 +235,7 @@ void MoveGroupCommandPanel::setupGUI()
     m_pos_tol_spinbox->setMaximum( 1.0);
     m_pos_tol_spinbox->setSingleStep(0.01);
     m_pos_tol_spinbox->setWrapping(false);
-    m_pos_tol_spinbox->setValue(m_model->goalPositionTolerance());
+    syncGoalPositionToleranceSpinBox();
 
     QLabel* rot_tol_label = new QLabel(tr("Orientation Tolerance (deg):"));
 
@@ -229,7 +244,7 @@ void MoveGroupCommandPanel::setupGUI()
     m_rot_tol_spinbox->setMaximum(180.0);
     m_rot_tol_spinbox->setSingleStep(1.0);
     m_rot_tol_spinbox->setWrapping(false);
-    m_rot_tol_spinbox->setValue(m_model->goalOrientationTolerance());
+    syncGoalOrientationToleranceSpinBox();
 
     goal_constraints_layout->addWidget(pos_tol_label,       0, 0);
     goal_constraints_layout->addWidget(m_pos_tol_spinbox,   0, 1);
@@ -259,9 +274,10 @@ void MoveGroupCommandPanel::setupRobotGUI()
 
     moveit::core::RobotModelConstPtr robot_model = m_model->robotModel();
 
-    // add all joint groups as items in a combobox
+    // set up combobox for selecting the active planning joint group
     m_joint_groups_combo_box = new QComboBox;
-    // set up combobox for choosing joint group to modify
+
+    // add all joint groups as items in the combobox
     for (size_t jgind = 0;
         jgind < robot_model->getJointModelGroupNames().size();
         ++jgind)
@@ -271,8 +287,7 @@ void MoveGroupCommandPanel::setupRobotGUI()
         m_joint_groups_combo_box->addItem(QString::fromStdString(jg_name));
     }
 
-    // NOTE: the first item added to the combobox will become the value of the
-    // combobox
+    syncPlanningJointGroupComboBox();
 
     connect(m_joint_groups_combo_box,
             SIGNAL(currentIndexChanged(const QString&)),
@@ -330,6 +345,63 @@ void MoveGroupCommandPanel::updateJointVariableCommandWidget(
     m_var_cmd_widget->displayJointGroupCommands(joint_group_name);
 }
 
+void MoveGroupCommandPanel::syncPlannerNameComboBox()
+{
+    assert(m_model && m_planner_name_combo_box);
+    // set the selected item to match the current planner
+    const std::string planner_name = m_model->plannerName();
+    for (int i = 0; i < m_planner_name_combo_box->count(); ++i) {
+        if (m_planner_name_combo_box->itemText(i).toStdString() ==
+                planner_name)
+        {
+            m_planner_name_combo_box->setCurrentIndex(i);
+            break;
+        }
+    }
+}
+
+void MoveGroupCommandPanel::syncPlannerIdComboBox()
+{
+    assert(m_model && m_planner_id_combo_box);
+    // set the selected item to match the current planner id
+    const std::string planner_id = m_model->plannerID();
+    for (int i = 0; i < m_planner_id_combo_box->count(); ++i) {
+        if (m_planner_id_combo_box->itemText(i).toStdString() == planner_id) {
+            m_planner_id_combo_box->setCurrentIndex(i);
+            break;
+        }
+    }
+}
+
+void MoveGroupCommandPanel::syncNumPlanningAttemptsSpinBox()
+{
+    assert(m_model && m_num_planning_attempts_spinbox);
+    m_num_planning_attempts_spinbox->setValue(m_model->numPlanningAttempts());
+}
+
+void MoveGroupCommandPanel::syncAllowedPlanningTimeSpinBox()
+{
+    assert(m_model && m_allowed_planning_time_spinbox);
+    m_allowed_planning_time_spinbox->setValue(m_model->allowedPlanningTime());
+}
+
+void MoveGroupCommandPanel::syncPlanningJointGroupComboBox()
+{
+    assert(m_model && m_joint_groups_combo_box);
+    moveit::core::RobotModelConstPtr robot_model = m_model->robotModel();
+    if (!robot_model) {
+        // TODO: set to empty selection?
+        return;
+    }
+
+    // set the selected item to match the active planning joint group
+    if (!robot_model->getJointModelGroups().empty()) {
+        const int ajg_idx = m_joint_groups_combo_box->findText(
+                QString::fromStdString(m_model->planningJointGroupName()));
+        m_joint_groups_combo_box->setCurrentIndex(ajg_idx);
+    }
+}
+
 void MoveGroupCommandPanel::syncSpinBoxes()
 {
     if (!m_model->isRobotLoaded()) {
@@ -364,6 +436,24 @@ void MoveGroupCommandPanel::syncSpinBoxes()
             }
         }
     }
+}
+
+void MoveGroupCommandPanel::syncGoalPositionToleranceSpinBox()
+{
+    assert(m_model && m_pos_tol_spinbox);
+    m_pos_tol_spinbox->setValue(m_model->goalPositionTolerance());
+}
+
+void MoveGroupCommandPanel::syncGoalOrientationToleranceSpinBox()
+{
+    assert(m_model && m_rot_tol_spinbox);
+    m_rot_tol_spinbox->setValue(m_model->goalOrientationTolerance());
+}
+
+void MoveGroupCommandPanel::syncGoalJointToleranceSpinBox()
+{
+    assert(m_model && m_joint_tol_spinbox);
+    m_joint_tol_spinbox->setValue(m_model->goalJointTolerance());
 }
 
 void MoveGroupCommandPanel::updateRobotVisualization()
