@@ -102,7 +102,8 @@ private:
 
     ros::NodeHandle m_nh;
 
-    // robot model
+    // robot model; if any one of these is valid, all of them should be valid
+    // assert(!m_robot_description.empty() ^ m_rm_loader ^ m_robot_model ^ m_robot_state);
     std::string m_robot_description;
     robot_model_loader::RobotModelLoaderPtr m_rm_loader;
     moveit::core::RobotModelPtr m_robot_model;
@@ -136,6 +137,7 @@ private:
     ///@}
 
     interactive_markers::InteractiveMarkerServer m_im_server;
+    std::vector<std::string> m_int_marker_names;
 
     void reinitCheckStateValidityService();
     void reinitQueryPlannerInterfaceService();
@@ -143,6 +145,11 @@ private:
     void logRobotModelInfo(const moveit::core::RobotModel& rm) const;
     void logPlanningSceneMonitor(
         const planning_scene_monitor::PlanningSceneMonitor& monitor) const;
+
+    void reinitInteractiveMarkers();
+
+    // Synchronize the poses of all markers with the current robot state.
+    void updateInteractiveMarkers();
 
     void clearMoveGroupRequest();
 
@@ -180,7 +187,10 @@ private:
         const actionlib::SimpleClientGoalState& state,
         const moveit_msgs::MoveGroupResult::ConstPtr& result);
 
-    // Get the state of the real robot, if it's available
+    // Get the state of the real robot.
+    //
+    // Returns false if the current robot state is not available. \p robot_state
+    // is not modified if the current state is not available.
     bool getActualState(moveit::core::RobotState& robot_state) const;
 
     std::vector<std::string>
@@ -191,6 +201,9 @@ private:
         const moveit::core::LinkModel& link,
         std::string& tip,
         std::vector<std::string>& tips) const;
+
+    void processInteractiveMarkerFeedback(
+        const visualization_msgs::InteractiveMarkerFeedbackConstPtr& msg);
 };
 
 } // namespace sbpl_interface

@@ -15,6 +15,7 @@ find_package(catkin REQUIRED
     actionlib
     eigen_conversions
     geometric_shapes
+    interactive_markers
     leatherman
     moveit_core
     moveit_msgs

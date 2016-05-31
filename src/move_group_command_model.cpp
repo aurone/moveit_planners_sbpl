@@ -101,7 +101,8 @@ MoveGroupCommandModel::MoveGroupCommandModel(QObject* parent) :
     m_joint_tol_rad(sbpl::utils::ToRadians(DefaultGoalJointTolerance_deg)),
     m_num_planning_attempts(DefaultNumPlanningAttempts),
     m_allowed_planning_time_s(DefaultAllowedPlanningTime_s),
-    m_im_server("move_group_control")
+    m_im_server("phantom_controls"),
+    m_int_marker_names()
 {
     reinitCheckStateValidityService();
     reinitQueryPlannerInterfaceService();
@@ -132,7 +133,7 @@ bool MoveGroupCommandModel::loadRobot(const std::string& robot_description)
         return true;
     }
 
-    // loads a new robot
+    // load a new robot
     robot_model_loader::RobotModelLoaderPtr rm_loader(
             new robot_model_loader::RobotModelLoader(robot_description, true));
 
@@ -152,12 +153,17 @@ bool MoveGroupCommandModel::loadRobot(const std::string& robot_description)
 
 //    logRobotModelInfo(*m_robot_model);
 
+    reinitInteractiveMarkers();
+
+    // monitor the current planning scene for the current robot state
     m_scene_monitor.reset(
             new planning_scene_monitor::PlanningSceneMonitor(m_rm_loader));
     ROS_INFO("Created new Planning Scene Monitor");
 
     m_scene_monitor->startSceneMonitor();
     m_scene_monitor->startStateMonitor();
+
+    // TODO: do we still need geometry?
     m_scene_monitor->startWorldGeometryMonitor();
     m_scene_monitor->requestPlanningSceneState();
 
@@ -248,6 +254,7 @@ bool MoveGroupCommandModel::moveToGoalConfiguration(const std::string& group_nam
 bool MoveGroupCommandModel::copyCurrentState()
 {
     if (getActualState(*m_robot_state)) {
+        updateInteractiveMarkers();
         Q_EMIT robotStateChanged();
         return true;
     }
@@ -348,6 +355,7 @@ void MoveGroupCommandModel::setJointVariable(int jidx, double value)
         }
 
         m_robot_state->updateLinkTransforms();
+        updateInteractiveMarkers();
 
         if (!m_check_state_validity_client->isValid()) {
             reinitCheckStateValidityService();
@@ -458,6 +466,7 @@ void MoveGroupCommandModel::setPlanningJointGroup(
 {
     if (m_curr_joint_group_name != joint_group_name) {
         m_curr_joint_group_name = joint_group_name;
+        reinitInteractiveMarkers();
     }
 }
 
@@ -597,6 +606,144 @@ void MoveGroupCommandModel::logPlanningSceneMonitor(
     }
     ROS_INFO("Planning Scene Publishing Frequency: %0.3f", monitor.getPlanningScenePublishingFrequency());
     ROS_INFO("Robot Model: %s", monitor.getRobotModel()->getName().c_str());
+}
+
+void MoveGroupCommandModel::reinitInteractiveMarkers()
+{
+    ROS_INFO("Reinitializing Interactive Markers");
+
+    // clear all interactive markers
+    m_im_server.clear();
+    m_int_marker_names.clear();
+
+    if (!m_robot_model) {
+        ROS_WARN("No robot model to initialize interactive markers from");
+        // TODO: apply runondestruction idiom here
+        m_im_server.applyChanges();
+        return;
+    }
+
+    if (m_curr_joint_group_name.empty()) {
+        ROS_WARN("No active joint group to initialize interactive markers from");
+        m_im_server.applyChanges();
+        return;
+    }
+
+    const moveit::core::JointModelGroup* jg =
+            m_robot_model->getJointModelGroup(m_curr_joint_group_name);
+    if (!jg) {
+        ROS_ERROR("Failed to retrieve joint group '%s'", m_curr_joint_group_name.c_str());
+        m_im_server.applyChanges();
+        return;
+    }
+
+    std::vector<const moveit::core::LinkModel*> tips;
+    if (!jg->getEndEffectorTips(tips)) {
+        ROS_ERROR("Failed to retrieve end effector tips for joint group '%s'", m_curr_joint_group_name.c_str());
+        m_im_server.applyChanges();
+        return;
+    }
+
+    for (const moveit::core::LinkModel* tip_link : tips) {
+        ROS_INFO("Adding interactive marker for controlling pose of link %s", tip_link->getName().c_str());
+
+        visualization_msgs::InteractiveMarker tip_marker;
+        tip_marker.header.frame_id = m_robot_model->getModelFrame();
+
+        const Eigen::Affine3d& T_model_tip =
+                m_robot_state->getGlobalLinkTransform(tip_link);
+        tf::poseEigenToMsg(T_model_tip, tip_marker.pose);
+
+        tip_marker.name = tip_link->getName() + "_controls";
+        tip_marker.description = "ik control of link " + tip_link->getName();
+        tip_marker.scale = 0.5f;
+
+        visualization_msgs::InteractiveMarkerControl dof_control;
+        dof_control.orientation_mode =
+                visualization_msgs::InteractiveMarkerControl::INHERIT;
+        dof_control.always_visible = false;
+//        dof_control.description = "pose_control";
+
+        dof_control.orientation.w = 1.0;
+        dof_control.orientation.x = 1.0;
+        dof_control.orientation.y = 0.0;
+        dof_control.orientation.z = 0.0;
+
+        dof_control.name = "rotate_x";
+        dof_control.interaction_mode =
+                visualization_msgs::InteractiveMarkerControl::ROTATE_AXIS;
+        tip_marker.controls.push_back(dof_control);
+
+        dof_control.name = "move_x";
+        dof_control.interaction_mode =
+                visualization_msgs::InteractiveMarkerControl::MOVE_AXIS;
+        tip_marker.controls.push_back(dof_control);
+
+        dof_control.orientation.w = 1.0;
+        dof_control.orientation.x = 0.0;
+        dof_control.orientation.y = 1.0;
+        dof_control.orientation.z = 0.0;
+
+        dof_control.name = "rotate_z";
+        dof_control.interaction_mode =
+                visualization_msgs::InteractiveMarkerControl::ROTATE_AXIS;
+        tip_marker.controls.push_back(dof_control);
+
+        dof_control.name = "move_z";
+        dof_control.interaction_mode =
+                visualization_msgs::InteractiveMarkerControl::MOVE_AXIS;
+        tip_marker.controls.push_back(dof_control);
+
+        dof_control.orientation.w = 1.0;
+        dof_control.orientation.x = 0.0;
+        dof_control.orientation.y = 0.0;
+        dof_control.orientation.z = 1.0;
+
+        dof_control.name = "rotate_y";
+        dof_control.interaction_mode =
+                visualization_msgs::InteractiveMarkerControl::ROTATE_AXIS;
+        tip_marker.controls.push_back(dof_control);
+
+        dof_control.name = "move_y";
+        dof_control.interaction_mode =
+                visualization_msgs::InteractiveMarkerControl::MOVE_AXIS;
+        tip_marker.controls.push_back(dof_control);
+
+        auto feedback_fn = boost::bind(
+                &MoveGroupCommandModel::processInteractiveMarkerFeedback,
+                this,
+                _1);
+        m_im_server.insert(tip_marker, feedback_fn);
+        m_int_marker_names.push_back(tip_marker.name);
+    }
+
+    m_im_server.applyChanges();
+
+    updateInteractiveMarkers();
+}
+
+void MoveGroupCommandModel::updateInteractiveMarkers()
+{
+    for (const std::string& marker_name : m_int_marker_names) {
+
+        // stuff the current pose
+        std::string tip_link_name = marker_name.substr(0, marker_name.rfind("_control"));
+        const Eigen::Affine3d& T_model_tip =
+                m_robot_state->getGlobalLinkTransform(tip_link_name);
+
+        geometry_msgs::Pose tip_pose;
+        tf::poseEigenToMsg(T_model_tip, tip_pose);
+
+        // update the pose of the interactive marker
+        std_msgs::Header header;
+        header.frame_id = m_robot_model->getModelFrame();
+        header.stamp = ros::Time(0);
+        if (!m_im_server.setPose(marker_name, tip_pose, header)) {
+            ROS_ERROR("Failed to set pose of interactive marker '%s'", marker_name.c_str());
+        }
+    }
+
+    m_im_server.applyChanges();
 }
 
 void MoveGroupCommandModel::clearMoveGroupRequest()
@@ -1037,6 +1184,15 @@ void MoveGroupCommandModel::getTipLinks(
         std::string ctip;
         getTipLinks(jmg, *clm, ctip, tips);
     }
+}
+
+void MoveGroupCommandModel::processInteractiveMarkerFeedback(
+    const visualization_msgs::InteractiveMarkerFeedbackConstPtr& msg)
+{
+    ROS_INFO("Interactive marker feedback");
+    ROS_INFO("  Marker: %s", msg->marker_name.c_str());
+    ROS_INFO("  Control: %s", msg->control_name.c_str());
+    ROS_INFO("  Event Type: %u", (unsigned)msg->event_type);
 }
 
 } // namespace sbpl_interface
