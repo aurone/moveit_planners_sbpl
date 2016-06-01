@@ -51,7 +51,10 @@ public:
 
     bool isRobotLoaded() const;
 
+    /// \brief Return the model of the commanded robot.
     moveit::core::RobotModelConstPtr robotModel() const;
+
+    /// \brief Return the state of the phantom robot used for commanding.
     moveit::core::RobotStateConstPtr robotState() const;
 
     boost::tribool robotStateValidity() const { return m_validity; }
@@ -70,7 +73,7 @@ public:
 
     /// \name General/Robot Settings
     ///@{
-    const std::string& robotDescription() const;
+    const std::string robotDescription() const;
     ///@}
 
     /// \name Planner Settings
@@ -125,27 +128,27 @@ Q_SIGNALS:
 private:
 
     // assertions:
-    // * !m_robot_description.empty() ^ m_rm_loader ^ m_robot_model ^ m_robot_state
-    // * (model_loaded and model has at least one joint group) ^ active joint group is non-empty
+    // * robot_loaded:
+    //     m_scene_monitor ^ !robotDescription().empty() ^
+    //     robotModel() ^ robotState()
+    // * (robot loaded and model has at least one joint group) ^ active joint group is non-empty
 
     ros::NodeHandle m_nh;
 
-    // robot model; if any one of these is valid, all of them should be valid
-    std::string m_robot_description;
-    robot_model_loader::RobotModelLoaderPtr m_rm_loader;
-    moveit::core::RobotModelPtr m_robot_model;
+    planning_scene_monitor::PlanningSceneMonitorPtr m_scene_monitor;
+
     moveit::core::RobotStatePtr m_robot_state;
 
     boost::tribool m_validity;
 
-    planning_scene_monitor::PlanningSceneMonitorPtr m_scene_monitor;
-
-    // move_group API
+    /// \name move_group commands
+    ///@{
     std::unique_ptr<ros::ServiceClient> m_check_state_validity_client;
     std::unique_ptr<ros::ServiceClient> m_query_planner_interface_client;
 
     typedef actionlib::SimpleActionClient<moveit_msgs::MoveGroupAction> MoveGroupActionClient;
     std::unique_ptr<MoveGroupActionClient> m_move_group_client;
+    ///@}
 
     std::vector<moveit_msgs::PlannerInterfaceDescription> m_planner_interfaces;
     int m_curr_planner_idx;

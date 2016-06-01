@@ -84,12 +84,9 @@ static std::string to_string(moveit_msgs::MoveItErrorCodes code)
 MoveGroupCommandModel::MoveGroupCommandModel(QObject* parent) :
     QObject(parent),
     m_nh(),
-    m_robot_description(),
-    m_rm_loader(),
-    m_robot_model(),
+    m_scene_monitor(),
     m_robot_state(),
     m_validity(boost::indeterminate),
-    m_scene_monitor(),
     m_check_state_validity_client(),
     m_query_planner_interface_client(),
     m_move_group_client(),
@@ -130,53 +127,49 @@ MoveGroupCommandModel::MoveGroupCommandModel(QObject* parent) :
 
 bool MoveGroupCommandModel::loadRobot(const std::string& robot_description)
 {
-    if (robot_description == m_robot_description) {
+    if (robot_description == robotDescription()) {
         return true;
     }
 
-    // load a new robot
-    robot_model_loader::RobotModelLoaderPtr rm_loader(
-            new robot_model_loader::RobotModelLoader(robot_description, true));
-
-    if (!rm_loader->getModel()) {
-        ROS_ERROR("Robot Model Loader failed to load Robot Model");
+    m_scene_monitor.reset(new planning_scene_monitor::PlanningSceneMonitor(
+            robot_description));
+    if (!m_scene_monitor) {
+        ROS_ERROR("Failed to instantiate Planning Scene Monitor");
         return false;
     }
+    if (!m_scene_monitor->getRobotModel()) {
+        ROS_ERROR("Planning Scene Monitor failed to parse robot description");
+        return false;
+        m_scene_monitor.reset();
+    }
 
-    m_robot_description = robot_description;
-    m_rm_loader = rm_loader;
-    m_robot_model = m_rm_loader->getModel();
-    m_robot_state.reset(new moveit::core::RobotState(m_robot_model));
+    ROS_INFO("Created new Planning Scene Monitor");
+
+    m_scene_monitor->requestPlanningSceneState();
+    m_scene_monitor->startSceneMonitor();
+    m_scene_monitor->startStateMonitor();
+
+    logPlanningSceneMonitor(*m_scene_monitor);
+
+    m_robot_state.reset(new moveit::core::RobotState(robotModel()));
 
     m_robot_state->setToDefaultValues();
     m_robot_state->updateLinkTransforms();
     m_robot_state->updateCollisionBodyTransforms();
 
-    if (!m_robot_model->hasJointModelGroup(m_curr_joint_group_name)) {
-        if (!m_robot_model->getJointModelGroupNames().empty()) {
+    if (!robotModel()->hasJointModelGroup(m_curr_joint_group_name)) {
+        if (!robotModel()->getJointModelGroupNames().empty()) {
             m_curr_joint_group_name =
-                    m_robot_model->getJointModelGroupNames().front();
+                    robotModel()->getJointModelGroupNames().front();
         }
     }
     // otherwise retain the selected joint group
 
-//    logRobotModelInfo(*m_robot_model);
+//    logRobotModelInfo(*robotModel());
 
     reinitInteractiveMarkers();
 
     // monitor the current planning scene for the current robot state
-    m_scene_monitor.reset(
-            new planning_scene_monitor::PlanningSceneMonitor(m_rm_loader));
-    ROS_INFO("Created new Planning Scene Monitor");
-
-    m_scene_monitor->startSceneMonitor();
-    m_scene_monitor->startStateMonitor();
-
-    // TODO: do we still need geometry?
-    m_scene_monitor->startWorldGeometryMonitor();
-    m_scene_monitor->requestPlanningSceneState();
-
-    logPlanningSceneMonitor(*m_scene_monitor);
 
     clearMoveGroupRequest();
 
@@ -186,12 +179,17 @@ bool MoveGroupCommandModel::loadRobot(const std::string& robot_description)
 
 bool MoveGroupCommandModel::isRobotLoaded() const
 {
-    return (bool)m_robot_model.get();
+    return (bool)m_scene_monitor.get();
 }
 
 moveit::core::RobotModelConstPtr MoveGroupCommandModel::robotModel() const
 {
-    return m_robot_model;
+    if (m_scene_monitor) {
+        return m_scene_monitor->getRobotModel();
+    }
+    else {
+        return moveit::core::RobotModelConstPtr();
+    }
 }
 
 moveit::core::RobotStateConstPtr MoveGroupCommandModel::robotState() const
@@ -273,9 +271,14 @@ MoveGroupCommandModel::plannerInterfaces() const
     return m_planner_interfaces;
 }
 
-const std::string& MoveGroupCommandModel::robotDescription() const
+const std::string MoveGroupCommandModel::robotDescription() const
 {
-    return m_robot_description;
+    if (m_scene_monitor) {
+        return m_scene_monitor->getRobotDescription();
+    }
+    else {
+        return std::string();
+    }
 }
 
 const std::string MoveGroupCommandModel::plannerName() const
@@ -418,7 +421,7 @@ void MoveGroupCommandModel::load(const rviz::Config& config)
         for (const auto& entry : joint_variables) {
             const std::string& jv_name = entry.first;
             const double jv_pos = entry.second;
-            if (hasVariable(*m_robot_model, jv_name)) {
+            if (hasVariable(*robotModel(), jv_name)) {
                 setJointVariable(jv_name, jv_pos);
             }
         }
@@ -538,8 +541,8 @@ void MoveGroupCommandModel::setJointVariable(int jidx, double value)
         return;
     }
 
-    if (jidx < 0 || jidx >= m_robot_model->getVariableCount()) {
-        ROS_WARN("Index passed to setJointVariable out of bounds: jidx = %d, variable count = %zu", jidx, m_robot_model->getVariableCount());
+    if (jidx < 0 || jidx >= robotModel()->getVariableCount()) {
+        ROS_WARN("Index passed to setJointVariable out of bounds: jidx = %d, variable count = %zu", jidx, robotModel()->getVariableCount());
         return;
     }
 
@@ -570,7 +573,7 @@ void MoveGroupCommandModel::setJointVariable(
         return;
     }
 
-    if (!hasVariable(*m_robot_model, jv_name)) {
+    if (!hasVariable(*robotModel(), jv_name)) {
         ROS_WARN("Joint variable name passed to setJointVariable does not exist in Robot Model");
         return;
     }
@@ -763,7 +766,7 @@ void MoveGroupCommandModel::reinitInteractiveMarkers()
     m_im_server.clear();
     m_int_marker_names.clear();
 
-    if (!m_robot_model) {
+    if (!robotModel()) {
         ROS_WARN("No robot model to initialize interactive markers from");
         // TODO: apply runondestruction idiom here
         m_im_server.applyChanges();
@@ -777,7 +780,7 @@ void MoveGroupCommandModel::reinitInteractiveMarkers()
     }
 
     const moveit::core::JointModelGroup* jg =
-            m_robot_model->getJointModelGroup(m_curr_joint_group_name);
+            robotModel()->getJointModelGroup(m_curr_joint_group_name);
     if (!jg) {
         ROS_ERROR("Failed to retrieve joint group '%s'", m_curr_joint_group_name.c_str());
         m_im_server.applyChanges();
@@ -795,7 +798,7 @@ void MoveGroupCommandModel::reinitInteractiveMarkers()
         ROS_INFO("Adding interactive marker for controlling pose of link %s", tip_link->getName().c_str());
 
         visualization_msgs::InteractiveMarker tip_marker;
-        tip_marker.header.frame_id = m_robot_model->getModelFrame();
+        tip_marker.header.frame_id = robotModel()->getModelFrame();
 
         const Eigen::Affine3d& T_model_tip =
                 m_robot_state->getGlobalLinkTransform(tip_link);
@@ -882,7 +885,7 @@ void MoveGroupCommandModel::updateInteractiveMarkers()
 
         // update the pose of the interactive marker
         std_msgs::Header header;
-        header.frame_id = m_robot_model->getModelFrame();
+        header.frame_id = robotModel()->getModelFrame();
         header.stamp = ros::Time(0);
         if (!m_im_server.setPose(marker_name, tip_pose, header)) {
             ROS_ERROR("Failed to set pose of interactive marker '%s'", marker_name.c_str());
@@ -941,16 +944,6 @@ bool MoveGroupCommandModel::fillWorkspaceParameters(
     const std::string& group_name,
     moveit_msgs::MotionPlanRequest& req)
 {
-//    req.workspace_parameters.header.frame_id = m_robot_model->getModelFrame();
-//    req.workspace_parameters.header.seq = 0;
-//    req.workspace_parameters.header.stamp = now;
-//    req.workspace_parameters.min_corner.x = -0.5;
-//    req.workspace_parameters.min_corner.y = -1.0;
-//    req.workspace_parameters.min_corner.z = 0.0;
-//    req.workspace_parameters.max_corner.x = 1.0;
-//    req.workspace_parameters.max_corner.y = 1.0;
-//    req.workspace_parameters.max_corner.z = 3.0;
-
     // TODO: this needs mad configuring
     req.workspace_parameters.header.frame_id = WORKSPACE_BOUNDARIES_FRAME;
     req.workspace_parameters.header.seq = 0;
@@ -969,7 +962,7 @@ bool MoveGroupCommandModel::fillStartState(
     const std::string& group_name,
     moveit_msgs::MotionPlanRequest& req) const
 {
-    moveit::core::RobotState robot_state(m_robot_model);
+    moveit::core::RobotState robot_state(robotModel());
     if (!getActualState(robot_state)) {
         ROS_ERROR("Failed to get start state");
         return false;
@@ -1010,12 +1003,12 @@ bool MoveGroupCommandModel::fillStartState(
     // only multi-dof joint in the pr2 model is the planar joint between /odom
     // and base_footprint. Here there be monsters.
 
-    multi_dof_joint_state.header.frame_id = m_robot_model->getModelFrame();
+    multi_dof_joint_state.header.frame_id = robotModel()->getModelFrame();
     multi_dof_joint_state.header.seq = 0;
     multi_dof_joint_state.header.stamp = now;
 
     const std::vector<const moveit::core::JointModel*>& multi_dof_joints =
-            m_robot_model->getMultiDOFJointModels();
+            robotModel()->getMultiDOFJointModels();
     for (size_t jind = 0; jind < multi_dof_joints.size(); ++jind) {
         const moveit::core::JointModel* jm = multi_dof_joints[jind];
 
@@ -1046,7 +1039,7 @@ bool MoveGroupCommandModel::fillGoalConstraints(
     goal_constraints.name = "goal_constraints";
 
     const moveit::core::JointModelGroup* jmg =
-            m_robot_model->getJointModelGroup(group_name);
+            robotModel()->getJointModelGroup(group_name);
     if (!jmg->isChain()) {
         ROS_INFO("Planning for joint groups that are not kinematic chains is not supported");
         return false;
@@ -1068,7 +1061,7 @@ bool MoveGroupCommandModel::fillGoalConstraints(
 
     moveit_msgs::PositionConstraint goal_pos_constraint;
 
-    goal_pos_constraint.header.frame_id = m_robot_model->getModelFrame();
+    goal_pos_constraint.header.frame_id = robotModel()->getModelFrame();
     goal_pos_constraint.header.seq = 0;
     goal_pos_constraint.header.stamp = now;
 
@@ -1092,7 +1085,7 @@ bool MoveGroupCommandModel::fillGoalConstraints(
     // specify goal orientation within 5 degrees of the goal orientation
     moveit_msgs::OrientationConstraint goal_rot_constraint;
 
-    goal_rot_constraint.header.frame_id = m_robot_model->getModelFrame();
+    goal_rot_constraint.header.frame_id = robotModel()->getModelFrame();
     goal_rot_constraint.header.seq = 0;
     goal_rot_constraint.header.stamp = now;
 
@@ -1369,10 +1362,10 @@ void MoveGroupCommandModel::getTipLinks(
 void MoveGroupCommandModel::processInteractiveMarkerFeedback(
     const visualization_msgs::InteractiveMarkerFeedbackConstPtr& msg)
 {
-    ROS_INFO("Interactive marker feedback");
-    ROS_INFO("  Marker: %s", msg->marker_name.c_str());
-    ROS_INFO("  Control: %s", msg->control_name.c_str());
-    ROS_INFO("  Event Type: %u", (unsigned)msg->event_type);
+    ROS_DEBUG("Interactive marker feedback");
+    ROS_DEBUG("  Marker: %s", msg->marker_name.c_str());
+    ROS_DEBUG("  Control: %s", msg->control_name.c_str());
+    ROS_DEBUG("  Event Type: %u", (unsigned)msg->event_type);
 
     switch (msg->event_type) {
     case visualization_msgs::InteractiveMarkerFeedback::KEEP_ALIVE:
