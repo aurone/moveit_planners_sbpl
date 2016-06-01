@@ -11,6 +11,7 @@
 #include <moveit/robot_model/robot_model.h>
 #include <ros/ros.h>
 #include <rviz/panel.h>
+#include <visualization_msgs/MarkerArray.h>
 
 namespace sbpl_interface {
 
@@ -130,6 +131,8 @@ private:
     void syncWorkspaceWidgets();
 
     bool isVariableAngle(int vind) const;
+
+    visualization_msgs::MarkerArray getWorkspaceVisualization() const;
 };
 
 } // namespace sbpl_interface

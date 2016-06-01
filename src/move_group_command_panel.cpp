@@ -590,6 +590,8 @@ void MoveGroupCommandPanel::syncWorkspaceWidgets()
     m_workspace_max_x_spinbox->setValue(m_model->workspace().max_corner.x);
     m_workspace_max_y_spinbox->setValue(m_model->workspace().max_corner.y);
     m_workspace_max_z_spinbox->setValue(m_model->workspace().max_corner.z);
+
+    m_marker_pub.publish(getWorkspaceVisualization());
 }
 
 void MoveGroupCommandPanel::updateRobotVisualization()
@@ -790,6 +792,57 @@ bool MoveGroupCommandPanel::isVariableAngle(int vind) const
             jm->getType() == moveit::core::JointModel::FLOATING &&
             !var_bounds.position_bounded_
         ));
+}
+
+visualization_msgs::MarkerArray
+MoveGroupCommandPanel::getWorkspaceVisualization() const
+{
+    // shamefully copypasta'd from sbpl_manipulation and leatherman
+
+    visualization_msgs::MarkerArray ma;
+
+    const auto& workspace = m_model->workspace();
+
+    visualization_msgs::Marker marker;
+
+    marker.header.stamp = ros::Time::now();
+    marker.header.frame_id = workspace.header.frame_id;
+    marker.ns = "workspace";
+    marker.id = 0;
+    marker.type = visualization_msgs::Marker::LINE_STRIP;
+    marker.action = visualization_msgs::Marker::ADD;
+    marker.pose.position.x = 0.0;
+    marker.pose.position.y = 0.0;
+    marker.pose.position.z = 0.0;
+    marker.pose.orientation.w = 1.0;
+    marker.scale.x = 0.05;
+    marker.color.r = 1.0f;
+    marker.color.g = 0.0f;
+    marker.color.b = 0.0f;
+    marker.color.a = 1.0f;
+    marker.lifetime = ros::Duration(0);
+
+    std::vector<geometry_msgs::Point> pts(10);
+    const double origin_x = workspace.min_corner.x;
+    const double origin_y = workspace.min_corner.y;
+    const double origin_z = workspace.min_corner.z;
+    const double dim_x = workspace.max_corner.x - workspace.min_corner.x;
+    const double dim_y = workspace.max_corner.y - workspace.min_corner.y;
+    const double dim_z = workspace.max_corner.z - workspace.min_corner.z;
+    pts[0].x = origin_x;        pts[0].y = origin_y;        pts[0].z = origin_z;
+    pts[1].x = origin_x+dim_x;  pts[1].y = origin_y;        pts[1].z = origin_z;
+    pts[2].x = origin_x+dim_x;  pts[2].y = origin_y+dim_y;  pts[2].z = origin_z;
+    pts[3].x = origin_x;        pts[3].y = origin_y+dim_y;  pts[3].z = origin_z;
+    pts[4].x = origin_x;        pts[4].y = origin_y;        pts[4].z = origin_z;
+    pts[5].x = origin_x;        pts[5].y = origin_y;        pts[5].z = origin_z+dim_z;
+    pts[6].x = origin_x+dim_x;  pts[6].y = origin_y;        pts[6].z = origin_z+dim_z;
+    pts[7].x = origin_x+dim_x;  pts[7].y = origin_y+dim_y;  pts[7].z = origin_z+dim_z;
+    pts[8].x = origin_x;        pts[8].y = origin_y+dim_y;  pts[8].z = origin_z+dim_z;
+    pts[9].x = origin_x;        pts[9].y = origin_y;        pts[9].z = origin_z+dim_z;
+    marker.points = std::move(pts);
+
+    ma.markers.push_back(std::move(marker));
+    return ma;
 }
 
 } // namespace sbpl_interface
