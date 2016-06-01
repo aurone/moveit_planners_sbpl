@@ -918,7 +918,7 @@ void MoveGroupCommandModel::reinitInteractiveMarkers()
 
         tip_marker.name = markerNameFromTipName(tip_link->getName());
         tip_marker.description = "ik control of link " + tip_link->getName();
-        tip_marker.scale = 0.5f;
+        tip_marker.scale = 0.20f;
 
         visualization_msgs::InteractiveMarkerControl dof_control;
         dof_control.orientation_mode =
