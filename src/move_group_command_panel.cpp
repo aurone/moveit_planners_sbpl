@@ -113,9 +113,11 @@ void MoveGroupCommandPanel::updateTransforms()
     }
 
     if (workspace_frame.isEmpty() && m_workspace_frame_combo_box->count() > 0) {
+        // select the first item
         m_workspace_frame_combo_box->setCurrentIndex(0);
     }
     else {
+        // select the previously selected item
         for (int i = 0; i < m_workspace_frame_combo_box->count(); ++i) {
             const std::string text =
                     m_workspace_frame_combo_box->itemText(i).toStdString();
@@ -373,8 +375,6 @@ void MoveGroupCommandPanel::setupGUI()
 
     goal_constraints_group->setLayout(goal_constraints_layout);
     main_layout->addWidget(goal_constraints_group);
-
-//    main_layout->addStretch();
 }
 
 void MoveGroupCommandPanel::setupRobotGUI()
@@ -567,6 +567,29 @@ void MoveGroupCommandPanel::syncGoalJointToleranceSpinBox()
 
 void MoveGroupCommandPanel::syncWorkspaceWidgets()
 {
+    assert(m_model &&
+            m_workspace_min_x_spinbox && m_workspace_max_x_spinbox &&
+            m_workspace_min_y_spinbox && m_workspace_max_y_spinbox &&
+            m_workspace_min_z_spinbox && m_workspace_max_z_spinbox);
+    bool found = false;
+    for (int i = 0; i < m_workspace_frame_combo_box->count(); ++i) {
+        if (m_workspace_frame_combo_box->itemText(i).toStdString() ==
+                m_model->workspace().header.frame_id)
+        {
+            m_workspace_frame_combo_box->setCurrentIndex(i);
+            found = true;
+            break;
+        }
+    }
+    if (!found) {
+        m_workspace_frame_combo_box->setCurrentIndex(-1);
+    }
+    m_workspace_min_x_spinbox->setValue(m_model->workspace().min_corner.x);
+    m_workspace_min_y_spinbox->setValue(m_model->workspace().min_corner.y);
+    m_workspace_min_z_spinbox->setValue(m_model->workspace().min_corner.z);
+    m_workspace_max_x_spinbox->setValue(m_model->workspace().max_corner.x);
+    m_workspace_max_y_spinbox->setValue(m_model->workspace().max_corner.y);
+    m_workspace_max_z_spinbox->setValue(m_model->workspace().max_corner.z);
 }
 
 void MoveGroupCommandPanel::updateRobotVisualization()

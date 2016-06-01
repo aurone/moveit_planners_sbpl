@@ -44,6 +44,7 @@ public:
     static constexpr double DefaultWorkspaceMaxZ =  1.0;
 
     MoveGroupCommandModel(QObject* parent = 0);
+    ~MoveGroupCommandModel();
 
     /// \brief Load a robot into the command model.
     ///

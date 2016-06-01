@@ -134,6 +134,14 @@ MoveGroupCommandModel::MoveGroupCommandModel(QObject* parent) :
     m_move_group_client.reset(new MoveGroupActionClient("move_group", false));
 }
 
+MoveGroupCommandModel::~MoveGroupCommandModel()
+{
+    if (m_scene_monitor) {
+        m_scene_monitor->stopSceneMonitor();
+        m_scene_monitor->stopStateMonitor();
+    }
+}
+
 bool MoveGroupCommandModel::loadRobot(const std::string& robot_description)
 {
     if (robot_description == robotDescription()) {
@@ -187,6 +195,16 @@ bool MoveGroupCommandModel::loadRobot(const std::string& robot_description)
     clearMoveGroupRequest();
 
     Q_EMIT robotLoaded();
+
+    // seed the available transforms using the available links
+    for (const auto& link_name : robotModel()->getLinkModelNames()) {
+        m_available_frames.push_back(link_name);
+    }
+    // NOTE: this emission has to come after the robotLoaded() signal has been
+    // emitted above...not sure why this is yet but failure to do so results in
+    // a repeatable crash
+    Q_EMIT availableFramesUpdated();
+
     return true;
 }
 
@@ -392,6 +410,13 @@ void MoveGroupCommandModel::load(const rviz::Config& config)
     float joint_tol_rad = sbpl::utils::ToRadians(DefaultGoalJointTolerance_deg);
     float pos_tol_m = DefaultGoalPositionTolerance_m;
     float rot_tol_rad = sbpl::utils::ToRadians(DefaultGoalOrientationTolerance_deg);
+    QString ws_frame;
+    float ws_min_x = DefaultWorkspaceMinX;
+    float ws_min_y = DefaultWorkspaceMinY;
+    float ws_min_z = DefaultWorkspaceMinZ;
+    float ws_max_x = DefaultWorkspaceMaxX;
+    float ws_max_y = DefaultWorkspaceMaxY;
+    float ws_max_z = DefaultWorkspaceMaxZ;
     config.mapGetString("active_joint_group", &active_joint_group_name);
     rviz::Config phantom_state_config = config.mapGetChild("phantom_state");
     for (auto it = phantom_state_config.mapIterator();
@@ -404,7 +429,13 @@ void MoveGroupCommandModel::load(const rviz::Config& config)
     config.mapGetFloat("joint_tolerance", &joint_tol_rad);
     config.mapGetFloat("position_tolerance", &pos_tol_m);
     config.mapGetFloat("orientation_tolerance", &rot_tol_rad);
-    // TODO: workspace boundaries
+    config.mapGetString("workspace_frame", &ws_frame);
+    config.mapGetFloat("workspace_min_x", &ws_min_x);
+    config.mapGetFloat("workspace_min_y", &ws_min_y);
+    config.mapGetFloat("workspace_min_z", &ws_min_z);
+    config.mapGetFloat("workspace_max_x", &ws_max_x);
+    config.mapGetFloat("workspace_max_y", &ws_max_y);
+    config.mapGetFloat("workspace_max_z", &ws_max_z);
 
     ROS_INFO("Loaded Model Configuration:");
     ROS_INFO("  Robot Description: %s", robot_description.toStdString().c_str());
@@ -454,6 +485,24 @@ void MoveGroupCommandModel::load(const rviz::Config& config)
     setGoalJointTolerance(sbpl::utils::ToDegrees(joint_tol_rad));
     setGoalPositionTolerance(pos_tol_m);
     setGoalOrientationTolerance(sbpl::utils::ToDegrees(rot_tol_rad));
+
+    moveit_msgs::WorkspaceParameters ws;
+    auto it = std::find(
+            m_available_frames.begin(), m_available_frames.begin(),
+            ws_frame.toStdString());
+    if (it != m_available_frames.end()) {
+        ws.header.frame_id = ws_frame.toStdString();
+    }
+    else {
+        ws.header.frame_id = "";
+    }
+    ws.min_corner.x = ws_min_x;
+    ws.min_corner.y = ws_min_y;
+    ws.min_corner.z = ws_min_z;
+    ws.max_corner.x = ws_max_x;
+    ws.max_corner.y = ws_max_y;
+    ws.max_corner.z = ws_max_z;
+    setWorkspace(ws);
 }
 
 void MoveGroupCommandModel::save(rviz::Config config) const
@@ -487,6 +536,13 @@ void MoveGroupCommandModel::save(rviz::Config config) const
     config.mapSetValue("joint_tolerance", m_joint_tol_rad);
     config.mapSetValue("position_tolerance", m_pos_tol_m);
     config.mapSetValue("orientation_tolerance", m_rot_tol_rad);
+    config.mapSetValue("workspace_frame", QString::fromStdString(m_workspace.header.frame_id));
+    config.mapSetValue("workspace_min_x", m_workspace.min_corner.x);
+    config.mapSetValue("workspace_min_y", m_workspace.min_corner.y);
+    config.mapSetValue("workspace_min_z", m_workspace.min_corner.z);
+    config.mapSetValue("workspace_max_x", m_workspace.max_corner.x);
+    config.mapSetValue("workspace_max_y", m_workspace.max_corner.y);
+    config.mapSetValue("workspace_max_z", m_workspace.max_corner.z);
 
     ROS_INFO("Saved model configuration");
 }
@@ -656,7 +712,22 @@ void MoveGroupCommandModel::setWorkspace(
         ws.max_corner.y != m_workspace.max_corner.y ||
         ws.max_corner.z != m_workspace.max_corner.z)
     {
-        m_workspace = ws;
+        m_workspace.header.frame_id = ws.header.frame_id;
+
+        // partial rejection of invalid workspace dimensions
+        if (ws.min_corner.x < ws.max_corner.x) {
+            m_workspace.min_corner.x = ws.min_corner.x;
+            m_workspace.max_corner.x = ws.max_corner.x;
+        }
+        if (ws.min_corner.y < ws.max_corner.y) {
+            m_workspace.min_corner.y = ws.min_corner.y;
+            m_workspace.max_corner.y = ws.max_corner.y;
+        }
+        if (ws.min_corner.z < ws.max_corner.z) {
+            m_workspace.min_corner.z = ws.min_corner.z;
+            m_workspace.max_corner.z = ws.max_corner.z;
+        }
+
         Q_EMIT configChanged();
     }
 }

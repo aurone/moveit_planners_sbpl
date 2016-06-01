@@ -38,6 +38,8 @@ public Q_SLOTS:
     /// \brief Update the GUI and visualizations when a new robot is loaded
     void updateRobot();
 
+    /// \brief Update the workspace frame selections when new transforms become
+    ///     available.
     void updateTransforms();
 
     void syncRobot();
