@@ -36,6 +36,12 @@ public:
     static constexpr double DefaultGoalJointTolerance_deg = 5.0;
     static const int DefaultNumPlanningAttempts = 1;
     static constexpr double DefaultAllowedPlanningTime_s = 10.0;
+    static constexpr double DefaultWorkspaceMinX = -1.0;
+    static constexpr double DefaultWorkspaceMinY = -1.0;
+    static constexpr double DefaultWorkspaceMinZ = -1.0;
+    static constexpr double DefaultWorkspaceMaxX =  1.0;
+    static constexpr double DefaultWorkspaceMaxY =  1.0;
+    static constexpr double DefaultWorkspaceMaxZ =  1.0;
 
     MoveGroupCommandModel(QObject* parent = 0);
 
@@ -71,6 +77,8 @@ public:
     const std::vector<moveit_msgs::PlannerInterfaceDescription>&
     plannerInterfaces() const;
 
+    const std::vector<std::string>& availableFrames() const;
+
     /// \name General/Robot Settings
     ///@{
     const std::string robotDescription() const;
@@ -90,6 +98,7 @@ public:
     double goalJointTolerance() const;
     double goalPositionTolerance() const;
     double goalOrientationTolerance() const;
+    const moveit_msgs::WorkspaceParameters& workspace() const;
     ///@}
 
     void load(const rviz::Config& config);
@@ -107,6 +116,7 @@ public Q_SLOTS:
     void setGoalJointTolerance(double tol_deg);
     void setGoalPositionTolerance(double tol_m);
     void setGoalOrientationTolerance(double tol_deg);
+    void setWorkspace(const moveit_msgs::WorkspaceParameters& ws);
 
 Q_SIGNALS:
 
@@ -124,6 +134,8 @@ Q_SIGNALS:
     ///     * any goal constraint tolerance
     ///     * workspace boundaries
     void configChanged();
+
+    void availableFramesUpdated();
 
 private:
 
@@ -154,11 +166,15 @@ private:
     int m_curr_planner_idx;
     int m_curr_planner_id_idx;
 
+    std::vector<std::string> m_available_frames;
+
     /// \name MotionPlanRequest settings
     ///@{
     double m_joint_tol_rad;
     double m_pos_tol_m;
     double m_rot_tol_rad;
+
+    moveit_msgs::WorkspaceParameters m_workspace;
 
     int m_num_planning_attempts;
     double m_allowed_planning_time_s;
@@ -237,6 +253,9 @@ private:
     void processInteractiveMarkerFeedback(
         const visualization_msgs::InteractiveMarkerFeedbackConstPtr& msg);
 
+    void processSceneUpdate(
+        planning_scene_monitor::PlanningSceneMonitor::SceneUpdateType type);
+
     std::string markerNameFromTipName(const std::string& tip_name) const;
     std::string tipNameFromMarkerName(const std::string& marker_name) const;
 
@@ -245,6 +264,8 @@ private:
     bool hasVariable(
         const moveit::core::RobotModel& rm,
         const std::string& jv_name) const;
+
+    bool updateAvailableFrames();
 };
 
 } // namespace sbpl_interface

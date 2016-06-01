@@ -20,11 +20,18 @@ MoveGroupCommandPanel::MoveGroupCommandPanel(QWidget* parent) :
     m_arm_commands_group(nullptr),
     m_marker_pub(),
     m_var_cmd_widget(nullptr),
-    m_rot_tol_spinbox(nullptr),
+    m_planner_name_combo_box(nullptr),
+    m_planner_id_combo_box(nullptr),
     m_joint_tol_spinbox(nullptr),
     m_pos_tol_spinbox(nullptr),
-    m_planner_name_combo_box(nullptr),
-    m_planner_id_combo_box(nullptr)
+    m_rot_tol_spinbox(nullptr),
+    m_workspace_frame_combo_box(nullptr),
+    m_workspace_min_x_spinbox(nullptr),
+    m_workspace_min_y_spinbox(nullptr),
+    m_workspace_min_z_spinbox(nullptr),
+    m_workspace_max_x_spinbox(nullptr),
+    m_workspace_max_y_spinbox(nullptr),
+    m_workspace_max_z_spinbox(nullptr)
 {
     setupGUI();
 
@@ -35,6 +42,8 @@ MoveGroupCommandPanel::MoveGroupCommandPanel(QWidget* parent) :
             this, SLOT(syncRobot()));
     connect(m_model.get(), SIGNAL(configChanged()),
             this, SLOT(syncModelConfig()));
+    connect(m_model.get(), SIGNAL(availableFramesUpdated()),
+            this, SLOT(updateTransforms()));
 
     m_marker_pub = m_nh.advertise<visualization_msgs::MarkerArray>(
             "visualization_markers", 5);
@@ -94,6 +103,30 @@ void MoveGroupCommandPanel::updateRobot()
     syncRobot();
 }
 
+void MoveGroupCommandPanel::updateTransforms()
+{
+    QString workspace_frame = m_workspace_frame_combo_box->currentText();
+
+    m_workspace_frame_combo_box->clear();
+    for (const std::string& frame : m_model->availableFrames()) {
+        m_workspace_frame_combo_box->addItem(QString::fromStdString(frame));
+    }
+
+    if (workspace_frame.isEmpty() && m_workspace_frame_combo_box->count() > 0) {
+        m_workspace_frame_combo_box->setCurrentIndex(0);
+    }
+    else {
+        for (int i = 0; i < m_workspace_frame_combo_box->count(); ++i) {
+            const std::string text =
+                    m_workspace_frame_combo_box->itemText(i).toStdString();
+            if (text == workspace_frame.toStdString()) {
+                m_workspace_frame_combo_box->setCurrentIndex(i);
+                break;
+            }
+        }
+    }
+}
+
 void MoveGroupCommandPanel::syncRobot()
 {
     syncSpinBoxes();
@@ -111,6 +144,7 @@ void MoveGroupCommandPanel::syncModelConfig()
     syncGoalPositionToleranceSpinBox();
     syncGoalOrientationToleranceSpinBox();
     syncGoalJointToleranceSpinBox();
+    syncWorkspaceWidgets();
     Q_EMIT configChanged();
 }
 
@@ -246,12 +280,72 @@ void MoveGroupCommandPanel::setupGUI()
     m_rot_tol_spinbox->setWrapping(false);
     syncGoalOrientationToleranceSpinBox();
 
+    QGroupBox* workspace_group = new QGroupBox(tr("Workspace Parameters"));
+    QGridLayout* workspace_layout = new QGridLayout;
+
+    m_workspace_frame_combo_box = new QComboBox;
+    for (const std::string& frame : m_model->availableFrames()) {
+        m_workspace_frame_combo_box->addItem(QString::fromStdString(frame));
+    }
+
+    m_workspace_min_x_spinbox = new QDoubleSpinBox;
+    m_workspace_min_x_spinbox->setMinimum(-5.0);
+    m_workspace_min_x_spinbox->setMaximum(5.0);
+    m_workspace_min_x_spinbox->setSingleStep(0.01);
+    m_workspace_min_x_spinbox->setWrapping(false);
+
+    m_workspace_min_y_spinbox = new QDoubleSpinBox;
+    m_workspace_min_y_spinbox->setMinimum(-5.0);
+    m_workspace_min_y_spinbox->setMaximum(5.0);
+    m_workspace_min_y_spinbox->setSingleStep(0.01);
+    m_workspace_min_y_spinbox->setWrapping(false);
+
+    m_workspace_min_z_spinbox = new QDoubleSpinBox;
+    m_workspace_min_z_spinbox->setMinimum(-5.0);
+    m_workspace_min_z_spinbox->setMaximum(5.0);
+    m_workspace_min_z_spinbox->setSingleStep(0.01);
+    m_workspace_min_z_spinbox->setWrapping(false);
+
+    m_workspace_max_x_spinbox = new QDoubleSpinBox;
+    m_workspace_max_x_spinbox->setMinimum(-5.0);
+    m_workspace_max_x_spinbox->setMaximum(5.0);
+    m_workspace_max_x_spinbox->setSingleStep(0.01);
+    m_workspace_max_x_spinbox->setWrapping(false);
+
+    m_workspace_max_y_spinbox = new QDoubleSpinBox;
+    m_workspace_max_y_spinbox->setMinimum(-5.0);
+    m_workspace_max_y_spinbox->setMaximum(5.0);
+    m_workspace_max_y_spinbox->setSingleStep(0.01);
+    m_workspace_max_y_spinbox->setWrapping(false);
+
+    m_workspace_max_z_spinbox = new QDoubleSpinBox;
+    m_workspace_max_z_spinbox->setMinimum(-5.0);
+    m_workspace_max_z_spinbox->setMaximum(5.0);
+    m_workspace_max_z_spinbox->setSingleStep(0.01);
+    m_workspace_max_z_spinbox->setWrapping(false);
+
+    syncWorkspaceWidgets();
+
+    workspace_layout->addWidget(new QLabel(tr("Frame:")),       0, 0);
+    workspace_layout->addWidget(m_workspace_frame_combo_box,    0, 1, 1, 3);
+    workspace_layout->addWidget(new QLabel(tr("Min Corner:")),  1, 0);
+    workspace_layout->addWidget(m_workspace_min_x_spinbox,      1, 1);
+    workspace_layout->addWidget(m_workspace_min_y_spinbox,      1, 2);
+    workspace_layout->addWidget(m_workspace_min_z_spinbox,      1, 3);
+    workspace_layout->addWidget(new QLabel(tr("Max Corner:")),  2, 0);
+    workspace_layout->addWidget(m_workspace_max_x_spinbox,      2, 1);
+    workspace_layout->addWidget(m_workspace_max_y_spinbox,      2, 2);
+    workspace_layout->addWidget(m_workspace_max_z_spinbox,      2, 3);
+
+    workspace_group->setLayout(workspace_layout);
+
     goal_constraints_layout->addWidget(pos_tol_label,       0, 0);
     goal_constraints_layout->addWidget(m_pos_tol_spinbox,   0, 1);
     goal_constraints_layout->addWidget(rot_tol_label,       1, 0);
     goal_constraints_layout->addWidget(m_rot_tol_spinbox,   1, 1);
     goal_constraints_layout->addWidget(joint_tol_label,     2, 0);
     goal_constraints_layout->addWidget(m_joint_tol_spinbox, 2, 1);
+    goal_constraints_layout->addWidget(workspace_group,     3, 0, 1, 2);
 
     connect(m_joint_tol_spinbox, SIGNAL(valueChanged(double)),
             this, SLOT(setGoalJointTolerance(double)));
@@ -261,6 +355,21 @@ void MoveGroupCommandPanel::setupGUI()
 
     connect(m_rot_tol_spinbox, SIGNAL(valueChanged(double)),
             this, SLOT(setGoalOrientationTolerance(double)));
+
+    connect(m_workspace_frame_combo_box, SIGNAL(currentIndexChanged(const QString&)),
+            this, SLOT(setWorkspaceFrame(const QString&)));
+    connect(m_workspace_min_x_spinbox, SIGNAL(valueChanged(double)),
+            this, SLOT(setWorkspaceMinX(double)));
+    connect(m_workspace_min_y_spinbox, SIGNAL(valueChanged(double)),
+            this, SLOT(setWorkspaceMinY(double)));
+    connect(m_workspace_min_z_spinbox, SIGNAL(valueChanged(double)),
+            this, SLOT(setWorkspaceMinZ(double)));
+    connect(m_workspace_max_x_spinbox, SIGNAL(valueChanged(double)),
+            this, SLOT(setWorkspaceMaxX(double)));
+    connect(m_workspace_max_y_spinbox, SIGNAL(valueChanged(double)),
+            this, SLOT(setWorkspaceMaxY(double)));
+    connect(m_workspace_max_z_spinbox, SIGNAL(valueChanged(double)),
+            this, SLOT(setWorkspaceMaxZ(double)));
 
     goal_constraints_group->setLayout(goal_constraints_layout);
     main_layout->addWidget(goal_constraints_group);
@@ -456,6 +565,10 @@ void MoveGroupCommandPanel::syncGoalJointToleranceSpinBox()
     m_joint_tol_spinbox->setValue(m_model->goalJointTolerance());
 }
 
+void MoveGroupCommandPanel::syncWorkspaceWidgets()
+{
+}
+
 void MoveGroupCommandPanel::updateRobotVisualization()
 {
     ROS_DEBUG("Updating robot visualization");
@@ -580,6 +693,55 @@ void MoveGroupCommandPanel::setCurrentPlanner(const QString& name)
 void MoveGroupCommandPanel::setCurrentPlannerID(const QString& id)
 {
     m_model->setPlannerID(id.toStdString());
+}
+
+void MoveGroupCommandPanel::setWorkspaceFrame(const QString& frame)
+{
+    moveit_msgs::WorkspaceParameters params = m_model->workspace();
+    params.header.frame_id = frame.toStdString();
+    m_model->setWorkspace(params);
+}
+
+void MoveGroupCommandPanel::setWorkspaceMinX(double value)
+{
+    moveit_msgs::WorkspaceParameters params = m_model->workspace();
+    params.min_corner.x = value;
+    m_model->setWorkspace(params);
+}
+
+void MoveGroupCommandPanel::setWorkspaceMinY(double value)
+{
+    moveit_msgs::WorkspaceParameters params = m_model->workspace();
+    params.min_corner.y = value;
+    m_model->setWorkspace(params);
+}
+
+void MoveGroupCommandPanel::setWorkspaceMinZ(double value)
+{
+    moveit_msgs::WorkspaceParameters params = m_model->workspace();
+    params.min_corner.z = value;
+    m_model->setWorkspace(params);
+}
+
+void MoveGroupCommandPanel::setWorkspaceMaxX(double value)
+{
+    moveit_msgs::WorkspaceParameters params = m_model->workspace();
+    params.max_corner.x = value;
+    m_model->setWorkspace(params);
+}
+
+void MoveGroupCommandPanel::setWorkspaceMaxY(double value)
+{
+    moveit_msgs::WorkspaceParameters params = m_model->workspace();
+    params.max_corner.y = value;
+    m_model->setWorkspace(params);
+}
+
+void MoveGroupCommandPanel::setWorkspaceMaxZ(double value)
+{
+    moveit_msgs::WorkspaceParameters params = m_model->workspace();
+    params.max_corner.z = value;
+    m_model->setWorkspace(params);
 }
 
 bool MoveGroupCommandPanel::isVariableAngle(int vind) const

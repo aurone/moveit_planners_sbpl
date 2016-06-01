@@ -93,15 +93,24 @@ MoveGroupCommandModel::MoveGroupCommandModel(QObject* parent) :
     m_planner_interfaces(),
     m_curr_planner_idx(-1),
     m_curr_planner_id_idx(-1),
+    m_available_frames(),
+    m_joint_tol_rad(sbpl::utils::ToRadians(DefaultGoalJointTolerance_deg)),
     m_pos_tol_m(DefaultGoalPositionTolerance_m),
     m_rot_tol_rad(sbpl::utils::ToRadians(DefaultGoalOrientationTolerance_deg)),
-    m_joint_tol_rad(sbpl::utils::ToRadians(DefaultGoalJointTolerance_deg)),
+    m_workspace(),
     m_num_planning_attempts(DefaultNumPlanningAttempts),
     m_allowed_planning_time_s(DefaultAllowedPlanningTime_s),
     m_curr_joint_group_name(),
     m_im_server("phantom_controls"),
     m_int_marker_names()
 {
+    m_workspace.min_corner.x = DefaultWorkspaceMinX;
+    m_workspace.min_corner.y = DefaultWorkspaceMinY;
+    m_workspace.min_corner.z = DefaultWorkspaceMinZ;
+    m_workspace.max_corner.x = DefaultWorkspaceMaxX;
+    m_workspace.max_corner.y = DefaultWorkspaceMaxY;
+    m_workspace.max_corner.z = DefaultWorkspaceMaxZ;
+
     reinitCheckStateValidityService();
     reinitQueryPlannerInterfaceService();
 
@@ -131,8 +140,9 @@ bool MoveGroupCommandModel::loadRobot(const std::string& robot_description)
         return true;
     }
 
+    auto transformer = boost::shared_ptr<tf::Transformer>(new tf::TransformListener);
     m_scene_monitor.reset(new planning_scene_monitor::PlanningSceneMonitor(
-            robot_description));
+            robot_description, transformer));
     if (!m_scene_monitor) {
         ROS_ERROR("Failed to instantiate Planning Scene Monitor");
         return false;
@@ -146,6 +156,9 @@ bool MoveGroupCommandModel::loadRobot(const std::string& robot_description)
     ROS_INFO("Created new Planning Scene Monitor");
 
     m_scene_monitor->requestPlanningSceneState();
+    auto update_fn = boost::bind(
+            &MoveGroupCommandModel::processSceneUpdate, this, _1);
+    m_scene_monitor->addUpdateCallback(update_fn);
     m_scene_monitor->startSceneMonitor();
     m_scene_monitor->startStateMonitor();
 
@@ -165,7 +178,7 @@ bool MoveGroupCommandModel::loadRobot(const std::string& robot_description)
     }
     // otherwise retain the selected joint group
 
-//    logRobotModelInfo(*robotModel());
+    logRobotModelInfo(*robotModel());
 
     reinitInteractiveMarkers();
 
@@ -271,6 +284,13 @@ MoveGroupCommandModel::plannerInterfaces() const
     return m_planner_interfaces;
 }
 
+
+const std::vector<std::string>&
+MoveGroupCommandModel::availableFrames() const
+{
+    return m_available_frames;
+}
+
 const std::string MoveGroupCommandModel::robotDescription() const
 {
     if (m_scene_monitor) {
@@ -343,6 +363,11 @@ double MoveGroupCommandModel::goalPositionTolerance() const
 double MoveGroupCommandModel::goalOrientationTolerance() const
 {
     return sbpl::utils::ToDegrees(m_rot_tol_rad);
+}
+
+const moveit_msgs::WorkspaceParameters& MoveGroupCommandModel::workspace() const
+{
+    return m_workspace;
 }
 
 void MoveGroupCommandModel::load(const rviz::Config& config)
@@ -616,6 +641,22 @@ void MoveGroupCommandModel::setGoalOrientationTolerance(double tol_deg)
 {
     if (tol_deg != sbpl::utils::ToDegrees(m_rot_tol_rad)) {
         m_rot_tol_rad = sbpl::utils::ToRadians(tol_deg);
+        Q_EMIT configChanged();
+    }
+}
+
+void MoveGroupCommandModel::setWorkspace(
+    const moveit_msgs::WorkspaceParameters& ws)
+{
+    if (ws.header.frame_id != m_workspace.header.frame_id ||
+        ws.min_corner.x != m_workspace.min_corner.x ||
+        ws.min_corner.y != m_workspace.min_corner.y ||
+        ws.min_corner.z != m_workspace.min_corner.z ||
+        ws.max_corner.x != m_workspace.max_corner.x ||
+        ws.max_corner.y != m_workspace.max_corner.y ||
+        ws.max_corner.z != m_workspace.max_corner.z)
+    {
+        m_workspace = ws;
         Q_EMIT configChanged();
     }
 }
@@ -944,16 +985,13 @@ bool MoveGroupCommandModel::fillWorkspaceParameters(
     const std::string& group_name,
     moveit_msgs::MotionPlanRequest& req)
 {
-    // TODO: this needs mad configuring
-    req.workspace_parameters.header.frame_id = WORKSPACE_BOUNDARIES_FRAME;
+    req.workspace_parameters.header.frame_id =
+            m_workspace.header.frame_id.empty() ?
+                    robotModel()->getModelFrame() : m_workspace.header.frame_id;
     req.workspace_parameters.header.seq = 0;
     req.workspace_parameters.header.stamp = now;
-    req.workspace_parameters.min_corner.x = -0.4;
-    req.workspace_parameters.min_corner.y = -1.2;
-    req.workspace_parameters.min_corner.z = -2.0;
-    req.workspace_parameters.max_corner.x = 1.5;
-    req.workspace_parameters.max_corner.y = 1.2;
-    req.workspace_parameters.max_corner.z = 1.0;
+    req.workspace_parameters.min_corner = m_workspace.min_corner;
+    req.workspace_parameters.max_corner = m_workspace.max_corner;
     return true;
 }
 
@@ -1396,6 +1434,40 @@ void MoveGroupCommandModel::processInteractiveMarkerFeedback(
 
 }
 
+void MoveGroupCommandModel::processSceneUpdate(
+    planning_scene_monitor::PlanningSceneMonitor::SceneUpdateType type)
+{
+    switch (type) {
+    case planning_scene_monitor::PlanningSceneMonitor::UPDATE_NONE:
+    {
+        ROS_INFO("Planning Scene Update (None)");
+    }   break;
+    case planning_scene_monitor::PlanningSceneMonitor::UPDATE_STATE:
+    {
+        ROS_INFO("Planning Scene Update (State)");
+        updateAvailableFrames();
+    }   break;
+    case planning_scene_monitor::PlanningSceneMonitor::UPDATE_TRANSFORMS:
+    {
+        ROS_INFO("Planning Scene Update (Transforms)");
+        updateAvailableFrames();
+    }   break;
+    case planning_scene_monitor::PlanningSceneMonitor::UPDATE_GEOMETRY:
+    {
+        ROS_INFO("Planning Scene Update (Geometry)");
+        updateAvailableFrames();
+    }   break;
+    case planning_scene_monitor::PlanningSceneMonitor::UPDATE_SCENE:
+    {
+        ROS_INFO("Planning Scene Update (All)");
+        updateAvailableFrames();
+    }   break;
+    default:
+    {
+    }   break;
+    }
+}
+
 std::string MoveGroupCommandModel::markerNameFromTipName(
     const std::string& tip_name) const
 {
@@ -1429,6 +1501,43 @@ bool MoveGroupCommandModel::hasVariable(
 {
     const auto& jv_names = rm.getVariableNames();
     return std::find(jv_names.begin(), jv_names.end(), jv_name) != jv_names.end();
+}
+
+bool MoveGroupCommandModel::updateAvailableFrames()
+{
+    auto transformer = m_scene_monitor->getTFClient();
+
+    if (!transformer) {
+        if (m_available_frames.empty()) {
+            return false;
+        }
+        else {
+            m_available_frames.clear();
+            return true;
+        }
+    }
+    else {
+        std::vector<std::string> frames;
+        transformer->getFrameStrings(frames);
+
+        std::sort(frames.begin(), frames.end());
+
+        std::vector<std::string> diff;
+        std::set_symmetric_difference(
+                m_available_frames.begin(), m_available_frames.end(),
+                frames.begin(), frames.end(),
+                std::back_inserter(diff));
+
+        if (!diff.empty()) {
+            ROS_INFO("Transforms Changed %zu -> %zu", m_available_frames.size(), frames.size());
+            m_available_frames = std::move(frames);
+            Q_EMIT availableFramesUpdated();
+            return true;
+        }
+        else {
+            return false;
+        }
+    }
 }
 
 } // namespace sbpl_interface

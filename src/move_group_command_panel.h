@@ -38,6 +38,8 @@ public Q_SLOTS:
     /// \brief Update the GUI and visualizations when a new robot is loaded
     void updateRobot();
 
+    void updateTransforms();
+
     void syncRobot();
     void syncModelConfig();
 
@@ -56,6 +58,14 @@ public Q_SLOTS:
 
     void setCurrentPlanner(const QString& name);
     void setCurrentPlannerID(const QString& id);
+
+    void setWorkspaceFrame(const QString& frame);
+    void setWorkspaceMinX(double value);
+    void setWorkspaceMinY(double value);
+    void setWorkspaceMinZ(double value);
+    void setWorkspaceMaxX(double value);
+    void setWorkspaceMaxY(double value);
+    void setWorkspaceMaxZ(double value);
 
 private:
 
@@ -77,14 +87,22 @@ private:
 
     JointVariableCommandWidget* m_var_cmd_widget;
 
-    QDoubleSpinBox* m_joint_tol_spinbox;
-    QDoubleSpinBox* m_pos_tol_spinbox;
-    QDoubleSpinBox* m_rot_tol_spinbox;
-
     QComboBox* m_planner_name_combo_box;
     QComboBox* m_planner_id_combo_box;
     QSpinBox* m_num_planning_attempts_spinbox;
     QDoubleSpinBox* m_allowed_planning_time_spinbox;
+
+    QDoubleSpinBox* m_joint_tol_spinbox;
+    QDoubleSpinBox* m_pos_tol_spinbox;
+    QDoubleSpinBox* m_rot_tol_spinbox;
+
+    QComboBox* m_workspace_frame_combo_box;
+    QDoubleSpinBox* m_workspace_min_x_spinbox;
+    QDoubleSpinBox* m_workspace_min_y_spinbox;
+    QDoubleSpinBox* m_workspace_min_z_spinbox;
+    QDoubleSpinBox* m_workspace_max_x_spinbox;
+    QDoubleSpinBox* m_workspace_max_y_spinbox;
+    QDoubleSpinBox* m_workspace_max_z_spinbox;
 
     /// \brief Setup the baseline GUI for loading robots from URDF parameter
     void setupGUI();
@@ -107,6 +125,7 @@ private:
     void syncGoalPositionToleranceSpinBox();
     void syncGoalOrientationToleranceSpinBox();
     void syncGoalJointToleranceSpinBox();
+    void syncWorkspaceWidgets();
 
     bool isVariableAngle(int vind) const;
 };
