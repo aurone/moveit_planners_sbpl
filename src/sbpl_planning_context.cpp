@@ -507,9 +507,6 @@ bool SBPLPlanningContext::initSBPL(std::string& why)
         deltas[vind] = (2.0 * M_PI) / (double)discretization[vind];
     }
 
-    ROS_INFO("Discretization: %s", to_string(discretization).c_str());
-    ROS_INFO("Deltas: %s", to_string(deltas).c_str());
-
     params.planning_frame_ = m_robot_model->planningFrame();
     params.group_name_ = m_robot_model->planningGroupName();
     params.num_joints_ = m_robot_model->activeVariableCount();
