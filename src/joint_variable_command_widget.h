@@ -13,13 +13,13 @@ namespace sbpl_interface {
 
 class MoveGroupCommandModel;
 
-class JointVariableCommandWidget : public QScrollArea
+class JointVariableCommandWidget : public QWidget //QScrollArea
 {
     Q_OBJECT
 
 public:
 
-    typedef QScrollArea Base;
+    typedef QWidget Base;
 
     JointVariableCommandWidget(
         MoveGroupCommandModel* model,

@@ -99,7 +99,9 @@ void MoveGroupCommandPanel::updateRobot()
                 QString::fromStdString(robot_description));
     }
 
-    setupRobotGUI();
+    setupRobotGUI(
+            mainLayout(),
+            qobject_cast<QGridLayout*>(m_goal_constraints_group->layout()));
     syncRobot();
 }
 
@@ -154,9 +156,12 @@ void MoveGroupCommandPanel::setupGUI()
 {
     ROS_INFO("Setting up the baseline GUI");
 
+    QVBoxLayout* parent_layout = new QVBoxLayout;
+    QScrollArea* scroll_area = new QScrollArea;
+    QWidget* scroll_area_widget = new QWidget;
     QVBoxLayout* main_layout = new QVBoxLayout;
 
-    // general settings
+    // General Settings
     QGroupBox* general_settings_group = new QGroupBox(tr("General Settings"));
     QVBoxLayout* general_settings_layout = new QVBoxLayout;
     QLabel* robot_description_label = new QLabel(tr("Robot Description:"));
@@ -170,15 +175,6 @@ void MoveGroupCommandPanel::setupGUI()
     general_settings_layout->addWidget(robot_description_label);
     general_settings_layout->addLayout(robot_description_layout);
     general_settings_group->setLayout(general_settings_layout);
-
-    main_layout->addWidget(general_settings_group);
-    setLayout(main_layout);
-
-    connect(m_load_robot_button, SIGNAL(clicked()), this, SLOT(loadRobot()));
-
-    if (m_model->isRobotLoaded()) {
-        setupRobotGUI();
-    }
 
     // Planner Settings
     QGroupBox* planner_settings_group = new QGroupBox(tr("Planner Settings"));
@@ -239,20 +235,10 @@ void MoveGroupCommandPanel::setupGUI()
     planner_settings_layout->addWidget(allowed_planning_time_label,     3, 0);
     planner_settings_layout->addWidget(m_allowed_planning_time_spinbox, 3, 1);
 
-    connect(m_planner_name_combo_box, SIGNAL(currentIndexChanged(const QString&)),
-            this, SLOT(setCurrentPlanner(const QString&)));
-    connect(m_planner_id_combo_box, SIGNAL(currentIndexChanged(const QString&)),
-            this, SLOT(setCurrentPlannerID(const QString&)));
-    connect(m_num_planning_attempts_spinbox, SIGNAL(valueChanged(int)),
-            m_model.get(), SLOT(setNumPlanningAttempts(int)));
-    connect(m_allowed_planning_time_spinbox, SIGNAL(valueChanged(double)),
-            m_model.get(), SLOT(setAllowedPlanningTime(double)));
-
     planner_settings_group->setLayout(planner_settings_layout);
-    main_layout->addWidget(planner_settings_group);
 
     // Goal Constraints
-    QGroupBox* goal_constraints_group = new QGroupBox(tr("Goal Constraints"));
+    m_goal_constraints_group = new QGroupBox(tr("Goal Constraints"));
     QGridLayout* goal_constraints_layout = new QGridLayout;
 
     QLabel* joint_tol_label = new QLabel(tr("Joint Tolerance (deg):"));
@@ -349,6 +335,30 @@ void MoveGroupCommandPanel::setupGUI()
     goal_constraints_layout->addWidget(m_joint_tol_spinbox, 2, 1);
     goal_constraints_layout->addWidget(workspace_group,     3, 0, 1, 2);
 
+    main_layout->addWidget(general_settings_group);
+    main_layout->addWidget(planner_settings_group);
+    scroll_area_widget->setLayout(main_layout);
+    scroll_area->setWidget(scroll_area_widget);
+    scroll_area->setWidgetResizable(true);
+    parent_layout->addWidget(scroll_area);
+
+    if (m_model->isRobotLoaded()) {
+        setupRobotGUI(main_layout, goal_constraints_layout);
+    }
+
+    setLayout(parent_layout);
+
+    connect(m_load_robot_button, SIGNAL(clicked()), this, SLOT(loadRobot()));
+
+    connect(m_planner_name_combo_box, SIGNAL(currentIndexChanged(const QString&)),
+            this, SLOT(setCurrentPlanner(const QString&)));
+    connect(m_planner_id_combo_box, SIGNAL(currentIndexChanged(const QString&)),
+            this, SLOT(setCurrentPlannerID(const QString&)));
+    connect(m_num_planning_attempts_spinbox, SIGNAL(valueChanged(int)),
+            m_model.get(), SLOT(setNumPlanningAttempts(int)));
+    connect(m_allowed_planning_time_spinbox, SIGNAL(valueChanged(double)),
+            m_model.get(), SLOT(setAllowedPlanningTime(double)));
+
     connect(m_joint_tol_spinbox, SIGNAL(valueChanged(double)),
             this, SLOT(setGoalJointTolerance(double)));
 
@@ -373,15 +383,21 @@ void MoveGroupCommandPanel::setupGUI()
     connect(m_workspace_max_z_spinbox, SIGNAL(valueChanged(double)),
             this, SLOT(setWorkspaceMaxZ(double)));
 
-    goal_constraints_group->setLayout(goal_constraints_layout);
-    main_layout->addWidget(goal_constraints_group);
+    m_goal_constraints_group->setLayout(goal_constraints_layout);
+    main_layout->addWidget(m_goal_constraints_group);
 }
 
-void MoveGroupCommandPanel::setupRobotGUI()
+void MoveGroupCommandPanel::setupRobotGUI(
+    QVBoxLayout* main_layout,
+    QGridLayout* goal_constraints_layout)
 {
     ROS_INFO("Setting up the Robot GUI");
 
     moveit::core::RobotModelConstPtr robot_model = m_model->robotModel();
+
+    /////////////////////////////////////////////
+    // Robot-Specific Goal Constraint Controls //
+    /////////////////////////////////////////////
 
     // set up combobox for selecting the active planning joint group
     m_joint_groups_combo_box = new QComboBox;
@@ -398,35 +414,21 @@ void MoveGroupCommandPanel::setupRobotGUI()
 
     syncPlanningJointGroupComboBox();
 
-    connect(m_joint_groups_combo_box,
-            SIGNAL(currentIndexChanged(const QString&)),
-            this,
-            SLOT(setJointGroup(const QString&)));
-
     m_var_cmd_widget = setupJointVariableCommandWidget();
-    for (QDoubleSpinBox* spinbox : m_var_cmd_widget->spinboxes()) {
-        connect(spinbox, SIGNAL(valueChanged(double)),
-                this, SLOT(setJointVariableFromSpinBox(double)));
-    }
 
     updateJointVariableCommandWidget(
         m_joint_groups_combo_box->currentText().toStdString());
 
     m_plan_to_position_button = new QPushButton(tr("Plan to Position"));
-    connect(m_plan_to_position_button, SIGNAL(clicked()),
-            this, SLOT(planToGoalPose()));
 
     m_move_to_position_button = new QPushButton(tr("Move to Position"));
-    connect(m_move_to_position_button, SIGNAL(clicked()),
-            this, SLOT(moveToGoalPose()));
 
     m_copy_current_state_button = new QPushButton(tr("Copy Current State"));
-    connect(m_copy_current_state_button, SIGNAL(clicked()),
-            this, SLOT(copyCurrentState()));
 
-    QVBoxLayout* vlayout = qobject_cast<QVBoxLayout*>(layout());
+    //////////////////////
+    // Command Controls //
+    //////////////////////
 
-    // Commands
     QGroupBox* commands_group_box = new QGroupBox(tr("Commands"));
     QVBoxLayout* commands_group_layout = new QVBoxLayout;
 
@@ -436,10 +438,28 @@ void MoveGroupCommandPanel::setupRobotGUI()
 
     commands_group_box->setLayout(commands_group_layout);
 
-    vlayout->insertWidget(vlayout->count(), m_joint_groups_combo_box);
-    vlayout->insertWidget(vlayout->count(), m_var_cmd_widget);
-    vlayout->insertWidget(vlayout->count(), commands_group_box);
-    vlayout->addStretch();
+    int base_row_count = goal_constraints_layout->rowCount();
+    goal_constraints_layout->addWidget(new QLabel(tr("Joint Group:")), base_row_count, 0);
+    goal_constraints_layout->addWidget(m_joint_groups_combo_box, base_row_count, 1);
+    base_row_count = goal_constraints_layout->rowCount();
+    goal_constraints_layout->addWidget(m_var_cmd_widget, base_row_count, 0, 1, 2);
+
+    main_layout->insertWidget(main_layout->count(), commands_group_box);
+
+    connect(m_joint_groups_combo_box,
+            SIGNAL(currentIndexChanged(const QString&)),
+            this,
+            SLOT(setJointGroup(const QString&)));
+    for (QDoubleSpinBox* spinbox : m_var_cmd_widget->spinboxes()) {
+        connect(spinbox, SIGNAL(valueChanged(double)),
+                this, SLOT(setJointVariableFromSpinBox(double)));
+    }
+    connect(m_plan_to_position_button, SIGNAL(clicked()),
+            this, SLOT(planToGoalPose()));
+    connect(m_move_to_position_button, SIGNAL(clicked()),
+            this, SLOT(moveToGoalPose()));
+    connect(m_copy_current_state_button, SIGNAL(clicked()),
+            this, SLOT(copyCurrentState()));
 }
 
 JointVariableCommandWidget*
@@ -843,6 +863,14 @@ MoveGroupCommandPanel::getWorkspaceVisualization() const
 
     ma.markers.push_back(std::move(marker));
     return ma;
+}
+
+QVBoxLayout* MoveGroupCommandPanel::mainLayout()
+{
+    QVBoxLayout* parent_layout = qobject_cast<QVBoxLayout*>(layout());
+    QScrollArea* scroll_area = qobject_cast<QScrollArea*>(parent_layout->itemAt(0)->widget());
+    QVBoxLayout* main_layout = qobject_cast<QVBoxLayout*>(scroll_area->widget()->layout());
+    return main_layout;
 }
 
 } // namespace sbpl_interface

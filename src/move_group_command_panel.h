@@ -107,10 +107,14 @@ private:
     QDoubleSpinBox* m_workspace_max_y_spinbox;
     QDoubleSpinBox* m_workspace_max_z_spinbox;
 
+    QGroupBox* m_goal_constraints_group;
+
     /// \brief Setup the baseline GUI for loading robots from URDF parameter
     void setupGUI();
 
-    void setupRobotGUI();
+    void setupRobotGUI(
+        QVBoxLayout* main_layout,
+        QGridLayout* goal_constraints_layout);
 
     // Create a scroll area containing spinboxes for all joint variables. Also
     // creates a bijection between joint variable indices and spinboxes and
@@ -133,6 +137,8 @@ private:
     bool isVariableAngle(int vind) const;
 
     visualization_msgs::MarkerArray getWorkspaceVisualization() const;
+
+    QVBoxLayout* mainLayout();
 };
 
 } // namespace sbpl_interface

@@ -16,14 +16,9 @@ JointVariableCommandWidget::JointVariableCommandWidget(
     Base(parent),
     m_model(model)
 {
-    setWidgetResizable(true);
-
     auto robot_model = m_model->robotModel();
 
-    QVBoxLayout* scroll_area_layout = new QVBoxLayout;
-
-    QWidget* joint_commands_widget = new QWidget(this);
-    QGridLayout* joint_commands_layout = new QGridLayout;
+    QGridLayout* grid_layout = new QGridLayout;
 
     const size_t num_vars = robot_model->getVariableCount();
     const std::vector<std::string>& var_names =
@@ -45,22 +40,9 @@ JointVariableCommandWidget::JointVariableCommandWidget(
         m_spinbox_to_vind.insert(std::make_pair(var_spinbox, vind));
         m_vind_to_spinbox.push_back(var_spinbox);
         m_vind_to_label.push_back(var_label);
-
-//        QHBoxLayout* form_layout = new QHBoxLayout;
-//        form_layout->addWidget(var_label);
-//        form_layout->addWidget(var_spinbox);
-//        joint_commands_layout->addLayout(form_layout);
-
-//        joint_commands_layout->addWidget(var_label, vind, 0);
-//        joint_commands_layout->addWidget(var_spinbox, vind, 1);
-//        var_label->hide();
-//        var_spinbox->hide();
     }
 
-    joint_commands_widget->setLayout(joint_commands_layout);
-    setLayout(scroll_area_layout);
-
-    setWidget(joint_commands_widget);
+    setLayout(grid_layout);
 }
 
 JointVariableCommandWidget::~JointVariableCommandWidget()
@@ -86,7 +68,7 @@ int JointVariableCommandWidget::spinboxToVariableIndex(
 void JointVariableCommandWidget::displayJointGroupCommands(
     const std::string& joint_group_name)
 {
-    QGridLayout* glayout = qobject_cast<QGridLayout*>(widget()->layout());
+    QGridLayout* glayout = qobject_cast<QGridLayout*>(layout());
     if (!glayout) {
         ROS_ERROR("JointVariableCommandWidget layout is not a QGridLayout");
         return;
@@ -142,11 +124,11 @@ void JointVariableCommandWidget::displayJointGroupCommands(
 //        glayout->itemAt(i)->invalidate();
 //    }
 //
-    glayout->invalidate();
+//    glayout->invalidate();
     layout()->invalidate();
 //    glayout->activate();
 //    layout()->activate();
-    glayout->update();
+//    glayout->update();
     layout()->update();
 
     ROS_INFO("Layout contains %d controls", glayout->count());
