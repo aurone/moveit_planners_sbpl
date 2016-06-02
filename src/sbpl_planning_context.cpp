@@ -524,6 +524,7 @@ bool SBPLPlanningContext::initSBPL(std::string& why)
     params.planner_name_ = getMotionPlanRequest().planner_id;
     params.epsilon_ = m_epsilon;
 
+    params.print_path_ = false;
     params.expands_log_level_ = "debug";
     params.expands2_log_level_ = "debug";
     params.shortcut_path_ = m_shortcut_path;
