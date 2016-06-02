@@ -16,8 +16,6 @@
 
 namespace sbpl_interface {
 
-static const std::string WORKSPACE_BOUNDARIES_FRAME = "base_link";
-
 static std::string to_string(moveit_msgs::MoveItErrorCodes code)
 {
     switch (code.val) {
