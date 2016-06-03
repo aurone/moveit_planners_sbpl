@@ -8,7 +8,7 @@
 #include <moveit/robot_state/conversions.h>
 #include <moveit_msgs/GetMotionPlan.h>
 #include <moveit_msgs/PlanningScene.h>
-#include <sbpl_arm_planner/sbpl_arm_planner_interface.h>
+#include <sbpl_arm_planner/arm_planner_interface.h>
 #include <sbpl_manipulation_components/motion_primitive.h>
 
 // project includes
@@ -482,7 +482,7 @@ bool SBPLPlanningContext::initSBPL(std::string& why)
     // SBPL Arm Planner Interface Initialization //
     ///////////////////////////////////////////////
 
-    m_planner.reset(new sbpl::manip::SBPLArmPlannerInterface(
+    m_planner.reset(new sbpl::manip::ArmPlannerInterface(
             m_robot_model,
             &m_collision_checker,
             &m_action_set,

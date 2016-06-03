@@ -9,7 +9,7 @@
 #include <moveit/planning_interface/planning_interface.h>
 #include <moveit_msgs/OrientedBoundingBox.h>
 #include <moveit_msgs/MotionPlanRequest.h>
-#include <sbpl_arm_planner/sbpl_arm_planner_interface.h>
+#include <sbpl_arm_planner/arm_planner_interface.h>
 
 #include <moveit_planners_sbpl/moveit_robot_model.h>
 
@@ -62,7 +62,7 @@ private:
     sbpl::manip::ActionSet m_action_set;
     std::unique_ptr<distance_field::PropagationDistanceField> m_distance_field;
 
-    std::unique_ptr<sbpl::manip::SBPLArmPlannerInterface> m_planner;
+    std::unique_ptr<sbpl::manip::ArmPlannerInterface> m_planner;
 
     std::map<std::string, std::string> m_config;
 
