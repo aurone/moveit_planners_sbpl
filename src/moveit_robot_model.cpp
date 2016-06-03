@@ -492,17 +492,18 @@ bool MoveItRobotModel::computeIK(
     std::vector<std::vector<double>>& solutions,
     sbpl::manip::ik_option::IkOption option)
 {
-    if (!initialized()) {
-        ROS_ERROR("MoveIt! Robot Model is uninitialized");
+    // TODO: the indigo version of moveit currently does not support returning
+    // multiple ik solutions, so instead we just return the only solution moveit
+    // offers; for later versions of moveit, this will need to be implemented
+    // properly
+    std::vector<double> solution;
+    if (!computeIK(pose, start, solution, option)) {
         return false;
     }
-
-    if (!m_tip_link || !m_joint_group->canSetStateFromIK(m_tip_link->getName())) {
-        ROS_WARN_ONCE("computeIK not available for this Robot Model");
-        return false;
+    else {
+        solutions.push_back(std::move(solution));
+        return true;
     }
-
-    return false;
 }
 
 bool MoveItRobotModel::computeUnrestrictedIK(
