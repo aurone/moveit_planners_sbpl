@@ -31,12 +31,13 @@
 
 /// \author Andrew Dornbush
 
-#ifndef sbpl_interface_MoveItCollisionChecker_h
-#define sbpl_interface_MoveItCollisionChecker_h
+#ifndef sbpl_interface_moveit_collision_checker_h
+#define sbpl_interface_moveit_collision_checker_h
 
 #include <moveit/planning_scene/planning_scene.h>
 #include <moveit/robot_model/robot_model.h>
 #include <moveit/robot_state/robot_state.h>
+#include <ros/ros.h>
 #include <sbpl_manipulation_components/collision_checker.h>
 
 namespace sbpl_interface {
@@ -90,6 +91,8 @@ private:
     planning_scene::PlanningSceneConstPtr m_scene;
 
     moveit::core::RobotStatePtr m_ref_state;
+
+    ros::Publisher m_vpub;
 };
 
 } // namespace sbpl_interface

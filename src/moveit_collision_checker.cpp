@@ -52,6 +52,8 @@ MoveItCollisionChecker::MoveItCollisionChecker() :
     m_scene(),
     m_ref_state()
 {
+    ros::NodeHandle nh;
+    m_vpub = nh.advertise<visualization_msgs::MarkerArray>("visualization_markers", 10);
 }
 
 MoveItCollisionChecker::~MoveItCollisionChecker()
@@ -149,6 +151,15 @@ bool MoveItCollisionChecker::isStateValid(
             *m_ref_state, m_robot_model->planningGroupName(), verbose))
     {
         dist = 0.0;
+        if (visualize) {
+            visualization_msgs::MarkerArray marr =
+                    getCollisionModelVisualization(angles);
+            for (auto& marker : marr.markers) {
+                marker.color.r = 0.8;
+                marker.ns = "collision";
+            }
+            m_vpub.publish(marr);
+        }
         return false;
     }
 
