@@ -22,8 +22,10 @@ find_package(catkin REQUIRED
     moveit_ros_planning
     roscpp
     rviz
+    sbpl_arm_planner
+    sbpl_collision_checking
     sbpl_geometry_utils
-    sbpl_manipulation
+    sbpl_manipulation_components_pr2
     sensor_msgs
     pluginlib
     visualization_msgs)
@@ -35,7 +37,9 @@ catkin_package(
         eigen_conversions
         geometric_shapes
         leatherman
-        sbpl_manipulation
+        sbpl_arm_planner
+        sbpl_collision_checking
+        sbpl_manipulation_components_pr2
         roscpp
     DEPENDS)
 
