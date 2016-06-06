@@ -306,6 +306,22 @@ bool SBPLPlanningContext::init(const std::map<std::string, std::string>& config)
     }
 
     bool shortcut_path = config.at("shortcut_path") == "true";
+    sbpl::manip::ShortcutType shortcut_type =
+            sbpl::manip::PlanningParams::DefaultShortcutType;
+    if (shortcut_path) {
+        auto it = config.find("shortcut_type");
+        if (it != config.end()) {
+            if (it->second == "joint_space") {
+                shortcut_type = sbpl::manip::ShortcutType::JOINT_SPACE;
+            }
+            else if (it->second == "euclidean") {
+                shortcut_type = sbpl::manip::ShortcutType::EUCLID_SPACE;
+            }
+            else {
+                ROS_WARN("Parameter 'shortcut_path' has unrecognized value");
+            }
+        }
+    }
     bool interpolate_path = config.at("interpolate_path") == "true";
 
     bool use_bfs_heuristic = config.at("use_bfs_heuristic") == "true";
@@ -376,6 +392,7 @@ bool SBPLPlanningContext::init(const std::map<std::string, std::string>& config)
     m_epsilon = epsilon;
 
     m_shortcut_path = shortcut_path;
+    m_shortcut_type = shortcut_type;
     m_interpolate_path = interpolate_path;
 
     m_action_set.useAmp(
@@ -528,6 +545,7 @@ bool SBPLPlanningContext::initSBPL(std::string& why)
     params.expands_log_level_ = "debug";
     params.expands2_log_level_ = "debug";
     params.shortcut_path_ = m_shortcut_path;
+    params.shortcut_type = m_shortcut_type;
     params.interpolate_path_ = m_interpolate_path;
 
     if (!m_planner->init(params)) {

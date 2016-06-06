@@ -502,6 +502,7 @@ bool SBPLPlannerManager::loadPlannerConfigurationMapping(
         "xyzrpy_snap_dist_thresh",
         "short_dist_mprims_thresh",
         "shortcut_path",
+        "shortcut_type",
         "interpolate_path"
     };
 

@@ -114,14 +114,14 @@ bool MoveItRobotModel::init(
                 m_var_continuous.push_back(false);
                 m_var_min_limits.push_back(var_bounds.min_position_);
                 m_var_max_limits.push_back(var_bounds.max_position_);
-                m_var_incs.push_back(sbpl::utils::ToRadians(1.0));
+                m_var_incs.push_back(sbpl::utils::ToRadians(2.0));
             }
             else {
                 // slight hack here? !position_bounded_ => continuous?
                 m_var_continuous.push_back(true);
                 m_var_min_limits.push_back(-M_PI);
                 m_var_max_limits.push_back(M_PI);
-                m_var_incs.push_back(sbpl::utils::ToRadians(1.0));
+                m_var_incs.push_back(sbpl::utils::ToRadians(2.0));
             }
         }
     }

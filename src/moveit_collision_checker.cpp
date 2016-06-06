@@ -178,9 +178,7 @@ bool MoveItCollisionChecker::isStateToStateValid(
     dist = std::numeric_limits<double>::max();
 
     std::vector<std::vector<double>> path;
-    if (!interpolatePath(
-            angles0, angles1, m_robot_model->variableIncrements(), path))
-    {
+    if (!interpolatePath(angles0, angles1, path)) {
         return false;
     }
 
@@ -202,7 +200,6 @@ bool MoveItCollisionChecker::isStateToStateValid(
 bool MoveItCollisionChecker::interpolatePath(
     const std::vector<double>& start,
     const std::vector<double>& end,
-    const std::vector<double>& inc,
     std::vector<std::vector<double>>& path)
 {
     return sbpl::interp::InterpolatePath(
@@ -210,7 +207,7 @@ bool MoveItCollisionChecker::interpolatePath(
             end,
             m_robot_model->variableMinLimits(),
             m_robot_model->variableMaxLimits(),
-            inc,
+            m_robot_model->variableIncrements(),
             m_robot_model->variableContinuous(),
             path);
 }
