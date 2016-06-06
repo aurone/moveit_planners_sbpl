@@ -38,7 +38,7 @@
 #include <moveit/robot_model/robot_model.h>
 #include <moveit/robot_state/robot_state.h>
 #include <ros/ros.h>
-#include <sbpl_manipulation_components/collision_checker.h>
+#include <sbpl_arm_planner/collision_checker.h>
 
 namespace sbpl_interface {
 

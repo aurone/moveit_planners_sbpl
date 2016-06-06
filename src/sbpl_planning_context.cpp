@@ -9,7 +9,7 @@
 #include <moveit_msgs/GetMotionPlan.h>
 #include <moveit_msgs/PlanningScene.h>
 #include <sbpl_arm_planner/arm_planner_interface.h>
-#include <sbpl_manipulation_components/motion_primitive.h>
+#include <sbpl_arm_planner/motion_primitive.h>
 
 // project includes
 #include <moveit_planners_sbpl/collision_world_sbpl.h>
