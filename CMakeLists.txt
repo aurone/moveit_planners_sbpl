@@ -25,7 +25,7 @@ find_package(catkin REQUIRED
     sbpl_arm_planner
     sbpl_collision_checking
     sbpl_geometry_utils
-    sbpl_manipulation_components_pr2
+    sbpl_pr2_robot_model
     sensor_msgs
     pluginlib
     visualization_msgs)
@@ -39,7 +39,7 @@ catkin_package(
         leatherman
         sbpl_arm_planner
         sbpl_collision_checking
-        sbpl_manipulation_components_pr2
+        sbpl_pr2_robot_model
         roscpp
     DEPENDS)
 

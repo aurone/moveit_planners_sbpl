@@ -23,7 +23,7 @@
     <depend>sbpl_arm_planner</depend>
     <depend>sbpl_collision_checking</depend>
     <depend>sbpl_geometry_utils</depend>
-    <depend>sbpl_manipulation_components_pr2</depend>
+    <depend>sbpl_pr2_robot_model</depend>
     <depend>sensor_msgs</depend>
     <depend>pluginlib</depend>
     <depend>visualization_msgs</depend>
