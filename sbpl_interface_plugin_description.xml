@@ -5,5 +5,13 @@
         <description>
         </description>
     </class>
+    <class name="sbpl_interface/PlannerFamily"
+            type="sbpl_interface::PlannerFamilyManager"
+            base_class_type="planning_interface::PlannerManager">
+        <description>
+            A manager of planner managers allowing the use of several planning
+            plugins simultaneously
+        </description>
+    </class>
 </library>
 

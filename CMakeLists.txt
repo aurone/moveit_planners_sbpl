@@ -73,6 +73,7 @@ add_library(
 
 add_library(
     moveit_sbpl_planner_plugin
+    src/planner_family_manager.cpp
     src/sbpl_planner_manager.cpp
     src/sbpl_planning_context.cpp
     src/moveit_robot_model.cpp
