@@ -1,5 +1,5 @@
-#ifndef sbpl_interface_SBPLPlannerManager_h
-#define sbpl_interface_SBPLPlannerManager_h
+#ifndef sbpl_interface_sbpl_planner_manager_h
+#define sbpl_interface_sbpl_planner_manager_h
 
 #include <XmlRpcValue.h>
 #include <moveit/macros/class_forward.h>
@@ -26,30 +26,28 @@ public:
     /// \sa planning_interface::PlannerManager::initialize()
     virtual bool initialize(
         const robot_model::RobotModelConstPtr& model,
-        const std::string& ns);
+        const std::string& ns) override;
 
     /// \sa planning_interface::PlannerManger::getDescription()
     virtual std::string getDescription() const;
 
     /// \sa planning_interface::PlannerManager:::getPlanningAlgorithms()
-    void getPlanningAlgorithms(std::vector<std::string>& algs) const;
+    virtual void getPlanningAlgorithms(
+        std::vector<std::string>& algs) const override;
 
     /// \sa planning_interface::PlannerManager::getPlanningContext()
     virtual planning_interface::PlanningContextPtr getPlanningContext(
         const planning_scene::PlanningSceneConstPtr& planning_scene,
         const planning_interface::MotionPlanRequest& req,
-        moveit_msgs::MoveItErrorCodes& error_code) const;
+        moveit_msgs::MoveItErrorCodes& error_code) const override;
 
     /// \sa planning_interface::PlannerManager::canServiceRequest()
     virtual bool canServiceRequest(
-        const planning_interface::MotionPlanRequest& req) const;
+        const planning_interface::MotionPlanRequest& req) const override;
 
     /// \sa planning_interface::PlannerManager::setPlannerConfigurations()
     virtual void setPlannerConfigurations(
-        const planning_interface::PlannerConfigurationMap& pcs);
-
-    /// \sa planning_interface::PlannerManager::terminate()
-    void terminate() const;
+        const planning_interface::PlannerConfigurationMap& pcs) override;
 
     ///@}
 

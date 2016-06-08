@@ -311,11 +311,6 @@ void SBPLPlannerManager::setPlannerConfigurations(
     }
 }
 
-void SBPLPlannerManager::terminate() const
-{
-    ROS_INFO("SBPLPlannerManager::terminate()");
-}
-
 void SBPLPlannerManager::logPlanningScene(
     const planning_scene::PlanningScene& scene) const
 {
@@ -902,4 +897,6 @@ bool SBPLPlannerManager::initializeCollisionWorld(
 } // namespace sbpl_interface
 
 #include <pluginlib/class_list_macros.h>
-PLUGINLIB_EXPORT_CLASS(sbpl_interface::SBPLPlannerManager, planning_interface::PlannerManager);
+PLUGINLIB_EXPORT_CLASS(
+        sbpl_interface::SBPLPlannerManager,
+        planning_interface::PlannerManager);
