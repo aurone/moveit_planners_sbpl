@@ -53,9 +53,11 @@ public:
     /// \name sbpl::manip::RobotModel API Requirements
     ///@{
 
-    virtual double minVarLimit(int jidx) const;
-    virtual double maxVarLimit(int jidx) const;
-    virtual bool   hasVarLimit(int jidx) const;
+    virtual double minPosLimit(int jidx) const;
+    virtual double maxPosLimit(int jidx) const;
+    virtual bool   hasPosLimit(int jidx) const;
+    virtual double velLimit(int jidx) const;
+    virtual double accLimit(int jidx) const;
 
     virtual bool checkJointLimits(
         const std::vector<double>& angles,
@@ -165,6 +167,8 @@ private:
     std::vector<double> m_var_max_limits;
     std::vector<double> m_var_incs;
     std::vector<bool> m_var_continuous;
+    std::vector<double> m_var_vel_limits;
+    std::vector<double> m_var_acc_limits;
 
     std::string m_planning_frame;
 

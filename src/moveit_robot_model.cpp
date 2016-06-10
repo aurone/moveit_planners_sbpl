@@ -104,6 +104,8 @@ bool MoveItRobotModel::init(
     m_var_max_limits.reserve(m_active_var_count);
     m_var_incs.reserve(m_active_var_count);
     m_var_continuous.reserve(m_active_var_count);
+    m_var_vel_limits.reserve(m_active_var_count);
+    m_var_acc_limits.reserve(m_active_var_count);
     for (size_t jind = 0; jind < active_joints.size(); ++jind) {
         const moveit::core::JointModel* joint = active_joints[jind];
         for (size_t vind = 0; vind < joint->getVariableCount(); ++vind) {
@@ -122,6 +124,20 @@ bool MoveItRobotModel::init(
                 m_var_min_limits.push_back(-M_PI);
                 m_var_max_limits.push_back(M_PI);
                 m_var_incs.push_back(sbpl::utils::ToRadians(2.0));
+            }
+
+            if (var_bounds.velocity_bounded_) {
+                m_var_vel_limits.push_back(var_bounds.max_velocity_);
+            }
+            else {
+                m_var_vel_limits.push_back(0.0);
+            }
+
+            if (var_bounds.acceleration_bounded_) {
+                m_var_acc_limits.push_back(var_bounds.max_acceleration_);
+            }
+            else {
+                m_var_acc_limits.push_back(0.0);
             }
         }
     }
@@ -217,19 +233,29 @@ bool MoveItRobotModel::setPlanningFrame(const std::string& planning_frame)
     return true;
 }
 
-double MoveItRobotModel::minVarLimit(int jidx) const
+double MoveItRobotModel::minPosLimit(int jidx) const
 {
     return m_var_min_limits[jidx];
 }
 
-double MoveItRobotModel::maxVarLimit(int jidx) const
+double MoveItRobotModel::maxPosLimit(int jidx) const
 {
     return m_var_max_limits[jidx];
 }
 
-bool MoveItRobotModel::hasVarLimit(int jidx) const
+bool MoveItRobotModel::hasPosLimit(int jidx) const
 {
     return m_var_continuous[jidx];
+}
+
+double MoveItRobotModel::velLimit(int jidx) const
+{
+    return m_var_vel_limits[jidx];
+}
+
+double MoveItRobotModel::accLimit(int jidx) const
+{
+    return m_var_acc_limits[jidx];
 }
 
 bool MoveItRobotModel::checkJointLimits(
