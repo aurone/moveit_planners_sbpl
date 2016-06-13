@@ -549,7 +549,6 @@ bool SBPLPlanningContext::initSBPL(std::string& why)
     params.epsilon_ = m_epsilon;
 
     params.print_path_ = false;
-    params.expands_log_level_ = "debug";
     params.shortcut_path_ = m_shortcut_path;
     params.shortcut_type = m_shortcut_type;
     params.interpolate_path_ = m_interpolate_path;
