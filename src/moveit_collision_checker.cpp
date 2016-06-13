@@ -137,16 +137,16 @@ bool MoveItCollisionChecker::isStateValid(
                 m_robot_model->activeVariableIndices()[vind], angles[vind]);
     }
 
-    // TODO: this isn't necessary for the sbpl collision checker...do we need
-    // this for FCL to function properly?
-//    if (m_ref_state->dirtyLinkTransforms()) {
-//        m_ref_state->updateLinkTransforms();
-//    }
-
     // TODO: need to propagate path_constraints and trajectory_constraints down
     // to this level from the planning context. Once those are propagated, this
     // call will need to be paired with an additional call to isStateConstrained
 
+    // NOTE: since m_ref_state is not const, this call to isStateColliding will
+    // go ahead and update the link transforms underneath before checking for
+    // collisions. Source:
+    //
+    // http://docs.ros.org/indigo/api/moveit_core/html/classplanning__scene_1_1PlanningScene.html
+    //
     if (m_scene->isStateColliding(
             *m_ref_state, m_robot_model->planningGroupName(), verbose))
     {
