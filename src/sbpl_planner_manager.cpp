@@ -150,7 +150,7 @@ planning_interface::PlanningContextPtr SBPLPlannerManager::getPlanningContext(
         }
     }
     else {
-        ROS_INFO("Using default collision checker");
+        ROS_DEBUG("Using default collision checker");
     }
 
     ///////////////////////////////////////////
@@ -347,51 +347,51 @@ void SBPLPlannerManager::logPlanningScene(
 void SBPLPlannerManager::logMotionRequest(
     const planning_interface::MotionPlanRequest& req) const
 {
-    ROS_INFO("Motion Plan Request");
+    ROS_DEBUG("Motion Plan Request");
 
-    ROS_INFO("  workspace_parameters");
-    ROS_INFO("    header");
-    ROS_INFO_STREAM("      seq: " << req.workspace_parameters.header.seq);
-    ROS_INFO_STREAM("      stamp: " << req.workspace_parameters.header.stamp);
-    ROS_INFO_STREAM("      frame_id: " << req.workspace_parameters.header.frame_id.c_str());
-    ROS_INFO("    min_corner");
-    ROS_INFO_STREAM("      x: " << req.workspace_parameters.min_corner.x);
-    ROS_INFO_STREAM("      y: " << req.workspace_parameters.min_corner.y);
-    ROS_INFO_STREAM("      z: " << req.workspace_parameters.min_corner.z);
-    ROS_INFO("    max_corner");
-    ROS_INFO_STREAM("      x: " << req.workspace_parameters.max_corner.x);
-    ROS_INFO_STREAM("      y: " << req.workspace_parameters.max_corner.y);
-    ROS_INFO_STREAM("      z: " << req.workspace_parameters.max_corner.z);
+    ROS_DEBUG("  workspace_parameters");
+    ROS_DEBUG("    header");
+    ROS_DEBUG_STREAM("      seq: " << req.workspace_parameters.header.seq);
+    ROS_DEBUG_STREAM("      stamp: " << req.workspace_parameters.header.stamp);
+    ROS_DEBUG_STREAM("      frame_id: " << req.workspace_parameters.header.frame_id.c_str());
+    ROS_DEBUG("    min_corner");
+    ROS_DEBUG_STREAM("      x: " << req.workspace_parameters.min_corner.x);
+    ROS_DEBUG_STREAM("      y: " << req.workspace_parameters.min_corner.y);
+    ROS_DEBUG_STREAM("      z: " << req.workspace_parameters.min_corner.z);
+    ROS_DEBUG("    max_corner");
+    ROS_DEBUG_STREAM("      x: " << req.workspace_parameters.max_corner.x);
+    ROS_DEBUG_STREAM("      y: " << req.workspace_parameters.max_corner.y);
+    ROS_DEBUG_STREAM("      z: " << req.workspace_parameters.max_corner.z);
 
-    ROS_INFO("  start_state");
-    ROS_INFO("    joint_state:");
+    ROS_DEBUG("  start_state");
+    ROS_DEBUG("    joint_state:");
     const sensor_msgs::JointState& joint_state = req.start_state.joint_state;
     for (size_t jidx = 0; jidx < joint_state.name.size(); ++jidx) {
-        ROS_INFO("      { name: %s, position: %0.3f }", joint_state.name[jidx].c_str(), joint_state.position[jidx]);
+        ROS_DEBUG("      { name: %s, position: %0.3f }", joint_state.name[jidx].c_str(), joint_state.position[jidx]);
     }
-    ROS_INFO("    multi_dof_joint_state");
+    ROS_DEBUG("    multi_dof_joint_state");
     const sensor_msgs::MultiDOFJointState& multi_dof_joint_state = req.start_state.multi_dof_joint_state;
-    ROS_INFO("      header: { seq: %d, stamp: %0.3f, frame_id: %s }",
+    ROS_DEBUG("      header: { seq: %d, stamp: %0.3f, frame_id: %s }",
             multi_dof_joint_state.header.seq,
             multi_dof_joint_state.header.stamp.toSec(),
             multi_dof_joint_state.header.frame_id.c_str());
     for (size_t jidx = 0; jidx < multi_dof_joint_state.joint_names.size(); ++jidx) {
-        ROS_INFO("      { joint_names: %s, transform: }", multi_dof_joint_state.joint_names[jidx].c_str());
+        ROS_DEBUG("      { joint_names: %s, transform: }", multi_dof_joint_state.joint_names[jidx].c_str());
     }
 
-    ROS_INFO("    attached_collision_objects: %zu", req.start_state.attached_collision_objects.size());
-    ROS_INFO("    is_diff: %s", req.start_state.is_diff ? "true" : "false");
+    ROS_DEBUG("    attached_collision_objects: %zu", req.start_state.attached_collision_objects.size());
+    ROS_DEBUG("    is_diff: %s", req.start_state.is_diff ? "true" : "false");
 
-    ROS_INFO("  goal_constraints: %zu", req.goal_constraints.size());
+    ROS_DEBUG("  goal_constraints: %zu", req.goal_constraints.size());
     for (size_t cind = 0; cind < req.goal_constraints.size(); ++cind) {
         const moveit_msgs::Constraints& constraints = req.goal_constraints[cind];
 
         // joint constraints
-        ROS_INFO("    joint_constraints: %zu", constraints.joint_constraints.size());
+        ROS_DEBUG("    joint_constraints: %zu", constraints.joint_constraints.size());
         for (size_t jcind = 0; jcind < constraints.joint_constraints.size(); ++jcind) {
             const moveit_msgs::JointConstraint& joint_constraint =
                     constraints.joint_constraints[jcind];
-            ROS_INFO("      joint_name: %s, position: %0.3f, tolerance_above: %0.3f, tolerance_below: %0.3f, weight: %0.3f",
+            ROS_DEBUG("      joint_name: %s, position: %0.3f, tolerance_above: %0.3f, tolerance_below: %0.3f, weight: %0.3f",
                     joint_constraint.joint_name.c_str(),
                     joint_constraint.position,
                     joint_constraint.tolerance_above,
@@ -400,61 +400,61 @@ void SBPLPlannerManager::logMotionRequest(
         }
 
         // position constraints
-        ROS_INFO("    position_constraints: %zu", constraints.position_constraints.size());
+        ROS_DEBUG("    position_constraints: %zu", constraints.position_constraints.size());
         for (size_t pcind = 0; pcind < constraints.position_constraints.size(); ++pcind) {
             const moveit_msgs::PositionConstraint pos_constraint =
                     constraints.position_constraints[pcind];
-            ROS_INFO("      header: { frame_id: %s, seq: %u, stamp: %0.3f }", pos_constraint.header.frame_id.c_str(), pos_constraint.header.seq, pos_constraint.header.stamp.toSec());
-            ROS_INFO("      link_name: %s", pos_constraint.link_name.c_str());
-            ROS_INFO("      target_point_offset: (%0.3f, %0.3f, %0.3f)", pos_constraint.target_point_offset.x, pos_constraint.target_point_offset.y, pos_constraint.target_point_offset.z);
-            ROS_INFO("      constraint_region:");
-            ROS_INFO("        primitives: %zu", pos_constraint.constraint_region.primitives.size());
+            ROS_DEBUG("      header: { frame_id: %s, seq: %u, stamp: %0.3f }", pos_constraint.header.frame_id.c_str(), pos_constraint.header.seq, pos_constraint.header.stamp.toSec());
+            ROS_DEBUG("      link_name: %s", pos_constraint.link_name.c_str());
+            ROS_DEBUG("      target_point_offset: (%0.3f, %0.3f, %0.3f)", pos_constraint.target_point_offset.x, pos_constraint.target_point_offset.y, pos_constraint.target_point_offset.z);
+            ROS_DEBUG("      constraint_region:");
+            ROS_DEBUG("        primitives: %zu", pos_constraint.constraint_region.primitives.size());
             for (size_t pind = 0; pind < pos_constraint.constraint_region.primitives.size(); ++pind) {
                 const shape_msgs::SolidPrimitive& prim = pos_constraint.constraint_region.primitives[pind];
                 const geometry_msgs::Pose& pose = pos_constraint.constraint_region.primitive_poses[pind];
-                ROS_INFO("          { type: %d, pose: { position: (%0.3f, %0.3f, %0.3f), orientation: (%0.3f, %0.3f, %0.3f, %0.3f) } }", prim.type, pose.position.x, pose.position.y, pose.position.y, pose.orientation.w, pose.orientation.x, pose.orientation.y, pose.orientation.z);
+                ROS_DEBUG("          { type: %d, pose: { position: (%0.3f, %0.3f, %0.3f), orientation: (%0.3f, %0.3f, %0.3f, %0.3f) } }", prim.type, pose.position.x, pose.position.y, pose.position.y, pose.orientation.w, pose.orientation.x, pose.orientation.y, pose.orientation.z);
             }
-            ROS_INFO("        meshes: %zu", pos_constraint.constraint_region.meshes.size());
+            ROS_DEBUG("        meshes: %zu", pos_constraint.constraint_region.meshes.size());
         }
 
         // orientation constarints
-        ROS_INFO("    orientation_constraints: %zu", constraints.orientation_constraints.size());
+        ROS_DEBUG("    orientation_constraints: %zu", constraints.orientation_constraints.size());
         for (size_t ocind = 0; ocind < constraints.orientation_constraints.size(); ++ocind) {
             const moveit_msgs::OrientationConstraint rot_constraint =
                     constraints.orientation_constraints[ocind];
-                ROS_INFO("      header: { frame_id: %s, seq: %u, stamp: %0.3f }", rot_constraint.header.frame_id.c_str(), rot_constraint.header.seq, rot_constraint.header.stamp.toSec());
-                ROS_INFO("      orientation: (%0.3f, %0.3f, %0.3f, %0.3f)", rot_constraint.orientation.w, rot_constraint.orientation.x, rot_constraint.orientation.y, rot_constraint.orientation.z);
-                ROS_INFO("      link_name: %s", rot_constraint.link_name.c_str());
-                ROS_INFO("      absolute_x_axis_tolerance: %0.3f", rot_constraint.absolute_x_axis_tolerance);
-                ROS_INFO("      absolute_y_axis_tolerance: %0.3f", rot_constraint.absolute_y_axis_tolerance);
-                ROS_INFO("      absolute_z_axis_tolerance: %0.3f", rot_constraint.absolute_z_axis_tolerance);
-                ROS_INFO("      weight: %0.3f", rot_constraint.weight);
+                ROS_DEBUG("      header: { frame_id: %s, seq: %u, stamp: %0.3f }", rot_constraint.header.frame_id.c_str(), rot_constraint.header.seq, rot_constraint.header.stamp.toSec());
+                ROS_DEBUG("      orientation: (%0.3f, %0.3f, %0.3f, %0.3f)", rot_constraint.orientation.w, rot_constraint.orientation.x, rot_constraint.orientation.y, rot_constraint.orientation.z);
+                ROS_DEBUG("      link_name: %s", rot_constraint.link_name.c_str());
+                ROS_DEBUG("      absolute_x_axis_tolerance: %0.3f", rot_constraint.absolute_x_axis_tolerance);
+                ROS_DEBUG("      absolute_y_axis_tolerance: %0.3f", rot_constraint.absolute_y_axis_tolerance);
+                ROS_DEBUG("      absolute_z_axis_tolerance: %0.3f", rot_constraint.absolute_z_axis_tolerance);
+                ROS_DEBUG("      weight: %0.3f", rot_constraint.weight);
         }
 
         // visibility constraints
-        ROS_INFO("    visibility_constraints: %zu", constraints.visibility_constraints.size());
+        ROS_DEBUG("    visibility_constraints: %zu", constraints.visibility_constraints.size());
     }
 
-    ROS_INFO("  path_constraints");
-    ROS_INFO("    joint_constraints: %zu", req.path_constraints.joint_constraints.size());
-    ROS_INFO("    position_constraints: %zu", req.path_constraints.position_constraints.size());
-    ROS_INFO("    orientation_constraints: %zu", req.path_constraints.orientation_constraints.size());
-    ROS_INFO("    visibility_constraints: %zu", req.path_constraints.visibility_constraints.size());
+    ROS_DEBUG("  path_constraints");
+    ROS_DEBUG("    joint_constraints: %zu", req.path_constraints.joint_constraints.size());
+    ROS_DEBUG("    position_constraints: %zu", req.path_constraints.position_constraints.size());
+    ROS_DEBUG("    orientation_constraints: %zu", req.path_constraints.orientation_constraints.size());
+    ROS_DEBUG("    visibility_constraints: %zu", req.path_constraints.visibility_constraints.size());
 
-    ROS_INFO("  trajectory_constraints");
+    ROS_DEBUG("  trajectory_constraints");
     for (size_t cind = 0; cind < req.trajectory_constraints.constraints.size(); ++cind) {
         const moveit_msgs::Constraints& constraints = req.trajectory_constraints.constraints[cind];
-        ROS_INFO("    joint_constraints: %zu", constraints.joint_constraints.size());
-        ROS_INFO("    position_constraints: %zu", constraints.position_constraints.size());
-        ROS_INFO("    orientation_constraints: %zu", constraints.orientation_constraints.size());
-        ROS_INFO("    visibility_constraints: %zu", constraints.visibility_constraints.size());
+        ROS_DEBUG("    joint_constraints: %zu", constraints.joint_constraints.size());
+        ROS_DEBUG("    position_constraints: %zu", constraints.position_constraints.size());
+        ROS_DEBUG("    orientation_constraints: %zu", constraints.orientation_constraints.size());
+        ROS_DEBUG("    visibility_constraints: %zu", constraints.visibility_constraints.size());
     }
 
-    ROS_INFO_STREAM("  planner_id: " << req.planner_id);
-    ROS_INFO_STREAM("  group_name: " << req.group_name);
-    ROS_INFO_STREAM("  num_planning_attempts: " << req.num_planning_attempts);
-    ROS_INFO_STREAM("  allowed_planning_time: " << req.allowed_planning_time);
-    ROS_INFO_STREAM("  max_velocity_scaling_factor: " << req.max_velocity_scaling_factor);
+    ROS_DEBUG_STREAM("  planner_id: " << req.planner_id);
+    ROS_DEBUG_STREAM("  group_name: " << req.group_name);
+    ROS_DEBUG_STREAM("  num_planning_attempts: " << req.num_planning_attempts);
+    ROS_DEBUG_STREAM("  allowed_planning_time: " << req.allowed_planning_time);
+    ROS_DEBUG_STREAM("  max_velocity_scaling_factor: " << req.max_velocity_scaling_factor);
 }
 
 bool SBPLPlannerManager::loadPlannerConfigurationMapping(
@@ -795,7 +795,7 @@ MoveItRobotModel* SBPLPlannerManager::getModelForGroup(
         return sbpl_model;
     }
     else {
-        ROS_INFO("Using existing SBPL Robot Model for group '%s'", group_name.c_str());
+        ROS_DEBUG("Using existing SBPL Robot Model for group '%s'", group_name.c_str());
         return &it->second;
     }
 }

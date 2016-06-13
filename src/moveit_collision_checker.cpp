@@ -65,7 +65,7 @@ bool MoveItCollisionChecker::init(
     const moveit::core::RobotState& ref_state,
     const planning_scene::PlanningSceneConstPtr& scene)
 {
-    ROS_INFO("Initializing MoveIt! Collision Checker");
+    ROS_DEBUG("Initializing MoveIt! Collision Checker");
 
     if (!robot_model->initialized()) {
         ROS_ERROR("Failed to initialize MoveIt Collision Checker: "

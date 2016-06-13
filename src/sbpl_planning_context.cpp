@@ -95,12 +95,12 @@ SBPLPlanningContext::SBPLPlanningContext(
     m_distance_field(),
     m_planner()
 {
-    ROS_INFO("Constructed SBPL Planning Context");
+    ROS_DEBUG("Constructed SBPL Planning Context");
 }
 
 SBPLPlanningContext::~SBPLPlanningContext()
 {
-    ROS_INFO("Destructed SBPL Planning Context");
+    ROS_DEBUG("Destructed SBPL Planning Context");
 }
 
 bool SBPLPlanningContext::solve(planning_interface::MotionPlanResponse& res)
@@ -128,7 +128,7 @@ bool SBPLPlanningContext::solve(planning_interface::MotionPlanResponse& res)
         return false;
     }
 
-    ROS_INFO("Successfully initialized SBPL");
+    ROS_DEBUG("Successfully initialized SBPL");
 
     // translate planning scene to planning scene message
     moveit_msgs::PlanningScenePtr scene_msg(new moveit_msgs::PlanningScene);
@@ -153,7 +153,7 @@ bool SBPLPlanningContext::solve(planning_interface::MotionPlanResponse& res)
     if (result) {
         ROS_DEBUG("Call to solve() succeeded");
 
-        ROS_INFO("Creating RobotTrajectory from path with %zu joint trajectory points and %zu multi-dof joint trajectory points",
+        ROS_DEBUG("Creating RobotTrajectory from path with %zu joint trajectory points and %zu multi-dof joint trajectory points",
                     res_msg.trajectory.joint_trajectory.points.size(),
                     res_msg.trajectory.multi_dof_joint_trajectory.points.size());
         robot_trajectory::RobotTrajectoryPtr traj(
@@ -201,7 +201,7 @@ void SBPLPlanningContext::clear()
 
 bool SBPLPlanningContext::init(const std::map<std::string, std::string>& config)
 {
-    ROS_INFO("Initializing SBPL Planning Context");
+    ROS_DEBUG("Initializing SBPL Planning Context");
 
     // TODO: implement a way to pass down planner-specific parameters to the
     // SBPL Arm Planner Interface from above and to query the interface for
@@ -269,7 +269,7 @@ bool SBPLPlanningContext::init(const std::map<std::string, std::string>& config)
         }
     }
 
-    ROS_INFO(" -> Required Parameters Found");
+    ROS_DEBUG(" -> Required Parameters Found");
 
     ///////////////////////////////////
     // parse and validate parameters //
@@ -354,7 +354,7 @@ bool SBPLPlanningContext::init(const std::map<std::string, std::string>& config)
         disc.insert(std::make_pair(joint, jres));
     }
 
-    ROS_INFO("Parsed discretization for %zu joints", disc.size());
+    ROS_DEBUG("Parsed discretization for %zu joints", disc.size());
 
     // TODO: check that we have discretization for all active planning variables
 
@@ -428,25 +428,25 @@ bool SBPLPlanningContext::init(const std::map<std::string, std::string>& config)
             sbpl::manip::MotionPrimitive::SHORT_DISTANCE,
             short_dist_mprims_thresh);
 
-    ROS_INFO("Action Set:");
+    ROS_DEBUG("Action Set:");
     for (auto ait = m_action_set->begin(); ait != m_action_set->end(); ++ait) {
-        ROS_INFO("  type: %s", to_string(ait->type).c_str());
+        ROS_DEBUG("  type: %s", to_string(ait->type).c_str());
         if (ait->type == sbpl::manip::MotionPrimitive::SNAP_TO_RPY) {
-            ROS_INFO("    enabled: %s", m_action_set->useAmp(sbpl::manip::MotionPrimitive::SNAP_TO_RPY) ? "true" : "false");
-            ROS_INFO("    thresh: %0.3f", m_action_set->ampThresh(sbpl::manip::MotionPrimitive::SNAP_TO_RPY));
+            ROS_DEBUG("    enabled: %s", m_action_set->useAmp(sbpl::manip::MotionPrimitive::SNAP_TO_RPY) ? "true" : "false");
+            ROS_DEBUG("    thresh: %0.3f", m_action_set->ampThresh(sbpl::manip::MotionPrimitive::SNAP_TO_RPY));
         }
         else if (ait->type == sbpl::manip::MotionPrimitive::SNAP_TO_XYZ) {
-            ROS_INFO("    enabled: %s", m_action_set->useAmp(sbpl::manip::MotionPrimitive::SNAP_TO_XYZ) ? "true" : "false");
-            ROS_INFO("    thresh: %0.3f", m_action_set->ampThresh(sbpl::manip::MotionPrimitive::SNAP_TO_XYZ));
+            ROS_DEBUG("    enabled: %s", m_action_set->useAmp(sbpl::manip::MotionPrimitive::SNAP_TO_XYZ) ? "true" : "false");
+            ROS_DEBUG("    thresh: %0.3f", m_action_set->ampThresh(sbpl::manip::MotionPrimitive::SNAP_TO_XYZ));
         }
         else if (ait->type == sbpl::manip::MotionPrimitive::SNAP_TO_XYZ_RPY) {
-            ROS_INFO("    enabled: %s", m_action_set->useAmp(sbpl::manip::MotionPrimitive::SNAP_TO_XYZ_RPY) ? "true" : "false");
-            ROS_INFO("    thresh: %0.3f", m_action_set->ampThresh(sbpl::manip::MotionPrimitive::SNAP_TO_XYZ_RPY));
+            ROS_DEBUG("    enabled: %s", m_action_set->useAmp(sbpl::manip::MotionPrimitive::SNAP_TO_XYZ_RPY) ? "true" : "false");
+            ROS_DEBUG("    thresh: %0.3f", m_action_set->ampThresh(sbpl::manip::MotionPrimitive::SNAP_TO_XYZ_RPY));
         }
         else if (ait->type == sbpl::manip::MotionPrimitive::LONG_DISTANCE ||
             ait->type == sbpl::manip::MotionPrimitive::SHORT_DISTANCE)
         {
-            ROS_INFO("    action: %s", to_string(ait->action).c_str());
+            ROS_DEBUG("    action: %s", to_string(ait->action).c_str());
         }
     }
 
@@ -550,7 +550,6 @@ bool SBPLPlanningContext::initSBPL(std::string& why)
 
     params.print_path_ = false;
     params.expands_log_level_ = "debug";
-    params.expands2_log_level_ = "debug";
     params.shortcut_path_ = m_shortcut_path;
     params.shortcut_type = m_shortcut_type;
     params.interpolate_path_ = m_interpolate_path;
@@ -680,15 +679,15 @@ bool SBPLPlanningContext::initHeuristicGrid(
 
     Eigen::Vector3d workspace_pos_in_planning(T_planning_workspace.translation());
 
-    ROS_INFO("Initializing workspace distance field:");
-    ROS_INFO("  size_x: %0.3f", size_x);
-    ROS_INFO("  size_y: %0.3f", size_y);
-    ROS_INFO("  size_z: %0.3f", size_z);
-    ROS_INFO("  res: %0.3f", res_x_m);
-    ROS_INFO("  origin_x: %0.3f", workspace_pos_in_planning.x());
-    ROS_INFO("  origin_y: %0.3f", workspace_pos_in_planning.y());
-    ROS_INFO("  origin_z: %0.3f", workspace_pos_in_planning.z());
-    ROS_INFO("  propagate_negative_distances: %s", propagate_negative_distances ? "true" : "false");
+    ROS_DEBUG("Initializing workspace distance field:");
+    ROS_DEBUG("  size_x: %0.3f", size_x);
+    ROS_DEBUG("  size_y: %0.3f", size_y);
+    ROS_DEBUG("  size_z: %0.3f", size_z);
+    ROS_DEBUG("  res: %0.3f", res_x_m);
+    ROS_DEBUG("  origin_x: %0.3f", workspace_pos_in_planning.x());
+    ROS_DEBUG("  origin_y: %0.3f", workspace_pos_in_planning.y());
+    ROS_DEBUG("  origin_z: %0.3f", workspace_pos_in_planning.z());
+    ROS_DEBUG("  propagate_negative_distances: %s", propagate_negative_distances ? "true" : "false");
 
     m_distance_field.reset(new distance_field::PropagationDistanceField(
             size_x, size_y, size_z,
@@ -700,7 +699,7 @@ bool SBPLPlanningContext::initHeuristicGrid(
             propagate_negative_distances));
 
     if (!m_use_bfs_heuristic) {
-        ROS_INFO("Not using BFS heuristic (Skipping occupancy grid filling)");
+        ROS_DEBUG("Not using BFS heuristic (Skipping occupancy grid filling)");
         return true;
     }
 
@@ -714,7 +713,7 @@ bool SBPLPlanningContext::initHeuristicGrid(
             dynamic_cast<const collision_detection::CollisionWorldSBPL*>(
                     cworld.get());
     if (sbpl_cworld) {
-        ROS_INFO("Using collision information from Collision World SBPL for heuristic!!!");
+        ROS_DEBUG("Using collision information from Collision World SBPL for heuristic!!!");
 
         const distance_field::PropagationDistanceField* df =
                 sbpl_cworld->distanceField();
@@ -724,7 +723,7 @@ bool SBPLPlanningContext::initHeuristicGrid(
         }
 
         // copy the collision information
-        ROS_INFO("Copying collision information");
+        ROS_DEBUG("Copying collision information");
 
         EigenSTL::vector_Vector3d points;
         for (int x = 0; x < m_distance_field->getXNumCells(); ++x) {
@@ -741,7 +740,7 @@ bool SBPLPlanningContext::initHeuristicGrid(
             }
         }
 
-        ROS_INFO("Adding %zu points to the bfs distance field", points.size());
+        ROS_DEBUG("Adding %zu points to the bfs distance field", points.size());
         m_distance_field->addPointsToField(points);
         return true;
     }
@@ -762,7 +761,7 @@ bool SBPLPlanningContext::initHeuristicGrid(
                     ++insert_count;
                 }
             }
-            ROS_INFO("Inserted %d objects into the heuristic grid", insert_count);
+            ROS_DEBUG("Inserted %d objects into the heuristic grid", insert_count);
         }
         else {
             ROS_WARN("Attempt to insert null World into heuristic grid");
