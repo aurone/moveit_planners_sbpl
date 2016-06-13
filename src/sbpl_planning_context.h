@@ -59,7 +59,7 @@ private:
     // sbpl planner components
     MoveItRobotModel* m_robot_model;
     MoveItCollisionChecker m_collision_checker;
-    sbpl::manip::ActionSet m_action_set;
+    sbpl::manip::ActionSetPtr m_action_set;
     std::unique_ptr<distance_field::PropagationDistanceField> m_distance_field;
 
     std::unique_ptr<sbpl::manip::ArmPlannerInterface> m_planner;

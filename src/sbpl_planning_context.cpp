@@ -360,9 +360,16 @@ bool SBPLPlanningContext::init(const std::map<std::string, std::string>& config)
 
     const std::string& action_filename = config.at("mprim_filename");
 
-    sbpl::manip::ActionSet as;
-    if (!sbpl::manip::ActionSet::Load(action_filename, as)) {
+    sbpl::manip::ActionSet* as = new sbpl::manip::ActionSet;
+
+    if (!as) {
+        ROS_ERROR("Failed to instantiate appropriate Action Set");
+        return false;
+    }
+
+    if (!sbpl::manip::ActionSet::Load(action_filename, *as)) {
         ROS_ERROR("Failed to load action set from '%s'", action_filename.c_str());
+        delete as;
         return false;
     }
 
@@ -373,7 +380,7 @@ bool SBPLPlanningContext::init(const std::map<std::string, std::string>& config)
     m_config = config;
 
     m_disc = disc;
-    m_action_set = as;
+    m_action_set.reset(as);
     m_use_xyz_snap_mprim = use_xyz_snap_mprim;
     m_use_rpy_snap_mprim = use_rpy_snap_mprim;
     m_use_xyzrpy_snap_mprim = use_xyzrpy_snap_mprim;
@@ -395,46 +402,46 @@ bool SBPLPlanningContext::init(const std::map<std::string, std::string>& config)
     m_shortcut_type = shortcut_type;
     m_interpolate_path = interpolate_path;
 
-    m_action_set.useAmp(
+    m_action_set->useAmp(
             sbpl::manip::MotionPrimitive::SNAP_TO_XYZ,
             use_xyz_snap_mprim);
-    m_action_set.useAmp(
+    m_action_set->useAmp(
             sbpl::manip::MotionPrimitive::SNAP_TO_RPY,
             use_rpy_snap_mprim);
-    m_action_set.useAmp(
+    m_action_set->useAmp(
             sbpl::manip::MotionPrimitive::SNAP_TO_XYZ_RPY,
             use_xyzrpy_snap_mprim);
-    m_action_set.useAmp(
+    m_action_set->useAmp(
             sbpl::manip::MotionPrimitive::SHORT_DISTANCE,
             use_short_dist_mprims);
 
-    m_action_set.ampThresh(
+    m_action_set->ampThresh(
             sbpl::manip::MotionPrimitive::SNAP_TO_XYZ,
             xyz_snap_thresh);
-    m_action_set.ampThresh(
+    m_action_set->ampThresh(
             sbpl::manip::MotionPrimitive::SNAP_TO_RPY,
             rpy_snap_thresh);
-    m_action_set.ampThresh(
+    m_action_set->ampThresh(
             sbpl::manip::MotionPrimitive::SNAP_TO_XYZ_RPY,
             xyzrpy_snap_thresh);
-    m_action_set.ampThresh(
+    m_action_set->ampThresh(
             sbpl::manip::MotionPrimitive::SHORT_DISTANCE,
             short_dist_mprims_thresh);
 
     ROS_INFO("Action Set:");
-    for (auto ait = m_action_set.begin(); ait != m_action_set.end(); ++ait) {
+    for (auto ait = m_action_set->begin(); ait != m_action_set->end(); ++ait) {
         ROS_INFO("  type: %s", to_string(ait->type).c_str());
         if (ait->type == sbpl::manip::MotionPrimitive::SNAP_TO_RPY) {
-            ROS_INFO("    enabled: %s", m_action_set.useAmp(sbpl::manip::MotionPrimitive::SNAP_TO_RPY) ? "true" : "false");
-            ROS_INFO("    thresh: %0.3f", m_action_set.ampThresh(sbpl::manip::MotionPrimitive::SNAP_TO_RPY));
+            ROS_INFO("    enabled: %s", m_action_set->useAmp(sbpl::manip::MotionPrimitive::SNAP_TO_RPY) ? "true" : "false");
+            ROS_INFO("    thresh: %0.3f", m_action_set->ampThresh(sbpl::manip::MotionPrimitive::SNAP_TO_RPY));
         }
         else if (ait->type == sbpl::manip::MotionPrimitive::SNAP_TO_XYZ) {
-            ROS_INFO("    enabled: %s", m_action_set.useAmp(sbpl::manip::MotionPrimitive::SNAP_TO_XYZ) ? "true" : "false");
-            ROS_INFO("    thresh: %0.3f", m_action_set.ampThresh(sbpl::manip::MotionPrimitive::SNAP_TO_XYZ));
+            ROS_INFO("    enabled: %s", m_action_set->useAmp(sbpl::manip::MotionPrimitive::SNAP_TO_XYZ) ? "true" : "false");
+            ROS_INFO("    thresh: %0.3f", m_action_set->ampThresh(sbpl::manip::MotionPrimitive::SNAP_TO_XYZ));
         }
         else if (ait->type == sbpl::manip::MotionPrimitive::SNAP_TO_XYZ_RPY) {
-            ROS_INFO("    enabled: %s", m_action_set.useAmp(sbpl::manip::MotionPrimitive::SNAP_TO_XYZ_RPY) ? "true" : "false");
-            ROS_INFO("    thresh: %0.3f", m_action_set.ampThresh(sbpl::manip::MotionPrimitive::SNAP_TO_XYZ_RPY));
+            ROS_INFO("    enabled: %s", m_action_set->useAmp(sbpl::manip::MotionPrimitive::SNAP_TO_XYZ_RPY) ? "true" : "false");
+            ROS_INFO("    thresh: %0.3f", m_action_set->ampThresh(sbpl::manip::MotionPrimitive::SNAP_TO_XYZ_RPY));
         }
         else if (ait->type == sbpl::manip::MotionPrimitive::LONG_DISTANCE ||
             ait->type == sbpl::manip::MotionPrimitive::SHORT_DISTANCE)
@@ -502,7 +509,7 @@ bool SBPLPlanningContext::initSBPL(std::string& why)
     m_planner.reset(new sbpl::manip::ArmPlannerInterface(
             m_robot_model,
             &m_collision_checker,
-            &m_action_set,
+            m_action_set.get(),
             m_distance_field.get()));
 
     sbpl::manip::PlanningParams params;
