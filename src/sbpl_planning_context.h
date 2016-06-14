@@ -60,7 +60,8 @@ private:
     MoveItRobotModel* m_robot_model;
     MoveItCollisionChecker m_collision_checker;
     sbpl::manip::ActionSetPtr m_action_set;
-    std::unique_ptr<distance_field::PropagationDistanceField> m_distance_field;
+    std::shared_ptr<distance_field::PropagationDistanceField> m_distance_field;
+    sbpl::OccupancyGridPtr m_grid;
 
     std::unique_ptr<sbpl::manip::ArmPlannerInterface> m_planner;
 

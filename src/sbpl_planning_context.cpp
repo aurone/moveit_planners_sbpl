@@ -510,7 +510,7 @@ bool SBPLPlanningContext::initSBPL(std::string& why)
             m_robot_model,
             &m_collision_checker,
             m_action_set.get(),
-            m_distance_field.get()));
+            m_grid.get()));
 
     sbpl::manip::PlanningParams params;
 
@@ -688,14 +688,14 @@ bool SBPLPlanningContext::initHeuristicGrid(
     ROS_DEBUG("  origin_z: %0.3f", workspace_pos_in_planning.z());
     ROS_DEBUG("  propagate_negative_distances: %s", propagate_negative_distances ? "true" : "false");
 
-    m_distance_field.reset(new distance_field::PropagationDistanceField(
+    m_distance_field = std::make_shared<distance_field::PropagationDistanceField>(
             size_x, size_y, size_z,
             res_x_m,
             workspace_pos_in_planning.x(),
             workspace_pos_in_planning.y(),
             workspace_pos_in_planning.z(),
             max_distance,
-            propagate_negative_distances));
+            propagate_negative_distances);
 
     if (!m_use_bfs_heuristic) {
         ROS_DEBUG("Not using BFS heuristic (Skipping occupancy grid filling)");
@@ -744,9 +744,9 @@ bool SBPLPlanningContext::initHeuristicGrid(
         return true;
     }
     else {
-        sbpl::OccupancyGrid grid(m_distance_field.get());
-        grid.setReferenceFrame(scene.getPlanningFrame());
-        sbpl::collision::CollisionWorld cmodel(&grid);
+        m_grid = std::make_shared<sbpl::OccupancyGrid>(m_distance_field);
+        m_grid->setReferenceFrame(scene.getPlanningFrame());
+        sbpl::collision::CollisionWorld cmodel(m_grid.get());
 
         // insert world objects into the collision model
         collision_detection::WorldConstPtr world = cworld->getWorld();
@@ -766,8 +766,8 @@ bool SBPLPlanningContext::initHeuristicGrid(
             ROS_WARN("Attempt to insert null World into heuristic grid");
         }
 
-        // note: collision world and occupancy grid going out of scope here will
-        // not destroy the prepared distance field
+        // note: collision world and going out of scope here will
+        // not destroy the prepared distance field and occupancy grid
     }
 
     return true;

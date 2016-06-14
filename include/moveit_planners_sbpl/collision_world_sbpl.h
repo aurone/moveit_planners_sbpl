@@ -161,7 +161,7 @@ private:
     sbpl::collision::CollisionModelConfig m_cm_config;
     CollisionWorldConfig m_cw_config;
 
-    std::unique_ptr<distance_field::PropagationDistanceField> m_dfield;
+    std::shared_ptr<distance_field::PropagationDistanceField> m_dfield;
     std::unique_ptr<sbpl::OccupancyGrid> m_grid;
     std::unique_ptr<sbpl::collision::CollisionSpace> m_cspace;
 

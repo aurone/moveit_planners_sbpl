@@ -285,14 +285,16 @@ bool CollisionWorldSBPL::init(
     ROS_INFO("  Initializing Distance Field");
     ROS_INFO("    size: (%0.3f, %0.3f, %0.3f)", df_size_x, df_size_y, df_size_z);
     ROS_INFO("    origin: (%0.3f, %0.3f, %0.3f)", df_origin_x, df_origin_y, df_origin_z);
-    m_dfield.reset(new distance_field::PropagationDistanceField(
+
+    m_dfield = std::make_shared<distance_field::PropagationDistanceField>(
             df_size_x, df_size_y, df_size_z,
             df_res_m,
             df_origin_x, df_origin_y, df_origin_z,
             df_max_distance,
-            false));
+            false);
+
     ROS_INFO("  Constructing Occupancy Grid");
-    m_grid.reset(new sbpl::OccupancyGrid(m_dfield.get()));
+    m_grid.reset(new sbpl::OccupancyGrid(m_dfield));
     m_grid->setReferenceFrame(collision_world_config.world_frame);
     ROS_INFO("  Constructing Collision Space");
     m_cspace.reset(new sbpl::collision::CollisionSpace(m_grid.get()));
