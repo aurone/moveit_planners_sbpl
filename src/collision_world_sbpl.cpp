@@ -40,6 +40,9 @@
 // project includes
 #include <moveit_planners_sbpl/moveit_robot_model.h>
 
+// TODO: need to revisit the manual checking of voxel group updates here, now
+// that this is maintained internally by the collision checker
+
 namespace collision_detection {
 
 CollisionWorldSBPL::CollisionWorldSBPL() : CollisionWorld()
@@ -531,7 +534,7 @@ void CollisionWorldSBPL::updateCollisionSpaceJointState(
                     variable_name) != m_sbpl_robot_model->planningVariableNames().end();
         }
 
-        m_cspace->updateVoxelGroups();
+//        m_cspace->updateVoxelGroups();
 
         ROS_INFO("Publishing visualization of occupied_voxels");
         visualization_msgs::MarkerArray markers;
@@ -565,7 +568,7 @@ void CollisionWorldSBPL::updateCollisionSpaceJointState(
 
     if (voxel_group_changed) {
         ROS_INFO("Voxel groups may have changed!");
-        m_cspace->updateVoxelGroups();
+//        m_cspace->updateVoxelGroups();
         visualization_msgs::MarkerArray markers;
         markers = m_cspace->getOccupiedVoxelsVisualization();
         m_cspace_pub.publish(markers);
