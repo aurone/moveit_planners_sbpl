@@ -746,7 +746,7 @@ bool SBPLPlanningContext::initHeuristicGrid(
     else {
         m_grid = std::make_shared<sbpl::OccupancyGrid>(m_distance_field);
         m_grid->setReferenceFrame(scene.getPlanningFrame());
-        sbpl::collision::CollisionWorld cmodel(m_grid.get());
+        sbpl::collision::WorldCollisionModel cmodel(m_grid.get());
 
         // insert world objects into the collision model
         collision_detection::WorldConstPtr world = cworld->getWorld();

@@ -42,7 +42,7 @@
 #include <moveit/distance_field/propagation_distance_field.h>
 #include <moveit_msgs/OrientedBoundingBox.h>
 #include <ros/ros.h>
-#include <sbpl_collision_checking/sbpl_collision_space.h>
+#include <sbpl_collision_checking/collision_space.h>
 #include <sbpl_collision_checking/collision_model_config.h>
 #include <sbpl_arm_planner/occupancy_grid.h>
 
