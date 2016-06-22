@@ -139,41 +139,28 @@ public:
 
     ///@}
 
-    bool init(
-        const sbpl_interface::MoveItRobotModel* sbpl_robot_model,
-        const CollisionWorldConfig& collision_world_config,
-        const std::string& urdf_string,
-        const std::string& group_name,
-        const sbpl::collision::CollisionModelConfig& config);
-
-    // returns whether the model has been initialized with a valid world; will
-    // return true if there is no world, regardless of whether initialization
-    // was attempted
-    bool initialized() const;
-
-    const distance_field::PropagationDistanceField* distanceField() const;
+    const distance_field::PropagationDistanceField* distanceField(
+        const std::string& group_name) const;
 
 private:
 
-    const sbpl_interface::MoveItRobotModel* m_sbpl_robot_model;
-    std::string m_urdf_string;
-    std::string m_group_name;
-    sbpl::collision::CollisionModelConfig m_cm_config;
-    CollisionWorldConfig m_cw_config;
+    CollisionWorldConfig m_world_collision_model_config;
+    sbpl::collision::CollisionModelConfig m_robot_collision_model_config;
 
-    std::shared_ptr<distance_field::PropagationDistanceField> m_dfield;
-    std::unique_ptr<sbpl::OccupancyGrid> m_grid;
-    std::unique_ptr<sbpl::collision::CollisionSpace> m_cspace;
+    std::map<std::string, sbpl::collision::CollisionSpacePtr>
+            m_group_to_collision_space;
+    std::map<std::string, sbpl::OccupancyGridPtr> m_group_to_grid;
 
     World::ObserverHandle m_observer_handle;
-
-    std::vector<double> m_updated_joint_variables;
-    std::vector<bool> m_is_planning_variable;
 
     ros::NodeHandle m_nh;
     ros::Publisher m_cspace_pub;
 
     void construct();
+
+    sbpl::collision::CollisionSpacePtr getCollisionSpace(
+        const moveit::core::RobotModel& robot_model,
+        const std::string& group_name);
 
     void registerWorldCallback();
     void worldUpdate(const World::ObjectConstPtr& object, World::Action action);
@@ -189,7 +176,9 @@ private:
     moveit_msgs::OrientedBoundingBox computeWorldAABB(const World& world) const;
     bool emptyBoundingBox(const moveit_msgs::OrientedBoundingBox& bb) const;
 
-    void addWorldToCollisionSpace(const World& world);
+    void addWorldToCollisionSpace(
+        const World& world,
+        sbpl::collision::CollisionSpace& cspace);
 
     void updateCollisionSpaceJointState(const moveit::core::RobotState& state);
 

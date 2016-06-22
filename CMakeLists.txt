@@ -71,6 +71,8 @@ add_library(
     src/collision_robot_sbpl.cpp
     src/collision_world_sbpl.cpp)
 
+target_link_libraries(collision_detection_sbpl ${catkin_LIBRARIES})
+
 add_library(
     moveit_sbpl_planner_plugin
     src/planner_family_manager.cpp

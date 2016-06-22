@@ -842,52 +842,8 @@ bool SBPLPlannerManager::initializeCollisionWorld(
             dynamic_cast<const collision_detection::CollisionWorldSBPL*>(
                     cworld.get());
 
-    collision_detection::CollisionWorldSBPL* mutable_cworld =
-            const_cast<collision_detection::CollisionWorldSBPL*>(sbpl_cworld);
-
-    if (!mutable_cworld) {
+    if (!sbpl_cworld) {
         ROS_ERROR("Collision World is not a Collision World SBPL");
-        return false;
-    }
-
-    ros::NodeHandle nh(m_ns);
-    XmlRpc::XmlRpcValue collision_world_config_params;
-    if (!nh.getParam("collision_world", collision_world_config_params)) {
-        ROS_ERROR("Failed to retrieve 'collision_world' from the param server");
-        return false;
-    }
-
-    collision_detection::CollisionWorldSBPL::CollisionWorldConfig cw_cfg;
-    cw_cfg.world_frame =  scene.getPlanningFrame();
-    cw_cfg.size_x = collision_world_config_params["size_x"];
-    cw_cfg.size_y = collision_world_config_params["size_y"];
-    cw_cfg.size_z = collision_world_config_params["size_z"];
-    cw_cfg.origin_x = collision_world_config_params["origin_x"];
-    cw_cfg.origin_y = collision_world_config_params["origin_y"];
-    cw_cfg.origin_z = collision_world_config_params["origin_z"];
-    cw_cfg.res_m = collision_world_config_params["res_m"];
-    cw_cfg.max_distance_m = collision_world_config_params["max_distance_m"];
-
-    std::string robot_description;
-    if (!ros::NodeHandle().getParam("robot_description", robot_description)) {
-        ROS_ERROR("Failed to retrieve parameter 'robot_description'");
-        return false;
-    }
-
-    sbpl::collision::CollisionModelConfig config;
-    if (!sbpl::collision::CollisionModelConfig::Load(ros::NodeHandle(m_ns), config)) {
-        ROS_ERROR("Failed to load collision model config");
-        return false;
-    }
-
-    if (!mutable_cworld->init(
-        sbpl_robot_model,
-        cw_cfg,
-        robot_description,
-        group_name,
-        config))
-    {
-        ROS_ERROR("Failed to initialize Collision World SBPL");
         return false;
     }
 

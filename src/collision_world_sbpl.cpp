@@ -40,14 +40,10 @@
 // project includes
 #include <moveit_planners_sbpl/moveit_robot_model.h>
 
-// TODO: need to revisit the manual checking of voxel group updates here, now
-// that this is maintained internally by the collision checker
-
 namespace collision_detection {
 
 CollisionWorldSBPL::CollisionWorldSBPL() : CollisionWorld()
 {
-    // TODO: implement
     ROS_INFO("CollisionWorldSBPL()");
     construct();
 }
@@ -55,7 +51,6 @@ CollisionWorldSBPL::CollisionWorldSBPL() : CollisionWorld()
 CollisionWorldSBPL::CollisionWorldSBPL(const WorldPtr& world) :
     CollisionWorld(world)
 {
-    // TODO: implement
     ROS_INFO("CollisionWorldSBPL(const WorldPtr&)");
     construct();
     registerWorldCallback();
@@ -65,17 +60,26 @@ CollisionWorldSBPL::CollisionWorldSBPL(
     const CollisionWorldSBPL& other,
     const WorldPtr& world)
 :
-    CollisionWorld(other, world)
+    CollisionWorld(other, world) // copies over the world
 {
-    // TODO: implement
     ROS_INFO("CollisionWorldSBPL(CollisionWorldSBPL&, const WorldPtr&)");
-    construct();
+
+    m_world_collision_model_config = other.m_world_collision_model_config;
+    m_robot_collision_model_config = other.m_robot_collision_model_config;
+    m_group_to_collision_space = other.m_group_to_collision_space;
+    m_group_to_grid = other.m_group_to_grid;
+    // NOTE: no need to copy observer handle
     registerWorldCallback();
+    // NOTE:no need to copy node handle
+    m_cspace_pub = other.m_cspace_pub;
 }
 
 CollisionWorldSBPL::~CollisionWorldSBPL()
 {
-    ROS_INFO("~CollisionWorldSBPL");
+    const WorldPtr& curr_world = getWorld();
+    if (curr_world) {
+        curr_world->removeObserver(m_observer_handle);
+    }
 }
 
 void CollisionWorldSBPL::checkRobotCollision(
@@ -103,8 +107,6 @@ void CollisionWorldSBPL::checkRobotCollision(
     const robot_state::RobotState& state,
     const AllowedCollisionMatrix& acm) const
 {
-//    ROS_INFO("checkRobotCollision(req, res, robot, state, acm)");
-
     if (checkDegenerateCollision(res)) {
         return;
     }
@@ -166,6 +168,8 @@ void CollisionWorldSBPL::checkWorldCollision(
     }
 
     clearAllCollisions(res);
+
+    // TODO: implement
 }
 
 void CollisionWorldSBPL::checkWorldCollision(
@@ -181,14 +185,16 @@ void CollisionWorldSBPL::checkWorldCollision(
     }
 
     clearAllCollisions(res);
+
+    // TODO: implement
 }
 
 double CollisionWorldSBPL::distanceRobot(
     const CollisionRobot& robot,
     const robot_state::RobotState& state) const
 {
-    ROS_INFO("distanceRobot(robot, state)");
     // TODO: implement
+    ROS_INFO("distanceRobot(robot, state)");
     return -1.0;
 }
 
@@ -197,15 +203,15 @@ double CollisionWorldSBPL::distanceRobot(
     const robot_state::RobotState& state,
     const AllowedCollisionMatrix& acm) const
 {
-    ROS_INFO("distanceRobot(robot, state, acm)");
     // TODO: implement
+    ROS_INFO("distanceRobot(robot, state, acm)");
     return -1.0;
 }
 
 double CollisionWorldSBPL::distanceWorld(const CollisionWorld& world) const
 {
-    ROS_INFO("distanceWorld(world)");
     // TODO: implement
+    ROS_INFO("distanceWorld(world)");
     return -1.0;
 }
 
@@ -213,8 +219,8 @@ double CollisionWorldSBPL::distanceWorld(
     const CollisionWorld& world,
     const AllowedCollisionMatrix& acm) const
 {
-    ROS_INFO("distanceWrold(world, acm)");
     // TODO: implement
+    ROS_INFO("distanceWorld(world, acm)");
     return -1.0;
 }
 
@@ -233,63 +239,83 @@ void CollisionWorldSBPL::setWorld(const WorldPtr& world)
     registerWorldCallback();
 }
 
-bool CollisionWorldSBPL::init(
-    const sbpl_interface::MoveItRobotModel* sbpl_robot_model,
-    const CollisionWorldConfig& collision_world_config,
-    const std::string& urdf_string,
-    const std::string& group_name,
-    const sbpl::collision::CollisionModelConfig& config)
+void CollisionWorldSBPL::construct()
 {
-    ROS_INFO("Initializing Collision World SBPL");
+    ros::NodeHandle nh;
 
-    if (!m_urdf_string.empty()) {
-        ROS_WARN("Collision World SBPL cannot be reinitialized");
-        return false;
+    // load occupancy grid parameters
+    XmlRpc::XmlRpcValue world_collision_model_cfg;
+    if (nh.getParam("world_collision_model", world_collision_model_cfg)) {
+        // TODO: more sophisticated parameter checking
+        m_world_collision_model_config.world_frame = "world"; //scene.getPlanningFrame();
+        m_world_collision_model_config.size_x =
+                world_collision_model_cfg["size_x"];
+        m_world_collision_model_config.size_y =
+                world_collision_model_cfg["size_y"];
+        m_world_collision_model_config.size_z =
+                world_collision_model_cfg["size_z"];
+        m_world_collision_model_config.origin_x =
+                world_collision_model_cfg["origin_x"];
+        m_world_collision_model_config.origin_y =
+                world_collision_model_cfg["origin_y"];
+        m_world_collision_model_config.origin_z =
+                world_collision_model_cfg["origin_z"];
+        m_world_collision_model_config.res_m =
+                world_collision_model_cfg["res_m"];
+        m_world_collision_model_config.max_distance_m =
+                world_collision_model_cfg["max_distance_m"];
+    }
+    else {
+        // TODO: reasonable defaults or just toss out an exception?
+        ROS_ERROR("Failed to retrieve 'collision_world' from the param server");
     }
 
-    WorldPtr curr_world = getWorld();
-    if (!curr_world) {
-        ROS_WARN("Collision World SBPL requires a World before initalization");
-        return false;
+    // load collision model parameters
+    if (!sbpl::collision::CollisionModelConfig::Load(
+            nh, m_robot_collision_model_config))
+    {
+        ROS_ERROR("Failed to load Collision Model Config");
     }
 
-    // create distance field large enough to hold world
-    ROS_INFO("  Computing world bounding box");
-    moveit_msgs::OrientedBoundingBox world_bb = computeWorldAABB(*curr_world);
-    ROS_INFO("  -> Bounding Box:");
-    ROS_INFO("     position: (%0.3f, %0.3f, %0.3f)", world_bb.pose.position.x, world_bb.pose.position.y, world_bb.pose.position.z);
-    ROS_INFO("     extents: (%0.3f, %0.3f, %0.3f)", world_bb.extents.x, world_bb.extents.y, world_bb.extents.z);
+    m_cspace_pub = m_nh.advertise<visualization_msgs::MarkerArray>(
+            "visualization_markers", 100);
+}
 
-    // TODO: being outside the distance field considered valid? it probably
-    // should be since there's no notion of a bounding box in the world. If
-    // boundaries are considered part of the collision checking step, then
-    // they should probably be expressed as part of the workspace message rather
-    // than here
+sbpl::collision::CollisionSpacePtr CollisionWorldSBPL::getCollisionSpace(
+    const moveit::core::RobotModel& robot_model,
+    const std::string& group_name)
+{
+    auto it = m_group_to_collision_space.find(group_name);
+    if (it != m_group_to_collision_space.end()) {
+        return it->second;
+    }
 
-    const double df_max_distance = 0.2; // TODO: dependent on collision model
+    ROS_INFO("Creating Collision Space for group '%s'", group_name.c_str());
 
-    // TODO: pad the bounding box by the max propagation distance?
-    world_bb.extents.x += 2 * df_max_distance;
-    world_bb.extents.y += 2 * df_max_distance;
-    world_bb.extents.z += 2 * df_max_distance;
+    auto urdf = robot_model.getURDF();
+    if (!urdf) {
+        ROS_ERROR("URDF not found in Robot Model");
+        return sbpl::collision::CollisionSpacePtr();
+    }
 
-    m_cspace.reset();
-    m_grid.reset();
-    m_dfield.reset();
+    // TODO: should be dependent on size of the largest sphere in the collision
+    // group model (don't forget about attached objects, way to set this
+    // explicitly on the collision space or the occupancy grid?)
+    const double df_max_distance = 0.2;
 
-    const double df_size_x = collision_world_config.size_x; //world_bb.extents.x;
-    const double df_size_y = collision_world_config.size_y; //world_bb.extents.y;
-    const double df_size_z = collision_world_config.size_z; //world_bb.extents.z;
-    const double df_res_m = collision_world_config.res_m; //0.02; // TODO: non-hardcode
-    const double df_origin_x = collision_world_config.origin_x; //world_bb.pose.position.x;
-    const double df_origin_y = collision_world_config.origin_y; //world_bb.pose.position.y;
-    const double df_origin_z = collision_world_config.origin_z; //world_bb.pose.position.z;
+    const double df_size_x = m_world_collision_model_config.size_x;
+    const double df_size_y = m_world_collision_model_config.size_y;
+    const double df_size_z = m_world_collision_model_config.size_z;
+    const double df_res_m = m_world_collision_model_config.res_m;
+    const double df_origin_x = m_world_collision_model_config.origin_x;
+    const double df_origin_y = m_world_collision_model_config.origin_y;
+    const double df_origin_z = m_world_collision_model_config.origin_z;
 
     ROS_INFO("  Initializing Distance Field");
     ROS_INFO("    size: (%0.3f, %0.3f, %0.3f)", df_size_x, df_size_y, df_size_z);
     ROS_INFO("    origin: (%0.3f, %0.3f, %0.3f)", df_origin_x, df_origin_y, df_origin_z);
 
-    m_dfield = std::make_shared<distance_field::PropagationDistanceField>(
+    auto df = std::make_shared<distance_field::PropagationDistanceField>(
             df_size_x, df_size_y, df_size_z,
             df_res_m,
             df_origin_x, df_origin_y, df_origin_z,
@@ -297,68 +323,78 @@ bool CollisionWorldSBPL::init(
             false);
 
     ROS_INFO("  Constructing Occupancy Grid");
-    m_grid.reset(new sbpl::OccupancyGrid(m_dfield));
-    m_grid->setReferenceFrame(collision_world_config.world_frame);
+
+    // TODO: semi-annoying to have to keep this around, but is it worth the
+    // refactoring to convert all raw pointers to occupancy grids to their
+    // shared variants?
+    auto grid = std::make_shared<sbpl::OccupancyGrid>(df);
+
+    grid->setReferenceFrame(m_world_collision_model_config.world_frame);
+
     ROS_INFO("  Constructing Collision Space");
-    m_cspace.reset(new sbpl::collision::CollisionSpace(m_grid.get()));
+    auto cspace = std::make_shared<sbpl::collision::CollisionSpace>(
+            grid.get());
+
+    // we're just going to send off all robot state variables to isStateValid
+    // calls since there isn't a notion of planning variables here and the
+    // collision model should be maintaining state for all these joint variables
+    const auto& checked_variables = robot_model.getVariableNames();
 
     ROS_INFO("  Initializing Collision Space");
-    if (!m_cspace->init(
-            urdf_string,
+    if (!cspace->init(
+            *urdf,
             group_name,
-            config,
-            sbpl_robot_model->planningVariableNames()))
+            m_robot_collision_model_config,
+            checked_variables))
     {
         ROS_ERROR("  Failed to initialize collision space");
-        // reset data structures from above
-        m_cspace.reset();
-        m_grid.reset();
-        m_dfield.reset();
-        return false;
+        return sbpl::collision::CollisionSpacePtr();
     }
 
     ROS_INFO("  Successfully initialized collision space");
 
-    // Save these parameters for reinitialization if the world changes.
-    // NOTE: must cache these parameters before adding the world to the
-    // collision space
-    m_sbpl_robot_model = sbpl_robot_model;
-    m_urdf_string = urdf_string;
-    m_group_name = group_name;
-    m_cm_config = config;
-    m_cw_config = collision_world_config;
-
     ROS_INFO("  Adding world to collision space");
-    addWorldToCollisionSpace(*curr_world);
+    WorldPtr curr_world = getWorld();
+    if (curr_world) {
+        // TODO: originally the intention was to automatically determine the
+        // distance field boundaries inherited from the world bounding box.
+        // Currently this doesn't seem like the thing to do anymore, since the
+        // distance field extents are also considered boundaries for collision
+        // checking. Warrants review, since the workspace boundaries in the
+        // planning request seem like the proper way to express boundaries for
+        // the robot
+        ROS_INFO("  Computing world bounding box");
+        moveit_msgs::OrientedBoundingBox world_bb = computeWorldAABB(*curr_world);
+        ROS_INFO("  -> Bounding Box:");
+        ROS_INFO("     position: (%0.3f, %0.3f, %0.3f)", world_bb.pose.position.x, world_bb.pose.position.y, world_bb.pose.position.z);
+        ROS_INFO("     extents: (%0.3f, %0.3f, %0.3f)", world_bb.extents.x, world_bb.extents.y, world_bb.extents.z);
+
+        addWorldToCollisionSpace(*curr_world, *cspace);
+    }
     ROS_INFO("  Added world to collision space");
 
     // publish collision world visualizations
     ROS_INFO("Publishing visualization of bounding box");
     visualization_msgs::MarkerArray markers;
-    markers = m_cspace->getBoundingBoxVisualization();
+    markers = cspace->getBoundingBoxVisualization();
     m_cspace_pub.publish(markers);
 
-    return true;
-}
+    m_group_to_grid[group_name] = grid;
+    m_group_to_collision_space[group_name] = cspace;
 
-void CollisionWorldSBPL::construct()
-{
-    m_sbpl_robot_model = nullptr;
-    m_cspace_pub = m_nh.advertise<visualization_msgs::MarkerArray>(
-            "visualization_markers", 5);
-}
-
-bool CollisionWorldSBPL::initialized() const
-{
-    // if no world, collisions are vacuously empty, otherwise initialization is
-    // required to determine collisions
-    return (!getWorld() || m_cspace);
+    return cspace;
 }
 
 const distance_field::PropagationDistanceField*
-CollisionWorldSBPL::distanceField() const
+CollisionWorldSBPL::distanceField(const std::string& group_name) const
 {
-    return m_dfield.get();
+    auto it = m_group_to_grid.find(group_name);
+    if (it == m_group_to_grid.end()) {
+        return nullptr;
+    }
+    else {
+        return it->second->getDistanceField().get();
+    }
 }
 
 void CollisionWorldSBPL::registerWorldCallback()
@@ -404,12 +440,6 @@ void CollisionWorldSBPL::worldUpdate(
 
 bool CollisionWorldSBPL::checkDegenerateCollision(CollisionResult& res) const
 {
-    if (!initialized()) {
-        ROS_ERROR_ONCE("Degenerate Collision: Uninitialized Collision World SBPL");
-        setVacuousCollision(res);
-        return true;
-    }
-
     if (!getWorld()) {
         ROS_ERROR_ONCE("Degenerate Collision: No World");
         clearAllCollisions(res);
@@ -500,78 +530,14 @@ bool CollisionWorldSBPL::emptyBoundingBox(
     return bb.extents.x == 0.0 && bb.extents.y == 0.0 && bb.extents.z == 0.0;
 }
 
-void CollisionWorldSBPL::addWorldToCollisionSpace(const World& world)
+void CollisionWorldSBPL::addWorldToCollisionSpace(
+    const World& world,
+    sbpl::collision::CollisionSpace& cspace)
 {
     for (auto oit = world.begin(); oit != world.end(); ++oit) {
         ROS_DEBUG("Adding object '%s' to the configuration space", oit->first.c_str());
         assert(oit->second.get());
-        m_cspace->insertObject(oit->second);
-    }
-}
-
-void CollisionWorldSBPL::updateCollisionSpaceJointState(
-    const moveit::core::RobotState& state)
-{
-    // first update => need to update everything
-    if (m_updated_joint_variables.size() != state.getVariableCount()) {
-        ROS_INFO("Initializing collision space joint state");
-
-        m_updated_joint_variables.resize(state.getVariableCount());
-        m_is_planning_variable.resize(state.getVariableCount());
-        for (size_t vind = 0; vind < state.getVariableCount(); ++vind) {
-            const std::string& variable_name = state.getVariableNames()[vind];
-            double variable_position = state.getVariablePositions()[vind];
-
-            // sync the joint variable
-            ROS_DEBUG("Syncing joint variable '%s'", variable_name.c_str());
-            m_cspace->setJointPosition(variable_name, variable_position);
-            m_updated_joint_variables[vind] = variable_position;
-
-            // cache planning variables
-            m_is_planning_variable[vind] = std::find(
-                    m_sbpl_robot_model->planningVariableNames().begin(),
-                    m_sbpl_robot_model->planningVariableNames().end(),
-                    variable_name) != m_sbpl_robot_model->planningVariableNames().end();
-        }
-
-//        m_cspace->updateVoxelGroups();
-
-        ROS_INFO("Publishing visualization of occupied_voxels");
-        visualization_msgs::MarkerArray markers;
-        markers = m_cspace->getOccupiedVoxelsVisualization();
-        m_cspace_pub.publish(markers);
-
-        ros::Duration(1.0).sleep();
-
-        ROS_INFO("Collision space joint state initialized");
-        return;
-    }
-
-    // successive updates => update what has changed
-
-    assert(m_updated_joint_variables.size() == state.getVariableCount());
-    bool voxel_group_changed = false;
-    for (size_t vind = 0; vind < state.getVariableCount(); ++vind) {
-        double variable_position = state.getVariablePositions()[vind];
-        if (m_updated_joint_variables[vind] != variable_position) {
-            const std::string& variable_name = state.getVariableNames()[vind];
-            m_cspace->setJointPosition(variable_name, variable_position);
-
-            // non planning variable has changed => maybe update voxel groups?
-            if (!m_is_planning_variable[vind]) {
-                voxel_group_changed = true;
-            }
-
-            m_updated_joint_variables[vind] = variable_position;
-        }
-    }
-
-    if (voxel_group_changed) {
-        ROS_INFO("Voxel groups may have changed!");
-//        m_cspace->updateVoxelGroups();
-        visualization_msgs::MarkerArray markers;
-        markers = m_cspace->getOccupiedVoxelsVisualization();
-        m_cspace_pub.publish(markers);
+        cspace.insertObject(oit->second);
     }
 }
 
@@ -581,6 +547,7 @@ void CollisionWorldSBPL::checkRobotCollisionMutable(
     const CollisionRobot& robot,
     const robot_state::RobotState& state)
 {
+    // TODO: implement
     ROS_ERROR("checkRobotCollision(req, res, robot, state)");
 }
 
@@ -591,14 +558,24 @@ void CollisionWorldSBPL::checkRobotCollisionMutable(
     const robot_state::RobotState& state,
     const AllowedCollisionMatrix& acm)
 {
-    updateCollisionSpaceJointState(state);
+    auto cspace = getCollisionSpace(*state.getRobotModel(), req.group_name);
+    if (!cspace) {
+        ROS_ERROR("Failed to get Collision Space for group '%s'", req.group_name.c_str());
+        setVacuousCollision(res);
+        return;
+    }
 
-    std::vector<double> pvars = extractPlanningVariables(state);
+    std::vector<double> vars(
+            state.getVariablePositions(),
+            state.getVariablePositions() + state.getVariableCount());
 
     double dist;
-    bool check_res = m_cspace->isStateValid(pvars, req.verbose, req.verbose, dist);
-    if (req.verbose) {
-        auto markers = m_cspace->getCollisionModelVisualization(pvars);
+    const bool verbose = req.verbose;
+    const bool visualize = true; //req.verbose;
+    bool check_res = cspace->isStateValid(vars, verbose, visualize, dist);
+    if (visualize) {
+//        auto markers = cspace->getCollisionModelVisualization(vars);
+        auto markers = cspace->getVisualization("collision_model");
         m_cspace_pub.publish(markers);
     }
 
@@ -607,10 +584,10 @@ void CollisionWorldSBPL::checkRobotCollisionMutable(
         res.distance = dist;
     }
     if (req.cost) {
-        ROS_ERROR("Cost sources not computed by sbpl collision checker");
+        ROS_WARN_ONCE("Cost sources not computed by sbpl collision checker");
     }
     if (req.contacts) {
-        ROS_ERROR("Contacts not computed by sbpl collision checker");
+        ROS_WARN_ONCE("Contacts not computed by sbpl collision checker");
     }
 }
 
@@ -621,6 +598,7 @@ void CollisionWorldSBPL::checkRobotCollisionMutable(
     const robot_state::RobotState& state1,
     const robot_state::RobotState& state2)
 {
+    // TODO: implement
     ROS_ERROR("checkRobotCollision(req, res, robot, state1, state2)");
 }
 
@@ -632,20 +610,8 @@ void CollisionWorldSBPL::checkRobotCollisionMutable(
     const robot_state::RobotState& state2,
     const AllowedCollisionMatrix& acm)
 {
+    // TODO: implement
     ROS_ERROR("checkRobotCollision(req, res, robot, state1, state2, acm)");
-}
-
-std::vector<double> CollisionWorldSBPL::extractPlanningVariables(
-    const moveit::core::RobotState& state) const
-{
-    assert(m_sbpl_robot_model);
-    int av_count = m_sbpl_robot_model->activeVariableCount();
-    std::vector<double> pvars(av_count);
-    for (int avind = 0; avind < av_count; ++avind) {
-        int vind = m_sbpl_robot_model->activeVariableIndices()[avind];
-        pvars[avind] = state.getVariablePositions()[vind];
-    }
-    return pvars;
 }
 
 void CollisionWorldSBPL::processWorldUpdateUninitialized(
@@ -657,36 +623,41 @@ void CollisionWorldSBPL::processWorldUpdateUninitialized(
 void CollisionWorldSBPL::processWorldUpdateCreate(
     const World::ObjectConstPtr& object)
 {
-    if (!m_cspace) {
-        ROS_ERROR("Collision Space has not been initialized");
-        return;
+    for (const auto& entry : m_group_to_collision_space) {
+        entry.second->insertObject(object);
     }
-
-    m_cspace->insertObject(object);
 }
 
 void CollisionWorldSBPL::processWorldUpdateDestroy(
     const World::ObjectConstPtr& object)
 {
-    m_cspace->removeObject(object);
+    for (const auto& entry : m_group_to_collision_space) {
+        entry.second->removeObject(object);
+    }
 }
 
 void CollisionWorldSBPL::processWorldUpdateMoveShape(
     const World::ObjectConstPtr& object)
 {
-    m_cspace->moveShapes(object);
+    for (const auto& entry : m_group_to_collision_space) {
+        entry.second->moveShapes(object);
+    }
 }
 
 void CollisionWorldSBPL::processWorldUpdateAddShape(
     const World::ObjectConstPtr& object)
 {
-    m_cspace->insertShapes(object);
+    for (const auto& entry : m_group_to_collision_space) {
+        entry.second->insertShapes(object);
+    }
 }
 
 void CollisionWorldSBPL::processWorldUpdateRemoveShape(
     const World::ObjectConstPtr& object)
 {
-    m_cspace->removeShapes(object);
+    for (const auto& entry : m_group_to_collision_space) {
+        entry.second->removeShapes(object);
+    }
 }
 
 bool CollisionWorldSBPL::worldObjectToCollisionObjectMsgFull(
@@ -699,7 +670,7 @@ bool CollisionWorldSBPL::worldObjectToCollisionObjectMsgFull(
 
     // TODO: safe to assume that the world frame will always be the world
     // frame or should we try to transform things here somehow
-    obj_msg.header.frame_id = m_cw_config.world_frame;
+    obj_msg.header.frame_id = m_world_collision_model_config.world_frame;
 
     obj_msg.id = object.id_;
 
@@ -815,7 +786,7 @@ bool CollisionWorldSBPL::worldObjectToCollisionObjectMsgName(
 {
     moveit_msgs::CollisionObject obj_msg;
     obj_msg.header.stamp = ros::Time(0);
-    obj_msg.header.frame_id = m_cw_config.world_frame;
+    obj_msg.header.frame_id = m_world_collision_model_config.world_frame;
     obj_msg.id = object.id_;
     collision_object = std::move(obj_msg);
     return true;
