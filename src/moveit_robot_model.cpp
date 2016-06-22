@@ -410,7 +410,7 @@ bool MoveItRobotModel::computeIK(
     switch (option) {
     case sbpl::manip::ik_option::UNRESTRICTED:
         return computeUnrestrictedIK(pose, start, solution);
-    case sbpl::manip::ik_option::RESTRICT_XYZ_JOINTS:
+    case sbpl::manip::ik_option::RESTRICT_XYZ:
         return computeWristIK(pose, start, solution);
     }
 
