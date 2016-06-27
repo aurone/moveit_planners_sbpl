@@ -151,9 +151,21 @@ bool MoveItRobotModel::init(
     if (m_joint_group->isChain()) {
         std::vector<const moveit::core::LinkModel*> tips;
         m_joint_group->getEndEffectorTips(tips);
-        if (!tips.empty()) {
-            m_tip_link = tips.front();
-            setPlanningLink(m_tip_link->getName());
+        for (const moveit::core::LinkModel* tip : tips) {
+            if (m_joint_group->canSetStateFromIK(tip->getName())) {
+                m_tip_link = tip;
+                setPlanningLink(tip->getName());
+                break;
+            }
+        }
+
+        if (!m_tip_link) {
+            if (tips.empty()) {
+                ROS_WARN_ONCE("No end effector tip link present");
+            }
+            else {
+                ROS_WARN_ONCE("Cannot set state from ik with respect to any available end effector tip links");
+            }
         }
     }
 
