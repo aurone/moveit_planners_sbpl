@@ -173,8 +173,7 @@ bool MoveGroupCommandModel::loadRobot(const std::string& robot_description)
     m_robot_state.reset(new moveit::core::RobotState(robotModel()));
 
     m_robot_state->setToDefaultValues();
-    m_robot_state->updateLinkTransforms();
-    m_robot_state->updateCollisionBodyTransforms();
+    m_robot_state->update();
 
     if (!robotModel()->hasJointModelGroup(m_curr_joint_group_name)) {
         if (!robotModel()->getJointModelGroupNames().empty()) {
@@ -223,6 +222,7 @@ moveit::core::RobotModelConstPtr MoveGroupCommandModel::robotModel() const
 
 moveit::core::RobotStateConstPtr MoveGroupCommandModel::robotState() const
 {
+    m_robot_state->update();
     return m_robot_state;
 }
 
@@ -634,7 +634,7 @@ void MoveGroupCommandModel::setJointVariable(int jidx, double value)
             return;
         }
 
-        m_robot_state->updateLinkTransforms();
+        m_robot_state->update();
         updateInteractiveMarkers();
 
         updateRobotStateValidity();
@@ -666,7 +666,7 @@ void MoveGroupCommandModel::setJointVariable(
             return;
         }
 
-        m_robot_state->updateLinkTransforms();
+        m_robot_state->update();
         updateInteractiveMarkers();
 
         updateRobotStateValidity();
@@ -1490,7 +1490,7 @@ void MoveGroupCommandModel::processInteractiveMarkerFeedback(
         if (!m_robot_state->setFromIK(jg, msg->pose)) {
             // TODO: anything special here?
         }
-        m_robot_state->updateLinkTransforms();
+        m_robot_state->update();
         updateInteractiveMarkers();
         Q_EMIT robotStateChanged();
     }   break;
@@ -1513,7 +1513,7 @@ void MoveGroupCommandModel::processSceneUpdate(
     }   break;
     case planning_scene_monitor::PlanningSceneMonitor::UPDATE_STATE:
     {
-        ROS_INFO("Planning Scene Update (State)");
+        ROS_DEBUG("Planning Scene Update (State)");
         updateAvailableFrames();
     }   break;
     case planning_scene_monitor::PlanningSceneMonitor::UPDATE_TRANSFORMS:
