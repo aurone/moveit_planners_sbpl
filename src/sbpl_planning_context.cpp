@@ -532,7 +532,6 @@ bool SBPLPlanningContext::initSBPL(std::string& why)
     }
 
     params.planning_frame_ = m_robot_model->planningFrame();
-    params.group_name_ = m_robot_model->planningGroupName();
     params.num_joints_ = m_robot_model->activeVariableCount();
     params.planning_joints_ = m_robot_model->planningVariableNames();
     params.coord_vals_ = discretization;
