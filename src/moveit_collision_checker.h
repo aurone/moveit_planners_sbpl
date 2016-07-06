@@ -54,7 +54,7 @@ public:
     ~MoveItCollisionChecker();
 
     bool init(
-        const MoveItRobotModel* robot_model,
+        MoveItRobotModel* robot_model,
         const moveit::core::RobotState& ref_state,
         const planning_scene::PlanningSceneConstPtr& scene);
 
@@ -75,8 +75,8 @@ public:
 
     bool interpolatePath(
         const std::vector<double>& start,
-        const std::vector<double>& end,
-        std::vector<std::vector<double>>& path);
+        const std::vector<double>& finish,
+        std::vector<std::vector<double>>& opath);
 
     visualization_msgs::MarkerArray getCollisionModelVisualization(
         const std::vector<double>& angles);
@@ -85,7 +85,7 @@ public:
 
 private:
 
-    const MoveItRobotModel* m_robot_model;
+    MoveItRobotModel* m_robot_model;
 
     planning_scene::PlanningSceneConstPtr m_scene;
 

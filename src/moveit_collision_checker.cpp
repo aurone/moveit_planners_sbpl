@@ -40,7 +40,7 @@
 #include <leatherman/print.h>
 #include <ros/console.h>
 #include <ros/ros.h>
-#include <sbpl_geometry_utils/interpolation.h>
+#include <sbpl_geometry_utils/utils.h>
 
 #include <moveit_planners_sbpl/moveit_robot_model.h>
 
@@ -61,7 +61,7 @@ MoveItCollisionChecker::~MoveItCollisionChecker()
 }
 
 bool MoveItCollisionChecker::init(
-    const MoveItRobotModel* robot_model,
+    MoveItRobotModel* robot_model,
     const moveit::core::RobotState& ref_state,
     const planning_scene::PlanningSceneConstPtr& scene)
 {
@@ -199,17 +199,62 @@ bool MoveItCollisionChecker::isStateToStateValid(
 
 bool MoveItCollisionChecker::interpolatePath(
     const std::vector<double>& start,
-    const std::vector<double>& end,
-    std::vector<std::vector<double>>& path)
+    const std::vector<double>& finish,
+    std::vector<std::vector<double>>& opath)
 {
-    return sbpl::interp::InterpolatePath(
-            start,
-            end,
-            m_robot_model->variableMinLimits(),
-            m_robot_model->variableMaxLimits(),
-            m_robot_model->variableIncrements(),
-            m_robot_model->variableContinuous(),
-            path);
+    assert(start.size() == m_robot_model->activeVariableCount() &&
+            finish.size() == m_robot_model->activeVariableCount());
+
+    // check joint limits on the start and finish points
+    if (!(m_robot_model->checkJointLimits(start) &&
+            m_robot_model->checkJointLimits(finish)))
+    {
+        ROS_ERROR("Joint limits violated");
+        return false;
+    }
+
+    // compute distance traveled by each joint
+    std::vector<double> diffs(m_robot_model->activeVariableCount(), 0.0);
+    for (size_t vidx = 0; vidx < m_robot_model->activeVariableCount(); ++vidx) {
+        if (m_robot_model->variableContinuous()[vidx]) {
+            diffs[vidx] = sbpl::angles::ShortestAngleDiff(finish[vidx], start[vidx]);
+        }
+        else {
+            diffs[vidx] = finish[vidx] - start[vidx];
+        }
+    }
+
+    // compute the number of intermediate waypoints including start and end
+    int waypoint_count = 0;
+    for (size_t vidx = 0; vidx < m_robot_model->activeVariableCount(); vidx++) {
+        int angle_waypoints = (int)(std::fabs(diffs[vidx]) / m_robot_model->variableIncrements()[vidx]) + 1;
+        waypoint_count = std::max(waypoint_count, angle_waypoints);
+    }
+    waypoint_count = std::max(waypoint_count, 2);
+
+    // fill intermediate waypoints
+    std::vector<std::vector<double>> path(
+            waypoint_count,
+            std::vector<double>(m_robot_model->activeVariableCount(), 0.0));
+    for (size_t vidx = 0; vidx < m_robot_model->activeVariableCount(); ++vidx) {
+        for (size_t widx = 0; widx < waypoint_count; ++widx) {
+            double alpha = (double)widx / (double)(waypoint_count - 1);
+            double pos = start[vidx] + alpha * diffs[vidx];
+            path[widx][vidx] = pos;
+        }
+    }
+
+    // normalize output angles
+    for (size_t vidx = 0; vidx < m_robot_model->activeVariableCount(); ++vidx) {
+        if (m_robot_model->variableContinuous()[vidx]) {
+            for (size_t widx = 0; widx < waypoint_count; ++widx) {
+                path[widx][vidx] = sbpl::angles::NormalizeAngle(path[widx][vidx]);
+            }
+        }
+    }
+
+    opath = std::move(path);
+    return true;
 }
 
 visualization_msgs::MarkerArray
