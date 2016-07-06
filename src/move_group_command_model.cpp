@@ -1156,7 +1156,7 @@ bool MoveGroupCommandModel::fillGoalConstraints(
     const std::string& tip_link = solver->getTipFrames().front();
     ROS_INFO("Planning for pose of tip link '%s' of kinematic chain", tip_link.c_str());
 
-    const Eigen::Vector3d target_offset(0.535, 0.0, 0.13);
+    const Eigen::Vector3d target_offset(0.0, 0.0, 0.0);
     const Eigen::Affine3d& T_model_tip =
             m_robot_state->getGlobalLinkTransform(tip_link);
     const Eigen::Affine3d& T_model_tgtoff =
