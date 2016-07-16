@@ -7,6 +7,7 @@
 
 // system includes
 #include <eigen_conversions/eigen_msg.h>
+#include <leatherman/print.h>
 #include <moveit/robot_state/conversions.h>
 #include <moveit_msgs/GetStateValidity.h>
 #include <moveit_msgs/PlanningSceneWorld.h>
@@ -836,7 +837,7 @@ void MoveGroupCommandModel::logRobotModelInfo(
             }
         }
         ROS_INFO("  Tip Links:");
-        for (const std::string& tip : getTipLinks(*jmg)) {
+        for (const std::string& tip : getTipLinkNames(*jmg)) {
             ROS_INFO("    %s", tip.c_str());
         }
 
@@ -912,12 +913,12 @@ void MoveGroupCommandModel::reinitInteractiveMarkers()
         return;
     }
 
-    std::vector<const moveit::core::LinkModel*> tips;
-    if (!jg->getEndEffectorTips(tips)) {
-        ROS_ERROR("Failed to retrieve end effector tips for joint group '%s'", m_curr_joint_group_name.c_str());
-        m_im_server.applyChanges();
-        return;
-    }
+    std::vector<const moveit::core::LinkModel*> tips = getTipLinks(*jg);
+//    if (!jg->getTipLinks(tips)) {
+//        ROS_ERROR("Failed to retrieve end effector tips for joint group '%s'", m_curr_joint_group_name.c_str());
+//        m_im_server.applyChanges();
+//        return;
+//    }
 
     for (const moveit::core::LinkModel* tip_link : tips) {
         ROS_INFO("Adding interactive marker for controlling pose of link %s", tip_link->getName().c_str());
@@ -1443,13 +1444,25 @@ bool MoveGroupCommandModel::getActualState(
     return true;
 }
 
-std::vector<std::string> MoveGroupCommandModel::getTipLinks(
+std::vector<std::string> MoveGroupCommandModel::getTipLinkNames(
     const moveit::core::JointModelGroup& jmg) const
 {
     std::vector<std::string> tips;
+    std::vector<const moveit::core::LinkModel*> link_tips =
+            getTipLinks(jmg);
+    for (const moveit::core::LinkModel* link : link_tips) {
+        tips.push_back(link->getName());
+    }
+    return tips;
+}
+
+std::vector<const moveit::core::LinkModel*>
+MoveGroupCommandModel::getTipLinks(
+    const moveit::core::JointModelGroup& jmg) const
+{
+    std::vector<const moveit::core::LinkModel*> tips;
     for (const moveit::core::JointModel* jm : jmg.getJointRoots()) {
-        std::string tip;
-        getTipLinks(jmg, *jm->getParentLinkModel(), tip, tips);
+        getTipLinks(jmg, *jm->getParentLinkModel(), tips);
     }
     return tips;
 }
@@ -1457,13 +1470,9 @@ std::vector<std::string> MoveGroupCommandModel::getTipLinks(
 void MoveGroupCommandModel::getTipLinks(
     const moveit::core::JointModelGroup& jmg,
     const moveit::core::LinkModel& link,
-    std::string& tip,
-    std::vector<std::string>& tips) const
+    std::vector<const moveit::core::LinkModel*>& tips) const
 {
-    if (jmg.canSetStateFromIK(link.getName())) {
-        tip = link.getName();
-    }
-
+    // get child links that are part of this group
     std::vector<const moveit::core::LinkModel*> child_links;
     for (const moveit::core::JointModel* cjm : link.getChildJointModels()) {
         if (jmg.hasJointModel(cjm->getName())) {
@@ -1471,13 +1480,12 @@ void MoveGroupCommandModel::getTipLinks(
         }
     }
 
-    if (child_links.empty()) {
-        tips.push_back(tip);
+    if (child_links.empty() && jmg.canSetStateFromIK(link.getName())) {
+        tips.push_back(&link);
     }
 
     for (const moveit::core::LinkModel* clm : child_links) {
-        std::string ctip;
-        getTipLinks(jmg, *clm, ctip, tips);
+        getTipLinks(jmg, *clm, tips);
     }
 }
 

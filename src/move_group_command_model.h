@@ -242,14 +242,17 @@ private:
     // is not modified if the current state is not available.
     bool getActualState(moveit::core::RobotState& robot_state) const;
 
+    // get all leaf links from which we can set the group state via ik
     std::vector<std::string>
+    getTipLinkNames(const moveit::core::JointModelGroup& jmg) const;
+
+    std::vector<const moveit::core::LinkModel*>
     getTipLinks(const moveit::core::JointModelGroup& jmg) const;
 
     void getTipLinks(
         const moveit::core::JointModelGroup& jmg,
         const moveit::core::LinkModel& link,
-        std::string& tip,
-        std::vector<std::string>& tips) const;
+        std::vector<const moveit::core::LinkModel*>& tips) const;
 
     void processInteractiveMarkerFeedback(
         const visualization_msgs::InteractiveMarkerFeedbackConstPtr& msg);
