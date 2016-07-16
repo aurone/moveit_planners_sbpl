@@ -839,6 +839,21 @@ void MoveGroupCommandModel::logRobotModelInfo(
         for (const std::string& tip : getTipLinks(*jmg)) {
             ROS_INFO("    %s", tip.c_str());
         }
+
+        auto solver = jmg->getSolverInstance();
+        if (solver) {
+            ROS_INFO("  Kinematics Solver:");
+            ROS_INFO("    Base Frame: %s", solver->getBaseFrame().c_str());
+            ROS_INFO("    Default Timeout: %0.3f", solver->getDefaultTimeout());
+            ROS_INFO("    Group Name: %s", solver->getGroupName().c_str());
+            ROS_INFO("    Joint Names: %s", to_string(solver->getJointNames()).c_str());
+            ROS_INFO("    getLinkNames: %s", to_string(solver->getLinkNames()).c_str());
+            std::vector<unsigned int> redundant_jinds;
+            solver->getRedundantJoints(redundant_jinds);
+            ROS_INFO("    Redundant Joint Indices: %s", to_string(redundant_jinds).c_str());
+            ROS_INFO("    Search Discretization: %0.3f", solver->getSearchDiscretization());
+            ROS_INFO("    Tip Frames: %s", to_string(solver->getTipFrames()).c_str());
+        }
     }
 
     ROS_INFO("--- Joint Variables ---");
