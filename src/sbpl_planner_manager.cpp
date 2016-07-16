@@ -126,32 +126,6 @@ planning_interface::PlanningContextPtr SBPLPlannerManager::getPlanningContext(
 
     // get the planner configuration for this group
     const auto& pcs = getPlannerConfigurations().find(req.group_name)->second;
-    auto pit = pcs.config.find("use_sbpl_collision_checking");
-    bool use_sbpl_cc = false;
-    if (pit == pcs.config.end()) {
-        ROS_WARN("No configuration found for parameter 'use_sbpl_collision_checking'. Using default collision checking");
-    }
-    else {
-        use_sbpl_cc = (pit->second == "true");
-    }
-
-    ///////////////////////////////////////////////
-    // Setup collision checking on Planning Scene
-    ///////////////////////////////////////////////
-
-    // set the correct collision checker
-    if (use_sbpl_cc) {
-        ROS_INFO("Using SBPL collision checker");
-        if (!mutable_me->selectCollisionCheckerSBPL(
-                *diff_scene, sbpl_model, req.group_name))
-        {
-            ROS_WARN("No Collision Checker available for group '%s'", req.group_name.c_str());
-            return context;
-        }
-    }
-    else {
-        ROS_DEBUG("Using default collision checker");
-    }
 
     ///////////////////////////////////////////
     // Initialize a new SBPL Planning Context
@@ -485,7 +459,6 @@ bool SBPLPlannerManager::loadPlannerConfigurationMapping(
     const bool DefaultDiscretization = 2.0 * M_PI / 360.0;
 
     const char* known_group_param_names[] = {
-        "use_sbpl_collision_checking",
         "discretization",
         "mprim_filename",
         "use_xyz_snap_mprim",
@@ -798,56 +771,6 @@ MoveItRobotModel* SBPLPlannerManager::getModelForGroup(
         ROS_DEBUG("Using existing SBPL Robot Model for group '%s'", group_name.c_str());
         return &it->second;
     }
-}
-
-bool SBPLPlannerManager::selectCollisionCheckerSBPL(
-    planning_scene::PlanningScene& scene,
-    const MoveItRobotModel* sbpl_robot_model,
-    const std::string& group_name)
-{
-    auto it = m_cc_allocators.find(group_name);
-    if (it != m_cc_allocators.end()) {
-        // use pre-existing collision detector for this group
-        ROS_INFO("Using existing collision checker for group '%s'", group_name.c_str());
-        scene.setActiveCollisionDetector(it->second, true);
-        return initializeCollisionWorld(scene, sbpl_robot_model, group_name);
-    }
-    else {
-        // create a new collision detector for this group
-        ROS_INFO("Creating new Collision Checker for group '%s'", group_name.c_str());
-        auto cc = collision_detection::CollisionDetectorAllocatorSBPL::create();
-        scene.setActiveCollisionDetector(cc, true);
-        if (initializeCollisionWorld(scene, sbpl_robot_model, group_name)) {
-            auto ent = m_cc_allocators.insert(std::make_pair(group_name, cc));
-            assert(ent.second);
-            return true;
-        }
-        else {
-            return false;
-        }
-    }
-}
-
-bool SBPLPlannerManager::initializeCollisionWorld(
-    planning_scene::PlanningScene& scene,
-    const MoveItRobotModel* sbpl_robot_model,
-    const std::string& group_name)
-{
-    // initialize the collision world (assumed to now be the sbpl collision
-    // world)
-    collision_detection::CollisionWorldConstPtr cworld =
-            scene.getCollisionWorld();
-
-    const collision_detection::CollisionWorldSBPL* sbpl_cworld =
-            dynamic_cast<const collision_detection::CollisionWorldSBPL*>(
-                    cworld.get());
-
-    if (!sbpl_cworld) {
-        ROS_ERROR("Collision World is not a Collision World SBPL");
-        return false;
-    }
-
-    return true;
 }
 
 } // namespace sbpl_interface

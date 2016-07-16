@@ -56,8 +56,6 @@ private:
     moveit::core::RobotModelConstPtr m_robot_model;
     std::string m_ns;
 
-    bool m_use_sbpl_cc;
-
     // per-group sbpl robot model
     std::map<std::string, MoveItRobotModel> m_sbpl_models;
 
@@ -87,16 +85,6 @@ private:
 
     // retrive an already-initialized model for a given group
     MoveItRobotModel* getModelForGroup(const std::string& group_name);
-
-    bool selectCollisionCheckerSBPL(
-        planning_scene::PlanningScene& scene,
-        const MoveItRobotModel* sbpl_robot_model,
-        const std::string& group_name);
-
-    bool initializeCollisionWorld(
-        planning_scene::PlanningScene& scene,
-        const MoveItRobotModel* sbpl_robot_model,
-        const std::string& group_name);
 };
 
 MOVEIT_CLASS_FORWARD(SBPLPlannerManager);
