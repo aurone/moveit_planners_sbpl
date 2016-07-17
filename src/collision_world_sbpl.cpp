@@ -69,12 +69,17 @@ CollisionWorldSBPL::CollisionWorldSBPL(
 
     m_world_collision_model_config = other.m_world_collision_model_config;
     m_robot_collision_model_config = other.m_robot_collision_model_config;
-    m_group_to_collision_space = other.m_group_to_collision_space;
-    m_group_to_grid = other.m_group_to_grid;
+    m_group_models = other.m_group_models;
     // NOTE: no need to copy observer handle
     registerWorldCallback();
     // NOTE: no need to copy node handle
     m_cspace_pub = other.m_cspace_pub;
+
+    m_robot_initialized = other.m_robot_initialized;
+    m_robot_variable_names = other.m_robot_variable_names;
+    m_robot_variable_indices = other.m_robot_variable_indices;
+    m_are_robot_variables_contiguous = other.m_are_robot_variables_contiguous;
+    m_robot_variables_offset = other.m_robot_variables_offset;
 }
 
 CollisionWorldSBPL::~CollisionWorldSBPL()
@@ -302,15 +307,93 @@ void CollisionWorldSBPL::construct()
 
     m_cspace_pub = m_nh.advertise<visualization_msgs::MarkerArray>(
             "visualization_markers", 100);
+
+    m_robot_initialized = false;
+}
+
+std::vector<double> CollisionWorldSBPL::getCheckedVariables(
+    const moveit::core::RobotState& state) const
+{
+    if (m_are_robot_variables_contiguous) {
+        return std::vector<double>(
+                state.getVariablePositions() + m_robot_variables_offset,
+                state.getVariablePositions() + m_robot_variables_offset + m_robot_variable_names.size());
+    }
+    else {
+        std::vector<double> vars;
+        for (size_t i = 0; i < m_robot_variable_indices.size(); ++i) {
+            vars.push_back(state.getVariablePosition(m_robot_variable_indices[i]));
+        }
+        return vars;
+    }
+}
+
+bool CollisionWorldSBPL::getRobotVariableNames(
+    const moveit::core::RobotModel& model,
+    std::vector<std::string>& var_names,
+    std::vector<int>& var_indices) const
+{
+    // traverse the robot kinematic structure to gather all the joint variables
+    const moveit::core::LinkModel* root_link = model.getRootLink();
+    if (!root_link) {
+        return false;
+    }
+
+    // get all descendant joint models
+    std::vector<const moveit::core::JointModel*> robot_joint_models;
+    for (auto joint_model : root_link->getChildJointModels()) {
+        robot_joint_models.insert(
+                robot_joint_models.end(),
+                joint_model->getDescendantJointModels().begin(),
+                joint_model->getDescendantJointModels().end());
+    }
+    robot_joint_models.insert(
+            robot_joint_models.end(),
+            root_link->getChildJointModels().begin(),
+            root_link->getChildJointModels().end());
+
+    // aggregate all variable names
+    std::vector<std::string> variable_names;
+    for (auto joint_model : robot_joint_models) {
+        variable_names.insert(
+                variable_names.end(),
+                joint_model->getVariableNames().begin(),
+                joint_model->getVariableNames().end());
+    }
+
+    // sort by their order in the robot model variable vector
+    std::sort(variable_names.begin(), variable_names.end(),
+            [&](const std::string& var_a, const std::string& var_b)
+            {
+                size_t va_idx = std::distance(
+                        model.getVariableNames().begin(),
+                        std::find(model.getVariableNames().begin(), model.getVariableNames().end(), var_a));
+                size_t vb_idx = std::distance(
+                        model.getVariableNames().begin(),
+                        std::find(model.getVariableNames().begin(), model.getVariableNames().end(), var_b));
+                return va_idx < vb_idx;
+            });
+
+
+    std::vector<int> variable_indices;
+    for (const auto& var_name : variable_names) {
+        variable_indices.push_back(std::distance(
+                model.getVariableNames().begin(),
+                std::find(model.getVariableNames().begin(), model.getVariableNames().end(), var_name)));
+    }
+
+    var_names = std::move(variable_names);
+    var_indices = std::move(variable_indices);
+    return true;
 }
 
 sbpl::collision::CollisionSpacePtr CollisionWorldSBPL::getCollisionSpace(
     const moveit::core::RobotModel& robot_model,
     const std::string& group_name)
 {
-    auto it = m_group_to_collision_space.find(group_name);
-    if (it != m_group_to_collision_space.end()) {
-        return it->second;
+    auto it = m_group_models.find(group_name);
+    if (it != m_group_models.end()) {
+        return it->second->cspace;
     }
 
     ROS_INFO("Creating Collision Space for group '%s'", group_name.c_str());
@@ -355,20 +438,19 @@ sbpl::collision::CollisionSpacePtr CollisionWorldSBPL::getCollisionSpace(
     grid->setReferenceFrame(m_world_collision_model_config.world_frame);
 
     ROS_INFO("  Constructing Collision Space");
-    auto cspace = std::make_shared<sbpl::collision::CollisionSpace>(
-            grid.get());
+    auto cspace = std::make_shared<sbpl::collision::CollisionSpace>(grid.get());
 
-    // we're just going to send off all robot state variables to isStateValid
-    // calls since there isn't a notion of planning variables here and the
-    // collision model should be maintaining state for all these joint variables
-    const auto& checked_variables = robot_model.getVariableNames();
+    if (!m_robot_initialized) {
+        initializeRobotModel(robot_model);
+        m_robot_initialized = true;
+    }
 
     ROS_INFO("  Initializing Collision Space");
     if (!cspace->init(
             *urdf,
             group_name,
             m_robot_collision_model_config,
-            checked_variables))
+            m_robot_variable_names))
     {
         ROS_ERROR("  Failed to initialize collision space");
         return sbpl::collision::CollisionSpacePtr();
@@ -402,22 +484,72 @@ sbpl::collision::CollisionSpacePtr CollisionWorldSBPL::getCollisionSpace(
     markers = cspace->getBoundingBoxVisualization();
     m_cspace_pub.publish(markers);
 
-    m_group_to_grid[group_name] = grid;
-    m_group_to_collision_space[group_name] = cspace;
-
+    GroupModelPtr group_model = std::make_shared<GroupModel>();
+    group_model->grid = grid;
+    group_model->cspace = cspace;
+    m_group_models[group_name] = group_model;
     return cspace;
 }
 
 const distance_field::PropagationDistanceField*
 CollisionWorldSBPL::distanceField(const std::string& group_name) const
 {
-    auto it = m_group_to_grid.find(group_name);
-    if (it == m_group_to_grid.end()) {
+    auto it = m_group_models.find(group_name);
+    if (it == m_group_models.end()) {
         return nullptr;
     }
     else {
-        return it->second->getDistanceField().get();
+        return it->second->grid->getDistanceField().get();
     }
+}
+
+void CollisionWorldSBPL::initializeRobotModel(
+    const moveit::core::RobotModel& robot_model)
+{
+    // Figure out how to extract the internal robot state from a complete robot
+    // state. We're just going to send the entire internal robot state variables
+    // to isStateValid calls since there isn't a notion of planning variables
+    // here. The other robot state variables will be set via the world to model
+    // transform in the collision space
+
+    // get all variables that are descendants of the root link
+    std::vector<std::string> robot_var_names;
+    std::vector<int> robot_var_indices;
+    if (!getRobotVariableNames(
+            robot_model, robot_var_names, robot_var_indices))
+    {
+        // shouldn't happen
+        throw std::runtime_error("Failed to extract robot variable names!");
+    }
+
+    assert(robot_var_names.size() == robot_var_indices.size());
+    // could also assert that the robot variable indices are sorted here
+
+    bool contiguous = true;
+    for (size_t i = 1; i < robot_var_indices.size(); ++i) {
+        if (robot_var_indices[i] != robot_var_indices[i - 1] + 1) {
+            contiguous = false;
+            break;
+        }
+    }
+
+    m_robot_variable_names = robot_var_names;
+    m_robot_variable_indices = robot_var_indices;
+    m_are_robot_variables_contiguous = contiguous;
+    m_robot_variables_offset = 0;
+    if (m_are_robot_variables_contiguous && !robot_var_names.empty()) {
+        m_robot_variables_offset = std::distance(
+                robot_model.getVariableNames().begin(),
+                std::find(
+                        robot_model.getVariableNames().begin(),
+                        robot_model.getVariableNames().end(),
+                        robot_var_names.front()));
+    }
+
+    ROS_INFO("Sorted Variable Names: %s", to_string(m_robot_variable_names).c_str());
+    ROS_INFO("Sorted Variable Indices: %s", to_string(m_robot_variable_indices).c_str());
+    ROS_INFO("Contiguous: %s", m_are_robot_variables_contiguous ? "true" : "false");
+    ROS_INFO("Variables Offset: %d", m_robot_variables_offset);
 }
 
 void CollisionWorldSBPL::registerWorldCallback()
@@ -588,9 +720,11 @@ void CollisionWorldSBPL::checkRobotCollisionMutable(
         return;
     }
 
-    std::vector<double> vars(
-            state.getVariablePositions(),
-            state.getVariablePositions() + state.getVariableCount());
+    const Eigen::Affine3d& T_model_robot =
+            state.getGlobalLinkTransform(state.getRobotModel()->getRootLink());
+    cspace->setWorldToModelTransform(T_model_robot);
+
+    std::vector<double> vars = getCheckedVariables(state);
 
     double dist;
     const bool verbose = req.verbose;
@@ -598,7 +732,7 @@ void CollisionWorldSBPL::checkRobotCollisionMutable(
     bool check_res = cspace->isStateValid(vars, verbose, visualize, dist);
     if (visualize) {
 //        auto markers = cspace->getCollisionModelVisualization(vars);
-        auto markers = cspace->getVisualization("collision_model");
+        auto markers = cspace->getCollisionRobotVisualization();
         m_cspace_pub.publish(markers);
     }
 
@@ -646,40 +780,40 @@ void CollisionWorldSBPL::processWorldUpdateUninitialized(
 void CollisionWorldSBPL::processWorldUpdateCreate(
     const World::ObjectConstPtr& object)
 {
-    for (const auto& entry : m_group_to_collision_space) {
-        entry.second->insertObject(object);
+    for (const auto& entry : m_group_models) {
+        entry.second->cspace->insertObject(object);
     }
 }
 
 void CollisionWorldSBPL::processWorldUpdateDestroy(
     const World::ObjectConstPtr& object)
 {
-    for (const auto& entry : m_group_to_collision_space) {
-        entry.second->removeObject(object);
+    for (const auto& entry : m_group_models) {
+        entry.second->cspace->removeObject(object);
     }
 }
 
 void CollisionWorldSBPL::processWorldUpdateMoveShape(
     const World::ObjectConstPtr& object)
 {
-    for (const auto& entry : m_group_to_collision_space) {
-        entry.second->moveShapes(object);
+    for (const auto& entry : m_group_models) {
+        entry.second->cspace->moveShapes(object);
     }
 }
 
 void CollisionWorldSBPL::processWorldUpdateAddShape(
     const World::ObjectConstPtr& object)
 {
-    for (const auto& entry : m_group_to_collision_space) {
-        entry.second->insertShapes(object);
+    for (const auto& entry : m_group_models) {
+        entry.second->cspace->insertShapes(object);
     }
 }
 
 void CollisionWorldSBPL::processWorldUpdateRemoveShape(
     const World::ObjectConstPtr& object)
 {
-    for (const auto& entry : m_group_to_collision_space) {
-        entry.second->removeShapes(object);
+    for (const auto& entry : m_group_models) {
+        entry.second->cspace->removeShapes(object);
     }
 }
 

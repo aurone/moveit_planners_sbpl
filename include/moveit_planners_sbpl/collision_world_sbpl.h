@@ -35,6 +35,7 @@
 // standard includes
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 // system includes
@@ -147,20 +148,49 @@ private:
     CollisionWorldConfig m_world_collision_model_config;
     sbpl::collision::CollisionModelConfig m_robot_collision_model_config;
 
-    std::map<std::string, sbpl::collision::CollisionSpacePtr>
-            m_group_to_collision_space;
-    std::map<std::string, sbpl::OccupancyGridPtr> m_group_to_grid;
+    struct GroupModel
+    {
+        sbpl::OccupancyGridPtr grid;
+        sbpl::collision::CollisionSpacePtr cspace;
+    };
+
+    typedef std::shared_ptr<GroupModel> GroupModelPtr;
+    typedef std::shared_ptr<const GroupModel> GroupModelConstPtr;
+
+    std::unordered_map<std::string, GroupModelPtr> m_group_models;
 
     World::ObserverHandle m_observer_handle;
 
     ros::NodeHandle m_nh;
     ros::Publisher m_cspace_pub;
 
+    // variables describing the robot state, limited to only those joints from
+    // the urdf, in the order they are stored within a corresponding RobotState
+    bool m_robot_initialized;
+    std::vector<std::string> m_robot_variable_names;
+    std::vector<int> m_robot_variable_indices;
+    bool m_are_robot_variables_contiguous;
+    int m_robot_variables_offset;
+
     void construct();
+
+    std::vector<double> getCheckedVariables(
+        const moveit::core::RobotState& state) const;
+
+    // return the internal variable names inside the robot model and their
+    // corresponding indices, sorted, within a robot state derived from the
+    // model
+    bool getRobotVariableNames(
+        const moveit::core::RobotModel& model,
+        std::vector<std::string>& var_names,
+        std::vector<int>& var_indices) const;
 
     sbpl::collision::CollisionSpacePtr getCollisionSpace(
         const moveit::core::RobotModel& robot_model,
         const std::string& group_name);
+
+    // initialize per-robot information
+    void initializeRobotModel(const moveit::core::RobotModel& robot_model);
 
     void registerWorldCallback();
     void worldUpdate(const World::ObjectConstPtr& object, World::Action action);
