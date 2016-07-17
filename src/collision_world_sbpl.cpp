@@ -31,6 +31,9 @@
 
 #include <moveit_planners_sbpl/collision_world_sbpl.h>
 
+// standard includes
+#include <stdexcept>
+
 // system includes
 #include <ros/ros.h>
 #include <geometric_shapes/shape_operations.h>
@@ -62,7 +65,7 @@ CollisionWorldSBPL::CollisionWorldSBPL(
 :
     CollisionWorld(other, world) // copies over the world
 {
-    ROS_INFO("CollisionWorldSBPL(CollisionWorldSBPL&, const WorldPtr&)");
+    ROS_DEBUG("CollisionWorldSBPL(CollisionWorldSBPL&, const WorldPtr&)");
 
     m_world_collision_model_config = other.m_world_collision_model_config;
     m_robot_collision_model_config = other.m_robot_collision_model_config;
@@ -70,12 +73,13 @@ CollisionWorldSBPL::CollisionWorldSBPL(
     m_group_to_grid = other.m_group_to_grid;
     // NOTE: no need to copy observer handle
     registerWorldCallback();
-    // NOTE:no need to copy node handle
+    // NOTE: no need to copy node handle
     m_cspace_pub = other.m_cspace_pub;
 }
 
 CollisionWorldSBPL::~CollisionWorldSBPL()
 {
+    ROS_DEBUG("~CollisionWorldSBPL()");
     const WorldPtr& curr_world = getWorld();
     if (curr_world) {
         curr_world->removeObserver(m_observer_handle);
@@ -241,40 +245,59 @@ void CollisionWorldSBPL::setWorld(const WorldPtr& world)
 
 void CollisionWorldSBPL::construct()
 {
-    ros::NodeHandle nh;
+    ros::NodeHandle ph("~");
+
+    const char* world_collision_model_param = "world_collision_model";
+    const char* robot_collision_model_param = "robot_collision_model";
+
+    std::string wcm_key, rcm_key;
+    if (!ph.searchParam(world_collision_model_param, wcm_key)) {
+        const char* msg = "Failed to find 'world_collision_model' key on the param server";
+        ROS_ERROR_STREAM(msg);
+        throw std::runtime_error(msg);
+    }
+
+    if (!ph.searchParam(robot_collision_model_param, rcm_key)) {
+        const char* msg = "Failed to find 'robot_collision_model' key on the param server";
+        ROS_ERROR_STREAM(msg);
+        throw std::runtime_error(msg);
+    }
 
     // load occupancy grid parameters
-    XmlRpc::XmlRpcValue world_collision_model_cfg;
-    if (nh.getParam("world_collision_model", world_collision_model_cfg)) {
-        // TODO: more sophisticated parameter checking
-        m_world_collision_model_config.world_frame = "world"; //scene.getPlanningFrame();
-        m_world_collision_model_config.size_x =
-                world_collision_model_cfg["size_x"];
-        m_world_collision_model_config.size_y =
-                world_collision_model_cfg["size_y"];
-        m_world_collision_model_config.size_z =
-                world_collision_model_cfg["size_z"];
-        m_world_collision_model_config.origin_x =
-                world_collision_model_cfg["origin_x"];
-        m_world_collision_model_config.origin_y =
-                world_collision_model_cfg["origin_y"];
-        m_world_collision_model_config.origin_z =
-                world_collision_model_cfg["origin_z"];
-        m_world_collision_model_config.res_m =
-                world_collision_model_cfg["res_m"];
-        m_world_collision_model_config.max_distance_m =
-                world_collision_model_cfg["max_distance_m"];
+    XmlRpc::XmlRpcValue wcm_config;
+    if (!ph.getParam(wcm_key, wcm_config)) {
+        std::stringstream ss;
+        ss << "Failed to retrieve '" << wcm_key << "' from the param server";
+        ROS_ERROR_STREAM(ss.str());
+        throw std::runtime_error(ss.str());
     }
-    else {
-        // TODO: reasonable defaults or just toss out an exception?
-        ROS_ERROR("Failed to retrieve 'collision_world' from the param server");
+
+    // TODO: more sophisticated parameter checking
+    m_world_collision_model_config.world_frame = "world"; // TODO: scene.getPlanningFrame();
+    m_world_collision_model_config.size_x = wcm_config["size_x"];
+    m_world_collision_model_config.size_y = wcm_config["size_y"];
+    m_world_collision_model_config.size_z = wcm_config["size_z"];
+    m_world_collision_model_config.origin_x = wcm_config["origin_x"];
+    m_world_collision_model_config.origin_y = wcm_config["origin_y"];
+    m_world_collision_model_config.origin_z = wcm_config["origin_z"];
+    m_world_collision_model_config.res_m = wcm_config["res_m"];
+    m_world_collision_model_config.max_distance_m = wcm_config["max_distance_m"];
+
+    XmlRpc::XmlRpcValue rcm_config;
+    if (!ph.getParam(rcm_key, rcm_config)) {
+        std::stringstream ss;
+        ss << "Failed to retrieve '" << rcm_key << "' from the param server";
+        ROS_ERROR_STREAM(ss.str());
+        throw std::runtime_error(ss.str());
     }
 
     // load collision model parameters
     if (!sbpl::collision::CollisionModelConfig::Load(
-            nh, m_robot_collision_model_config))
+            rcm_config, m_robot_collision_model_config))
     {
-        ROS_ERROR("Failed to load Collision Model Config");
+        const char* msg = "Failed to load Collision Model Config";
+        ROS_ERROR_STREAM(msg);
+        throw std::runtime_error(msg);
     }
 
     m_cspace_pub = m_nh.advertise<visualization_msgs::MarkerArray>(
@@ -399,7 +422,7 @@ CollisionWorldSBPL::distanceField(const std::string& group_name) const
 
 void CollisionWorldSBPL::registerWorldCallback()
 {
-    ROS_INFO("Registering world observer callback");
+    ROS_DEBUG("Registering world observer callback");
     auto ocfn = boost::bind(&CollisionWorldSBPL::worldUpdate, this, _1, _2);
     m_observer_handle = getWorld()->addObserver(ocfn);
 }
