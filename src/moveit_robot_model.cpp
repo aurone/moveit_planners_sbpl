@@ -148,6 +148,7 @@ bool MoveItRobotModel::init(
     ROS_INFO("Increments: %s", to_string(m_var_incs).c_str());
 
     // identify a tip link to use for forward and inverse kinematics
+    // TODO: better default planning link (first tip link)
     if (m_joint_group->isChain()) {
         std::vector<const moveit::core::LinkModel*> tips;
         m_joint_group->getEndEffectorTips(tips);
@@ -167,13 +168,6 @@ bool MoveItRobotModel::init(
                 ROS_WARN_ONCE("Cannot set state from ik with respect to any available end effector tip links");
             }
         }
-    }
-
-    // identify the frame to be used for planning
-    const moveit::core::JointModel* root_joint = m_joint_group->getCommonRoot();
-    if (!root_joint) {
-        ROS_WARN("No common root exists for joint group '%s'", group_name.c_str());
-        return false;
     }
 
     // TODO: check that we can translate the planning frame to the kinematics
@@ -268,6 +262,22 @@ double MoveItRobotModel::velLimit(int jidx) const
 double MoveItRobotModel::accLimit(int jidx) const
 {
     return m_var_acc_limits[jidx];
+}
+
+bool MoveItRobotModel::setPlanningLink(const std::string& name)
+{
+    if (!m_robot_model->hasLinkModel(name)) {
+        ROS_ERROR("Cannot set planning link to link that is not in the robot model");
+        return false;
+    }
+
+    if (!sbpl::manip::RobotModel::setPlanningLink(name)) {
+        return false;
+    }
+
+    m_tip_link = m_robot_model->getLinkModel(name);
+    assert(m_tip_link);
+    return true;
 }
 
 bool MoveItRobotModel::checkJointLimits(

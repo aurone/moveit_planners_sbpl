@@ -116,6 +116,16 @@ planning_interface::PlanningContextPtr SBPLPlannerManager::getPlanningContext(
         return context;
     }
 
+    // TODO: reevaluate these assumptions when different goal types are added
+    assert(!req.goal_constraints.empty() && !req.goal_constraints.front().position_constraints.empty());
+    const std::string& planning_link =
+            req.goal_constraints.front().position_constraints.front().link_name;
+    ROS_INFO("Setting planning link to '%s'", planning_link.c_str());
+    if (!sbpl_model->setPlanningLink(planning_link)) {
+        ROS_ERROR("Failed to set planning link to '%s'", planning_link.c_str());
+        return context;
+    }
+
     bool res = true;
     res &= sbpl_model->setPlanningScene(diff_scene);
     res &= sbpl_model->setPlanningFrame(diff_scene->getPlanningFrame());
@@ -755,12 +765,6 @@ MoveItRobotModel* SBPLPlannerManager::getModelForGroup(
         if (!sbpl_model->init(m_robot_model, group_name)) {
             m_sbpl_models.erase(ent.first);
             ROS_WARN("Failed to initialize SBPL Robot Model");
-            return nullptr;
-        }
-
-        if (!sbpl_model->planningTipLink()) {
-            m_sbpl_models.erase(ent.first);
-            ROS_WARN("SBPL Plugin does not currently support joint groups without a tip link");
             return nullptr;
         }
 

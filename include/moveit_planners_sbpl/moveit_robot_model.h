@@ -59,6 +59,8 @@ public:
     virtual double velLimit(int jidx) const;
     virtual double accLimit(int jidx) const;
 
+    bool setPlanningLink(const std::string& name) override;
+
     virtual bool checkJointLimits(
         const std::vector<double>& angles,
         bool verbose = false);
