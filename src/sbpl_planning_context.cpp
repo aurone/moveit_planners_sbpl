@@ -605,9 +605,9 @@ bool SBPLPlanningContext::getPlanningFrameWorkspaceAABB(
     const double mid_y = 0.5 * (min_planning.y() + max_planning.y());
     const double mid_z = 0.5 * (min_planning.z() + max_planning.z());
 
-    double size_x = max_planning.x() - min_planning.x();
-    double size_y = max_planning.y() - min_planning.y();
-    double size_z = max_planning.z() - min_planning.z();
+    const double size_x = fabs(max_planning.x() - min_planning.x());
+    const double size_y = fabs(max_planning.y() - min_planning.y());
+    const double size_z = fabs(max_planning.z() - min_planning.z());
 
     aabb.pose.position.x = mid_x;
     aabb.pose.position.y = mid_y;
