@@ -33,6 +33,9 @@ MoveGroupCommandPanel::MoveGroupCommandPanel(QWidget* parent) :
     m_workspace_max_y_spinbox(nullptr),
     m_workspace_max_z_spinbox(nullptr)
 {
+    m_marker_pub = m_nh.advertise<visualization_msgs::MarkerArray>(
+            "visualization_markers", 5);
+
     setupGUI();
 
     // wait for a robot model to be loaded or for the robot's state to change
@@ -44,9 +47,6 @@ MoveGroupCommandPanel::MoveGroupCommandPanel(QWidget* parent) :
             this, SLOT(syncModelConfig()));
     connect(m_model.get(), SIGNAL(availableFramesUpdated()),
             this, SLOT(updateTransforms()));
-
-    m_marker_pub = m_nh.advertise<visualization_msgs::MarkerArray>(
-            "visualization_markers", 5);
 }
 
 MoveGroupCommandPanel::~MoveGroupCommandPanel()
