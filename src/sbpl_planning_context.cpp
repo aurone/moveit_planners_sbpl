@@ -740,6 +740,7 @@ bool SBPLPlanningContext::initHeuristicGrid(
 
         ROS_DEBUG("Adding %zu points to the bfs distance field", points.size());
         m_distance_field->addPointsToField(points);
+        m_grid = std::make_shared<sbpl::OccupancyGrid>(m_distance_field);
         return true;
     }
     else {
