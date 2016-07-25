@@ -126,14 +126,17 @@ Q_SIGNALS:
 
     /// \brief Signal that a configuration setting has been modified
     ///
-    /// The following setting changes are signalled by this signal:
-    ///     * planner name
-    ///     * planner id
-    ///     * num planning attempts
-    ///     * allowed planning time
-    ///     * active planning joint group
-    ///     * any goal constraint tolerance
-    ///     * workspace boundaries
+    /// The following setting changes are signaled by this signal:
+    /// * planner settings
+    ///   * planner name
+    ///   * planner id
+    ///   * num planning attempts
+    ///   * allowed planning time
+    /// * active planning joint group
+    /// * goal settings
+    ///   * any goal constraint tolerance
+    /// * path constraints
+    ///   * workspace boundaries
     void configChanged();
 
     void availableFramesUpdated();
