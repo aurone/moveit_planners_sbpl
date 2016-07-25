@@ -1462,7 +1462,8 @@ MoveGroupCommandModel::getTipLinks(
 {
     std::vector<const moveit::core::LinkModel*> tips;
     for (const moveit::core::JointModel* jm : jmg.getJointRoots()) {
-        getTipLinks(jmg, *jm->getParentLinkModel(), tips);
+        const moveit::core::LinkModel* clm = jm->getChildLinkModel();
+        getTipLinks(jmg, *clm, tips);
     }
     return tips;
 }
