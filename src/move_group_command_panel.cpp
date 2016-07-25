@@ -643,7 +643,7 @@ void MoveGroupCommandPanel::updateRobotVisualization()
     visualization_msgs::MarkerArray marr;
     robot_state->getRobotMarkers(marr, robot_model->getLinkModelNames());
 
-    const std::string ns = robot_model->getName() + std::string("_phantom");
+    const std::string ns = robot_model->getName() + std::string("_command");
     int id = 0;
     for (auto& marker : marr.markers) {
         marker.mesh_use_embedded_materials = false;
