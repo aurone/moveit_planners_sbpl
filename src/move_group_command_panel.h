@@ -76,24 +76,23 @@ private:
 
     std::unique_ptr<MoveGroupCommandModel> m_model;
 
+    /// \name General Settings Widgets
+    ///@{
     QLineEdit* m_robot_description_line_edit;
     QPushButton* m_load_robot_button;
+    ///@}
 
-    QComboBox* m_joint_groups_combo_box;
-    QGroupBox* m_arm_commands_group;
-
-    QPushButton* m_plan_to_position_button;
-    QPushButton* m_move_to_position_button;
-    QPushButton* m_copy_current_state_button;
-
-    ros::Publisher m_marker_pub;
-
-    JointVariableCommandWidget* m_var_cmd_widget;
-
+    /// \name Planner Settings Widgets
+    ///@{
     QComboBox* m_planner_name_combo_box;
     QComboBox* m_planner_id_combo_box;
     QSpinBox* m_num_planning_attempts_spinbox;
     QDoubleSpinBox* m_allowed_planning_time_spinbox;
+    ///@}
+
+    /// \name Goal Constraints Widgets - No Robot Required
+    ///@{
+    QGroupBox* m_goal_constraints_group;
 
     QDoubleSpinBox* m_joint_tol_spinbox;
     QDoubleSpinBox* m_pos_tol_spinbox;
@@ -106,11 +105,30 @@ private:
     QDoubleSpinBox* m_workspace_max_x_spinbox;
     QDoubleSpinBox* m_workspace_max_y_spinbox;
     QDoubleSpinBox* m_workspace_max_z_spinbox;
+    ///@}
 
-    QGroupBox* m_goal_constraints_group;
+    /// \name Goal Constraints Widgets - Robot Required
+    ///@{
+    QComboBox* m_joint_groups_combo_box;
+    JointVariableCommandWidget* m_var_cmd_widget;
+    ///@}
+
+    /// \name Command Widgets
+    ///@{
+    QPushButton* m_plan_to_position_button;
+    QPushButton* m_move_to_position_button;
+    QPushButton* m_copy_current_state_button;
+    ///@}
+
+    ros::Publisher m_marker_pub;
 
     /// \brief Setup the baseline GUI for loading robots from URDF parameter
     void setupGUI();
+
+    QGroupBox* setupGeneralSettingsGroup();
+    QGroupBox* setupPlannerSettingsGroup();
+    QGroupBox* setupGoalConstraintsGroup();
+    QGroupBox* setupCommandsGroup();
 
     void setupRobotGUI(
         QVBoxLayout* main_layout,
