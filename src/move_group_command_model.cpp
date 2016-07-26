@@ -147,6 +147,12 @@ bool MoveGroupCommandModel::loadRobot(const std::string& robot_description)
         return true;
     }
 
+    std::string robot_description_key;
+    if (!m_nh.searchParam(robot_description, robot_description_key)) {
+        ROS_WARN("Parameter '%s' was not found on the param server", robot_description.c_str());
+        return false;
+    }
+
     auto transformer = boost::shared_ptr<tf::Transformer>(new tf::TransformListener);
     m_scene_monitor.reset(new planning_scene_monitor::PlanningSceneMonitor(
             robot_description, transformer));
@@ -171,7 +177,7 @@ bool MoveGroupCommandModel::loadRobot(const std::string& robot_description)
 
     logPlanningSceneMonitor(*m_scene_monitor);
 
-    m_robot_state.reset(new moveit::core::RobotState(robotModel()));
+    m_robot_state = boost::make_shared<moveit::core::RobotState>(robotModel());
 
     m_robot_state->setToDefaultValues();
     m_robot_state->update();
@@ -454,9 +460,10 @@ void MoveGroupCommandModel::load(const rviz::Config& config)
     // set up the model using public member functions to fire off appropriate
     // signals
 
-    const bool robot_loaded = loadRobot(robot_description.toStdString());
-    if (!robot_loaded) {
-        ROS_WARN("Failed to load robot from recalled parameter name");
+    bool robot_loaded = false;
+    if (!robot_description.toStdString().empty()) {
+        ROS_INFO("Loading robot using saved robot_description parameter name");
+        robot_loaded = loadRobot(robot_description.toStdString());
     }
 
     // setup planner settings
