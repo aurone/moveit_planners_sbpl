@@ -65,7 +65,7 @@ private:
     std::map<std::string, CollisionCheckerAllocatorPtr> m_cc_allocators;
 
     void logPlanningScene(const planning_scene::PlanningScene& scene) const;
-    void logMotionRequest(
+    void logMotionPlanRequest(
         const planning_interface::MotionPlanRequest& req) const;
 
     /// \name Parameter Loading

@@ -470,14 +470,14 @@ bool SBPLPlanningContext::initSBPL(std::string& why)
     ////////////////////
 
     moveit::core::RobotModelConstPtr robot = scene->getRobotModel();
-    moveit::core::RobotState start_state(robot);
 
-    if (!moveit::core::robotStateMsgToRobotState(req.start_state, start_state)) {
-        why = "Failed to convert start state to reference state";
+    auto start_state = scene->getCurrentStateUpdated(req.start_state);
+    if (!start_state) {
+        why = "Unable to update complete start state with start state deltas";
         return false;
     }
 
-    if (!m_collision_checker.init(m_robot_model, start_state, scene)) {
+    if (!m_collision_checker.init(m_robot_model, *start_state, scene)) {
         why = "Failed to initialize sbpl Collision Checker "
                 "from Planning Scene and Robot Model";
         return false;

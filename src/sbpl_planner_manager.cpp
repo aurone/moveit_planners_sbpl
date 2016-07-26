@@ -142,7 +142,7 @@ planning_interface::PlanningContextPtr SBPLPlannerManager::getPlanningContext(
     ///////////////////////////////////////////
 
 //    logPlanningScene(*diff_scene);
-    logMotionRequest(req);
+    logMotionPlanRequest(req);
 
     SBPLPlanningContext* sbpl_context = new SBPLPlanningContext(
             sbpl_model, "sbpl_planning_context", req.group_name);
@@ -328,7 +328,7 @@ void SBPLPlannerManager::logPlanningScene(
 //    scene.getAllowedCollisionMatrix().print(std::cout);
 }
 
-void SBPLPlannerManager::logMotionRequest(
+void SBPLPlannerManager::logMotionPlanRequest(
     const planning_interface::MotionPlanRequest& req) const
 {
     ROS_DEBUG("Motion Plan Request");
