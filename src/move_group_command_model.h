@@ -273,6 +273,35 @@ private:
         const std::string& jv_name) const;
 
     bool updateAvailableFrames();
+
+    bool computeAxisAlignedBoundingBox(
+        const moveit::core::LinkModel& link,
+        Eigen::Vector3d& pos,
+        Eigen::Vector3d& size) const;
+    bool computeAxisAlignedBoundingBox(
+        const shapes::Shape& shape,
+        Eigen::Vector3d& pose,
+        Eigen::Vector3d& size) const;
+    bool computeAxisAlignedBoundingBox(
+        const shapes::Box& box,
+        Eigen::Vector3d& pos,
+        Eigen::Vector3d& size) const;
+    bool computeAxisAlignedBoundingBox(
+        const shapes::Cylinder& cylinder,
+        Eigen::Vector3d& pos,
+        Eigen::Vector3d& size) const;
+    bool computeAxisAlignedBoundingBox(
+        const shapes::Sphere& sphere,
+        Eigen::Vector3d& pos,
+        Eigen::Vector3d& size) const;
+    bool computeAxisAlignedBoundingBox(
+        const shapes::Mesh& mesh,
+        Eigen::Vector3d& pos,
+        Eigen::Vector3d& size) const;
+
+    bool computeInscribedRadius(
+        const moveit::core::LinkModel& link,
+        double& radius) const;
 };
 
 } // namespace sbpl_interface

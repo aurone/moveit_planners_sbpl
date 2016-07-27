@@ -7,6 +7,7 @@
 
 // system includes
 #include <eigen_conversions/eigen_msg.h>
+#include <geometric_shapes/shape_operations.h>
 #include <leatherman/print.h>
 #include <moveit/robot_state/conversions.h>
 #include <moveit_msgs/GetStateValidity.h>
@@ -772,8 +773,15 @@ void MoveGroupCommandModel::logRobotModelInfo(
         links.pop();
 
         std::string pad(depth, ' ');
-        const Eigen::Vector3d bb_extents = lm->getShapeExtentsAtOrigin();
-        ROS_INFO("%s%s: Bounding Box: [%0.3f, %0.3f, %0.3f]", pad.c_str(), lm->getName().c_str(), bb_extents.x(), bb_extents.y(), bb_extents.z());
+        Eigen::Vector3d bb_pos, bb_extents;
+        double inscribed_radius;
+        computeAxisAlignedBoundingBox(*lm, bb_pos, bb_extents);
+        computeInscribedRadius(*lm, inscribed_radius);
+        ROS_INFO("%s%s: Bounding Box: pos = (%0.3f, %0.3f, %0.3f), size = (%0.3f, %0.3f, %0.3f), radius = %0.3f",
+                pad.c_str(), lm->getName().c_str(),
+                bb_pos.x(), bb_pos.y(), bb_pos.z(),
+                bb_extents.x(), bb_extents.y(), bb_extents.z(),
+                inscribed_radius);
 
         for (const moveit::core::JointModel* jm : lm->getChildJointModels()) {
             links.push(std::make_pair(depth+1, jm->getChildLinkModel()));
@@ -1642,6 +1650,233 @@ bool MoveGroupCommandModel::updateAvailableFrames()
             return false;
         }
     }
+}
+
+bool MoveGroupCommandModel::computeAxisAlignedBoundingBox(
+    const moveit::core::LinkModel& link,
+    Eigen::Vector3d& pos,
+    Eigen::Vector3d& size) const
+{
+    if (link.getShapes().size() != link.getCollisionOriginTransforms().size()) {
+        return false;
+    }
+
+    pos = Eigen::Vector3d(0.0, 0.0, 0.0);
+    Eigen::Vector3d bb_min = Eigen::Vector3d::Zero();
+    Eigen::Vector3d bb_max = Eigen::Vector3d::Zero();
+
+    for (size_t sidx = 0; sidx < link.getShapes().size(); ++sidx) {
+        const auto& shape = link.getShapes()[sidx];
+        const auto& shape_transform = link.getCollisionOriginTransforms()[sidx];
+        Eigen::Vector3d shape_bb_pos;
+        Eigen::Vector3d shape_bb_size;
+        if (!computeAxisAlignedBoundingBox(*shape, shape_bb_pos, shape_bb_size)) {
+            return false;
+        }
+
+        // create the vertices of the axis-aligned bounding box of the shape
+        Eigen::Vector3d corners[8] = {
+            Eigen::Vector3d(
+                    shape_bb_pos.x() - 0.5 * shape_bb_size.x(),
+                    shape_bb_pos.y() - 0.5 * shape_bb_size.y(),
+                    shape_bb_pos.z() - 0.5 * shape_bb_size.z()),
+            Eigen::Vector3d(
+                    shape_bb_pos.x() - 0.5 * shape_bb_size.x(),
+                    shape_bb_pos.y() - 0.5 * shape_bb_size.y(),
+                    shape_bb_pos.z() + 0.5 * shape_bb_size.z()),
+            Eigen::Vector3d(
+                    shape_bb_pos.x() - 0.5 * shape_bb_size.x(),
+                    shape_bb_pos.y() + 0.5 * shape_bb_size.y(),
+                    shape_bb_pos.z() - 0.5 * shape_bb_size.z()),
+            Eigen::Vector3d(
+                    shape_bb_pos.x() - 0.5 * shape_bb_size.x(),
+                    shape_bb_pos.y() + 0.5 * shape_bb_size.y(),
+                    shape_bb_pos.z() + 0.5 * shape_bb_size.z()),
+            Eigen::Vector3d(
+                    shape_bb_pos.x() + 0.5 * shape_bb_size.x(),
+                    shape_bb_pos.y() - 0.5 * shape_bb_size.y(),
+                    shape_bb_pos.z() - 0.5 * shape_bb_size.z()),
+            Eigen::Vector3d(
+                    shape_bb_pos.x() + 0.5 * shape_bb_size.x(),
+                    shape_bb_pos.y() - 0.5 * shape_bb_size.y(),
+                    shape_bb_pos.z() + 0.5 * shape_bb_size.z()),
+            Eigen::Vector3d(
+                    shape_bb_pos.x() + 0.5 * shape_bb_size.x(),
+                    shape_bb_pos.y() + 0.5 * shape_bb_size.y(),
+                    shape_bb_pos.z() - 0.5 * shape_bb_size.z()),
+            Eigen::Vector3d(
+                    shape_bb_pos.x() + 0.5 * shape_bb_size.x(),
+                    shape_bb_pos.y() + 0.5 * shape_bb_size.y(),
+                    shape_bb_pos.z() + 0.5 * shape_bb_size.z())
+        };
+
+        // transform into the link frame
+        for (int i = 0; i < 8; ++i) {
+            corners[i] = shape_transform * corners[i];
+        }
+
+        // update the overall bounding box
+        for (int i = 0; i < 8; ++i) {
+            const Eigen::Vector3d& corner = corners[i];
+            if (sidx == 0 && i == 0) {
+                bb_min = corner;
+                bb_max = corner;
+            }
+            else {
+                bb_min.x() = std::min(bb_min.x(), corner.x());
+                bb_min.y() = std::min(bb_min.y(), corner.y());
+                bb_min.z() = std::min(bb_min.z(), corner.z());
+                bb_max.x() = std::max(bb_max.x(), corner.x());
+                bb_max.y() = std::max(bb_max.y(), corner.y());
+                bb_max.z() = std::max(bb_max.z(), corner.z());
+            }
+        }
+    }
+
+//    ROS_INFO("%s: min: (%0.3f, %0.3f, %0.3f), max: (%0.3f, %0.3f, %0.3f)",
+//            link.getName().c_str(),
+//            bb_min.x(), bb_min.y(), bb_min.z(),
+//            bb_max.x(), bb_max.y(), bb_max.z());
+    pos = 0.5 * (bb_min + bb_max);
+    size = bb_max - bb_min;
+    return true;
+}
+
+bool MoveGroupCommandModel::computeAxisAlignedBoundingBox(
+    const shapes::Shape& shape,
+    Eigen::Vector3d& pos,
+    Eigen::Vector3d& size) const
+{
+    switch (shape.type) {
+    case shapes::ShapeType::BOX:
+    {
+        const shapes::Box& box = dynamic_cast<const shapes::Box&>(shape);
+        return computeAxisAlignedBoundingBox(box, pos, size);
+    }   break;
+    case shapes::ShapeType::CYLINDER:
+    {
+        const shapes::Cylinder& cylinder = dynamic_cast<const shapes::Cylinder&>(shape);
+        return computeAxisAlignedBoundingBox(cylinder, pos, size);
+    }   break;
+    case shapes::ShapeType::SPHERE:
+    {
+        const shapes::Sphere& sphere = dynamic_cast<const shapes::Sphere&>(shape);
+        return computeAxisAlignedBoundingBox(sphere, pos, size);
+    }   break;
+    case shapes::ShapeType::MESH:
+    {
+        const shapes::Mesh& mesh = dynamic_cast<const shapes::Mesh&>(shape);
+        return computeAxisAlignedBoundingBox(mesh, pos, size);
+    }   break;
+    default:
+        return false;
+    }
+}
+
+bool MoveGroupCommandModel::computeAxisAlignedBoundingBox(
+    const shapes::Box& box,
+    Eigen::Vector3d& pos,
+    Eigen::Vector3d& size) const
+{
+    pos = Eigen::Vector3d(0.0, 0.0, 0.0);
+    size = Eigen::Vector3d(box.size[0], box.size[1], box.size[2]);
+    return true;
+}
+
+bool MoveGroupCommandModel::computeAxisAlignedBoundingBox(
+    const shapes::Cylinder& cylinder,
+    Eigen::Vector3d& pos,
+    Eigen::Vector3d& size) const
+{
+    pos = Eigen::Vector3d(0.0, 0.0, 0.0);
+    size = Eigen::Vector3d(cylinder.radius, cylinder.radius, cylinder.length);
+    return true;
+}
+
+bool MoveGroupCommandModel::computeAxisAlignedBoundingBox(
+    const shapes::Sphere& sphere,
+    Eigen::Vector3d& pos,
+    Eigen::Vector3d& size) const
+{
+    pos = Eigen::Vector3d(0.0, 0.0, 0.0);
+    size = Eigen::Vector3d(sphere.radius, sphere.radius, sphere.radius);
+    return true;
+}
+
+bool MoveGroupCommandModel::computeAxisAlignedBoundingBox(
+    const shapes::Mesh& mesh,
+    Eigen::Vector3d& pos,
+    Eigen::Vector3d& size) const
+{
+    Eigen::Vector3d bb_min;
+    Eigen::Vector3d bb_max;
+    for (size_t tidx = 0; tidx < mesh.triangle_count; ++tidx) {
+        const unsigned int vidx1 = mesh.triangles[3 * tidx + 0];
+        const unsigned int vidx2 = mesh.triangles[3 * tidx + 1];
+        const unsigned int vidx3 = mesh.triangles[3 * tidx + 2];
+        const double vx1 = mesh.vertices[3 * vidx1 + 0];
+        const double vy1 = mesh.vertices[3 * vidx1 + 1];
+        const double vz1 = mesh.vertices[3 * vidx1 + 2];
+
+        const double vx2 = mesh.vertices[3 * vidx2 + 0];
+        const double vy2 = mesh.vertices[3 * vidx2 + 1];
+        const double vz2 = mesh.vertices[3 * vidx2 + 2];
+
+        const double vx3 = mesh.vertices[3 * vidx3 + 0];
+        const double vy3 = mesh.vertices[3 * vidx3 + 1];
+        const double vz3 = mesh.vertices[3 * vidx3 + 2];
+
+        if (tidx == 0) {
+            bb_min.x() = bb_max.x() = vx1;
+            bb_min.y() = bb_max.y() = vy1;
+            bb_min.z() = bb_max.z() = vz1;
+        }
+        else {
+            bb_min.x() = std::min(bb_min.x(), vx1);
+            bb_min.y() = std::min(bb_min.y(), vy1);
+            bb_min.z() = std::min(bb_min.z(), vz1);
+
+            bb_max.x() = std::max(bb_max.x(), vx1);
+            bb_max.y() = std::max(bb_max.y(), vy1);
+            bb_max.z() = std::max(bb_max.z(), vz1);
+        }
+
+        bb_min.x() = std::min(bb_min.x(), vx2);
+        bb_min.y() = std::min(bb_min.y(), vy2);
+        bb_min.z() = std::min(bb_min.z(), vz2);
+
+        bb_min.x() = std::min(bb_min.x(), vx3);
+        bb_min.y() = std::min(bb_min.y(), vy3);
+        bb_min.z() = std::min(bb_min.z(), vz3);
+
+        bb_max.x() = std::max(bb_max.x(), vx2);
+        bb_max.y() = std::max(bb_max.y(), vy2);
+        bb_max.z() = std::max(bb_max.z(), vz2);
+
+        bb_max.x() = std::max(bb_max.x(), vx3);
+        bb_max.y() = std::max(bb_max.y(), vy3);
+        bb_max.z() = std::max(bb_max.z(), vz3);
+    }
+
+    pos = 0.5 * (bb_min + bb_max);
+    size = bb_max - bb_min;
+    return true;
+}
+
+bool MoveGroupCommandModel::computeInscribedRadius(
+    const moveit::core::LinkModel& link,
+    double& radius) const
+{
+    Eigen::Vector3d pos, size;
+    if (!computeAxisAlignedBoundingBox(link, pos, size)) {
+        return false;
+    }
+
+    radius = size.x();
+    radius = std::min(radius, size.y());
+    radius = std::min(radius, size.z());
+    radius -= pos.norm();
+    return true;
 }
 
 } // namespace sbpl_interface
