@@ -772,7 +772,8 @@ void MoveGroupCommandModel::logRobotModelInfo(
         links.pop();
 
         std::string pad(depth, ' ');
-        ROS_INFO("%s%s", pad.c_str(), lm->getName().c_str());
+        const Eigen::Vector3d bb_extents = lm->getShapeExtentsAtOrigin();
+        ROS_INFO("%s%s: Bounding Box: [%0.3f, %0.3f, %0.3f]", pad.c_str(), lm->getName().c_str(), bb_extents.x(), bb_extents.y(), bb_extents.z());
 
         for (const moveit::core::JointModel* jm : lm->getChildJointModels()) {
             links.push(std::make_pair(depth+1, jm->getChildLinkModel()));
@@ -1540,26 +1541,26 @@ void MoveGroupCommandModel::processSceneUpdate(
     switch (type) {
     case planning_scene_monitor::PlanningSceneMonitor::UPDATE_NONE:
     {
-        ROS_INFO("Planning Scene Update (None)");
+//        ROS_INFO("Planning Scene Update (None)");
     }   break;
     case planning_scene_monitor::PlanningSceneMonitor::UPDATE_STATE:
     {
-        ROS_DEBUG("Planning Scene Update (State)");
+//        ROS_DEBUG("Planning Scene Update (State)");
         updateAvailableFrames();
     }   break;
     case planning_scene_monitor::PlanningSceneMonitor::UPDATE_TRANSFORMS:
     {
-        ROS_INFO("Planning Scene Update (Transforms)");
+//        ROS_INFO("Planning Scene Update (Transforms)");
         updateAvailableFrames();
     }   break;
     case planning_scene_monitor::PlanningSceneMonitor::UPDATE_GEOMETRY:
     {
-        ROS_INFO("Planning Scene Update (Geometry)");
+//        ROS_INFO("Planning Scene Update (Geometry)");
         updateAvailableFrames();
     }   break;
     case planning_scene_monitor::PlanningSceneMonitor::UPDATE_SCENE:
     {
-        ROS_INFO("Planning Scene Update (All)");
+//        ROS_INFO("Planning Scene Update (All)");
         updateAvailableFrames();
     }   break;
     default:
