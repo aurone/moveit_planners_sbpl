@@ -53,27 +53,22 @@ public:
     /// \name sbpl::manip::RobotModel API Requirements
     ///@{
 
-    virtual double minPosLimit(int jidx) const;
-    virtual double maxPosLimit(int jidx) const;
-    virtual bool   hasPosLimit(int jidx) const;
-    virtual double velLimit(int jidx) const;
-    virtual double accLimit(int jidx) const;
+    virtual double minPosLimit(int jidx) const override;
+    virtual double maxPosLimit(int jidx) const override;
+    virtual bool   hasPosLimit(int jidx) const override;
+    virtual double velLimit(int jidx) const override;
+    virtual double accLimit(int jidx) const override;
 
     bool setPlanningLink(const std::string& name) override;
 
     virtual bool checkJointLimits(
         const std::vector<double>& angles,
-        bool verbose = false);
+        bool verbose = false) override;
 
     virtual bool computeFK(
         const std::vector<double>& angles,
         const std::string& name,
-        KDL::Frame& f);
-
-    virtual bool computeFK(
-        const std::vector<double>& angles,
-        const std::string& name,
-        std::vector<double>& pose);
+        std::vector<double>& pose) override;
 
     virtual bool computePlanningLinkFK(
         const std::vector<double>& angles,
@@ -83,20 +78,20 @@ public:
         const std::vector<double>& pose,
         const std::vector<double>& start,
         std::vector<double>& solution,
-        sbpl::manip::ik_option::IkOption option = sbpl::manip::ik_option::UNRESTRICTED);
+        sbpl::manip::ik_option::IkOption option = sbpl::manip::ik_option::UNRESTRICTED) override;
 
     virtual bool computeIK(
         const std::vector<double>& pose,
         const std::vector<double>& start,
         std::vector<std::vector<double> >& solutions,
-        sbpl::manip::ik_option::IkOption option = sbpl::manip::ik_option::UNRESTRICTED);
+        sbpl::manip::ik_option::IkOption option = sbpl::manip::ik_option::UNRESTRICTED) override;
 
     virtual bool computeFastIK(
         const std::vector<double>& pose,
         const std::vector<double>& start,
-        std::vector<double>& solution);
+        std::vector<double>& solution) override;
 
-    virtual void printRobotModelInformation();
+    virtual void printRobotModelInformation() override;
 
     ///@}
 

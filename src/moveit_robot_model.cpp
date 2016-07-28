@@ -40,6 +40,7 @@
 #include <leatherman/utils.h>
 #include <ros/console.h>
 #include <sbpl_geometry_utils/utils.h>
+#include <tf_conversions/tf_eigen.h>
 
 namespace sbpl_interface {
 
@@ -318,7 +319,7 @@ bool MoveItRobotModel::checkJointLimits(
 bool MoveItRobotModel::computeFK(
     const std::vector<double>& angles,
     const std::string& name,
-    KDL::Frame& f)
+    std::vector<double>& pose)
 {
     if (!initialized()) {
         ROS_ERROR("MoveIt! Robot Model is uninitialized");
@@ -354,10 +355,6 @@ bool MoveItRobotModel::computeFK(
         return false;
     }
 
-//    if (!m_robot_state->setFromIK(m_joint_group, T_robot_link)) {
-//        ROS_ERROR("Failed to compute IK?");
-//    }
-
     const Eigen::Affine3d& T_scene_planning =
             m_planning_scene->getFrameTransform(m_planning_frame);
     const Eigen::Affine3d& T_scene_model =
@@ -366,29 +363,16 @@ bool MoveItRobotModel::computeFK(
     Eigen::Affine3d T_planning_link =
             T_scene_planning.inverse() * T_scene_model * T_robot_link;
 
-    tf::transformEigenToKDL(T_planning_link, f);
-    return true;
-}
+    // convert to tf for its conversions to euler angles
+    tf::Transform tf_planning_link;
+    tf::transformEigenToTF(T_planning_link, tf_planning_link);
 
-bool MoveItRobotModel::computeFK(
-    const std::vector<double>& angles,
-    const std::string& name,
-    std::vector<double>& pose)
-{
-    if (!initialized()) {
-        ROS_ERROR("MoveIt! Robot Model is uninitialized");
-        return false;
-    }
-
-    KDL::Frame f;
-    if (!computeFK(angles, name, f)) {
-        return false;
-    }
-
-    double roll, pitch, yaw;
-    f.M.GetRPY(roll, pitch, yaw);
-
-    pose = { f.p.x(), f.p.y(), f.p.z(), roll, pitch, yaw };
+    double x, y, z, yaw, pitch, roll;
+    x = tf_planning_link.getOrigin().x();
+    y = tf_planning_link.getOrigin().y();
+    z = tf_planning_link.getOrigin().z();
+    tf_planning_link.getBasis().getEulerYPR(yaw, pitch, roll);
+    pose = { x, y, z, roll, pitch, yaw };
     return true;
 }
 
@@ -581,9 +565,7 @@ bool MoveItRobotModel::computeUnrestrictedIK(
             m_planning_scene->getFrameTransform(m_robot_model->getModelFrame());
 
     Eigen::Affine3d T_model_link =
-            T_scene_model.inverse() *
-            T_scene_planning *
-            T_planning_link;
+            T_scene_model.inverse() * T_scene_planning * T_planning_link;
 
     for (size_t sind = 0; sind < start.size(); ++sind) {
         int avind = m_active_var_indices[sind];
@@ -591,7 +573,15 @@ bool MoveItRobotModel::computeUnrestrictedIK(
     }
     m_robot_state->updateLinkTransforms();
 
-    if (m_robot_state->setFromIK(m_joint_group, T_model_link, 10, 0.1)) {
+    // The default behavior in KDLKinematicsPlugin is for the first attempt to
+    // be seeded with the current state of the joint group and for successive
+    // attempts to sample states randomly. A value of 1 here will make the IK
+    // solver more deterministic, at the cost of some robustness, which is
+    // required for sbpl environments that don't cache successors as they are
+    // generated. TODO: does num_attempts have any value for analytical solvers?
+    const int num_attempts = 1;
+    const double timeout = 0.0;
+    if (m_robot_state->setFromIK(m_joint_group, T_model_link, num_attempts)) {
         if (!m_robot_state->satisfiesBounds(m_joint_group)) {
             ROS_ERROR("KDL Returned invalid joint angles?");
         }
@@ -600,22 +590,11 @@ bool MoveItRobotModel::computeUnrestrictedIK(
             int vind = m_active_var_indices[avind];
             solution[avind] = m_robot_state->getVariablePosition(vind);
         }
-//        ROS_INFO("IK Succeeded with solution %s", to_string(solution).c_str());
+        ROS_DEBUG("IK Succeeded with solution %s", to_string(solution).c_str());
         return true;
     }
     else {
-        Eigen::Vector3d ik_pos(T_model_link.translation());
-        Eigen::Quaterniond ik_rot(T_model_link.rotation());
-        geometry_msgs::Quaternion q;
-        q.w = ik_rot.w();
-        q.x = ik_rot.x();
-        q.y = ik_rot.y();
-        q.z = ik_rot.z();
-        double r, p, y;
-        leatherman::getRPY(q, r, p, y);
-//        ROS_ERROR("Failed to compute IK to pose (%0.3f, %0.3f, %0.3f, %0.3f, %0.3f, %0.3f) in %s for joint group '%s'",
-//                ik_pos.x(), ik_pos.y(), ik_pos.z(), r, p, y, m_robot_model->getModelFrame().c_str(), m_group_name.c_str());
-
+        ROS_DEBUG("IK Failed");
         return false;
     }
 }
