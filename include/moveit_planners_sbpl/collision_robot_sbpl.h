@@ -34,6 +34,8 @@
 
 #include <moveit/collision_detection/collision_robot.h>
 
+#include <sbpl_collision_checking/robot_collision_model.h>
+
 namespace collision_detection {
 
 class CollisionRobotSBPL : public CollisionRobot
@@ -48,6 +50,11 @@ public:
 
     virtual ~CollisionRobotSBPL();
 
+    const sbpl::collision::RobotCollisionModelConstPtr&
+    robotCollisionModel() const;
+
+    /// \name Reimplemented Public Functions
+    ///@{
     virtual void checkOtherCollision(
         const CollisionRequest& req,
         CollisionResult& res,
@@ -123,12 +130,21 @@ public:
     virtual double distanceSelf(
         const robot_state::RobotState& state,
         const AllowedCollisionMatrix& acm) const;
+    ///@}
 
 protected:
 
+    /// \name Reimplemented Protected Functions
+    ///@{
     virtual void updatedPaddingOrScaling(const std::vector<std::string>& links);
+    ///@}
 
 private:
+
+    typedef std::shared_ptr<const sbpl::collision::CollisionModelConfig>
+    CollisionModelConfigConstPtr;
+
+    sbpl::collision::RobotCollisionModelConstPtr m_rcm;
 
     void clearAllCollisions(CollisionResult& res) const;
 };
