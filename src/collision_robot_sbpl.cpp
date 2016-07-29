@@ -42,6 +42,7 @@ CollisionRobotSBPL::CollisionRobotSBPL(
 :
     CollisionRobot(model, padding, scale)
 {
+    ROS_INFO("CollisionRobotSBPL(const RobotModelConstPtr&, double, double)");
     ros::NodeHandle ph("~");
 
     // search for the robot collision model on the param server
@@ -88,11 +89,19 @@ CollisionRobotSBPL::CollisionRobotSBPL(
 CollisionRobotSBPL::CollisionRobotSBPL(const CollisionRobotSBPL& other) :
     CollisionRobot(other)
 {
+    ROS_INFO("CollisionRobotSBPL(other)");
     m_rcm = other.m_rcm;
 }
 
 CollisionRobotSBPL::~CollisionRobotSBPL()
 {
+    ROS_INFO("~CollisionRobotSBPL");
+}
+
+const sbpl::collision::RobotCollisionModelConstPtr&
+CollisionRobotSBPL::robotCollisionModel() const
+{
+    return m_rcm;
 }
 
 void CollisionRobotSBPL::checkOtherCollision(
