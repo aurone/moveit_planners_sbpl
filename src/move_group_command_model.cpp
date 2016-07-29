@@ -1066,6 +1066,7 @@ void MoveGroupCommandModel::updateRobotStateValidity()
                 for (const auto& contact : res.contacts) {
                     ROS_INFO("Links '%s' and '%s' are in collision", contact.contact_body_1.c_str(), contact.contact_body_2.c_str());
                 }
+                m_contacts = res.contacts;
             }
         }
     }

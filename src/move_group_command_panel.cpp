@@ -1,6 +1,9 @@
 #include "move_group_command_panel.h"
 
 // system includes
+#include <eigen_conversions/eigen_msg.h>
+#include <geometric_shapes/shape_operations.h>
+#include <leatherman/viz.h>
 #include <sbpl_geometry_utils/utils.h>
 #include <visualization_msgs/MarkerArray.h>
 
@@ -645,13 +648,19 @@ void MoveGroupCommandPanel::updateRobotVisualization()
     moveit::core::RobotModelConstPtr robot_model = m_model->robotModel();
     moveit::core::RobotStateConstPtr robot_state = m_model->robotState();
 
+    const bool collision_markers = true;
     visualization_msgs::MarkerArray marr;
-    robot_state->getRobotMarkers(marr, robot_model->getLinkModelNames());
+    if (collision_markers) {
+         marr = getRobotCollisionMarkers(*robot_state, robot_model->getLinkModelNames());
+    }
+    else {
+        robot_state->getRobotMarkers(marr, robot_model->getLinkModelNames());
+    }
 
     const std::string ns = robot_model->getName() + std::string("_command");
     int id = 0;
     for (auto& marker : marr.markers) {
-        marker.mesh_use_embedded_materials = false;
+        marker.mesh_use_embedded_materials = true; //false;
 
         float r_base = 0.4f; // (float)100 / (float)255;
         float g_base = 0.4f; // (float)159 / (float)255;
@@ -674,6 +683,36 @@ void MoveGroupCommandPanel::updateRobotVisualization()
         marker.color.a = 0.8f;
         marker.ns = ns;
         marker.id = id++;
+    }
+
+    int cid = 0;
+    for (const auto& contact : m_model->contacts()) {
+        const double arrow_len = 1.0;
+        const Eigen::Vector3d arrow_pos =
+                Eigen::Vector3d(
+                        contact.position.x,
+                        contact.position.y,
+                        contact.position.z) +
+                Eigen::Vector3d(0, 0, arrow_len);
+        const Eigen::Affine3d arrow_transform(
+                Eigen::Translation3d(arrow_pos) *
+                Eigen::AngleAxisd(M_PI / 2.0, Eigen::Vector3d::UnitY()));
+
+        visualization_msgs::Marker m;
+        m.header.frame_id = robot_model->getModelFrame();
+        m.ns = "contacts";
+        m.id = cid++;
+        m.type = visualization_msgs::Marker::ARROW;
+        m.action = visualization_msgs::Marker::ADD;
+        tf::poseEigenToMsg(arrow_transform, m.pose);
+        m.scale.x = arrow_len;
+        m.scale.y = m.scale.z = 0.02;
+        m.color.r = 1.0f;
+        m.color.g = 0.0f;
+        m.color.b = 0.0f;
+        m.color.a = 1.0f;
+        m.lifetime = ros::Duration(0);
+        marr.markers.push_back(m);
     }
 
     m_marker_pub.publish(marr);
@@ -881,6 +920,119 @@ MoveGroupCommandPanel::getWorkspaceVisualization() const
     marker.points = std::move(pts);
 
     ma.markers.push_back(std::move(marker));
+    return ma;
+}
+
+visualization_msgs::MarkerArray
+MoveGroupCommandPanel::getRobotCollisionMarkers(
+    const moveit::core::RobotState& state,
+    const std::vector<std::string>& link_names,
+    bool include_attached) const
+{
+    visualization_msgs::MarkerArray ma;
+
+    auto urdf = state.getRobotModel()->getURDF();
+
+    ros::Time tm = ros::Time::now();
+    for (std::size_t i = 0; i < link_names.size(); ++i) {
+        ROS_DEBUG("Trying to get marker for link '%s'", link_names[i].c_str());
+        const moveit::core::LinkModel* lm = state.getRobotModel()->getLinkModel(link_names[i]);
+        auto urdf_link = urdf->getLink(link_names[i]);
+
+        if (!lm || !urdf_link) {
+            continue;
+        }
+
+//        if (include_attached) {
+//            for (auto it = attached_body_map_.begin() ; it != attached_body_map_.end() ; ++it) {
+//                if (it->second->getAttachedLink() == lm) {
+//                    for (std::size_t j = 0 ; j < it->second->getShapes().size() ; ++j) {
+//                        visualization_msgs::Marker att_mark;
+//                        att_mark.header.frame_id = state.getRobotModel()->getModelFrame();
+//                        att_mark.header.stamp = tm;
+//                        if (shapes::constructMarkerFromShape(it->second->getShapes()[j].get(), att_mark)) {
+//                            // if the object is invisible (0 volume) we skip it
+//                            if (fabs(att_mark.scale.x * att_mark.scale.y * att_mark.scale.z) <
+//                                    std::numeric_limits<float>::epsilon())
+//                            {
+//                                continue;
+//                            }
+//                            tf::poseEigenToMsg(it->second->getGlobalCollisionBodyTransforms()[j], att_mark.pose);
+//                            ma.markers.push_back(att_mark);
+//                        }
+//                    }
+//                }
+//            }
+//        }
+
+        if (lm->getShapes().empty()) {
+            continue;
+        }
+
+        for (std::size_t j = 0 ; j < lm->getShapes().size() ; ++j) {
+            auto shape = lm->getShapes()[j];
+            // we're going to roll our own markers for meshes later
+            if (shape->type == shapes::ShapeType::MESH) {
+                continue;
+            }
+
+            visualization_msgs::Marker m;
+            m.header.frame_id = state.getRobotModel()->getModelFrame();
+            m.header.stamp = tm;
+
+            // hope this does a good job for non-meshes
+            if (!shapes::constructMarkerFromShape(shape.get(), m)) {
+                continue;
+            }
+
+            // if the object is invisible (0 volume) we skip it
+            if (fabs(m.scale.x * m.scale.y * m.scale.z) <
+                    std::numeric_limits<float>::epsilon())
+            {
+                continue;
+            }
+
+            const auto& T_model_shape = state.getCollisionBodyTransform(lm, j);
+            tf::poseEigenToMsg(T_model_shape, m.pose);
+
+            ma.markers.push_back(m);
+        }
+
+        // roll our own markers for mesh shapes
+
+        // gather all urdf collision elements (take care of some crufty stuff here)
+        std::vector<boost::shared_ptr<urdf::Collision>> collisions;
+        if (urdf_link->collision) {
+            collisions.push_back(urdf_link->collision);
+        }
+        else {
+            collisions.assign(urdf_link->collision_array.begin(), urdf_link->collision_array.end());
+        }
+
+        size_t cidx = 0;
+        for (const auto& collision : collisions) {
+            if (collision->geometry->type == urdf::Geometry::MESH) {
+                const urdf::Mesh* mesh = (const urdf::Mesh*)collision->geometry.get();
+                visualization_msgs::Marker m;
+                m.header.frame_id = state.getRobotModel()->getModelFrame();
+                m.header.stamp = tm;
+                m.type = m.MESH_RESOURCE;
+                m.mesh_use_embedded_materials = true;
+                m.mesh_resource = mesh->filename;
+                m.scale.x = mesh->scale.x;
+                m.scale.y = mesh->scale.y;
+                m.scale.z = mesh->scale.z;
+
+                // Aha! lucky guess
+                const auto& T_model_shape = state.getCollisionBodyTransform(lm, cidx);
+                tf::poseEigenToMsg(T_model_shape, m.pose);
+
+                ma.markers.push_back(m);
+            }
+            ++cidx;
+        }
+    }
+
     return ma;
 }
 

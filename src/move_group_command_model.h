@@ -19,6 +19,7 @@
 #include <moveit/robot_state/robot_state.h>
 #include <moveit/move_group_interface/move_group.h>
 #include <moveit/planning_scene_interface/planning_scene_interface.h>
+#include <moveit_msgs/ContactInformation.h>
 #include <moveit_msgs/GetMotionPlan.h>
 #include <moveit_msgs/MoveGroupAction.h>
 #include <rviz/config.h>
@@ -65,6 +66,7 @@ public:
     moveit::core::RobotStateConstPtr robotState() const;
 
     boost::tribool robotStateValidity() const { return m_validity; }
+    const std::vector<moveit_msgs::ContactInformation>& contacts() const { return m_contacts; }
 
     bool readyToPlan() const;
 
@@ -156,6 +158,7 @@ private:
     moveit::core::RobotStatePtr m_robot_state;
 
     boost::tribool m_validity;
+    std::vector<moveit_msgs::ContactInformation> m_contacts;
 
     /// \name move_group commands
     ///@{

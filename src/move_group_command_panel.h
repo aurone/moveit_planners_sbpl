@@ -155,6 +155,10 @@ private:
     bool isVariableAngle(int vind) const;
 
     visualization_msgs::MarkerArray getWorkspaceVisualization() const;
+    visualization_msgs::MarkerArray getRobotCollisionMarkers(
+        const moveit::core::RobotState& state,
+        const std::vector<std::string>& link_names,
+        bool include_attached = false) const;
 
     QVBoxLayout* mainLayout();
 };
