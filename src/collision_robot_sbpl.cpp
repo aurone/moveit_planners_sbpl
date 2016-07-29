@@ -31,6 +31,8 @@
 
 #include <moveit_planners_sbpl/collision_robot_sbpl.h>
 
+#include <ros/ros.h>
+
 namespace collision_detection {
 
 CollisionRobotSBPL::CollisionRobotSBPL(
@@ -40,17 +42,66 @@ CollisionRobotSBPL::CollisionRobotSBPL(
 :
     CollisionRobot(model, padding, scale)
 {
-    // TODO: implement
+    ROS_INFO("CollisionRobotSBPL(const RobotModelConstPtr&, double, double)");
+    ros::NodeHandle ph("~");
+
+    // search for the robot collision model on the param server
+    const char* robot_collision_model_param = "robot_collision_model";
+    std::string rcm_key;
+    if (!ph.searchParam(robot_collision_model_param, rcm_key)) {
+        std::stringstream ss;
+        ss << "Failed to find '" << robot_collision_model_param <<
+                "' key on the param server";
+        ROS_ERROR_STREAM(ss.str());
+        throw std::runtime_error(ss.str());
+    }
+
+    // retrieve the robot collision model param from the param server
+    XmlRpc::XmlRpcValue rcm_config;
+    if (!ph.getParam(rcm_key, rcm_config)) {
+        std::stringstream ss;
+        ss << "Failed to retrieve '" << rcm_key << "' from the param server";
+        ROS_ERROR_STREAM(ss.str());
+        throw std::runtime_error(ss.str());
+    }
+
+    // load the robot collision model configuration
+    sbpl::collision::CollisionModelConfig cm_config;
+    if (!sbpl::collision::CollisionModelConfig::Load(rcm_config, cm_config)) {
+        const char* msg = "Failed to load Collision Model Config";
+        ROS_ERROR_STREAM(msg);
+        throw std::runtime_error(msg);
+    }
+
+    // build robot collision model from configuration
+    auto rcm = sbpl::collision::RobotCollisionModel::Load(
+            *model->getURDF(), cm_config);
+    if (!rcm) {
+        const char* msg = "Failed to build Robot Collision Model from config";
+        ROS_ERROR_STREAM(msg);
+        throw std::runtime_error(msg);
+    }
+
+    // ok! store the robot collision model
+    m_rcm = rcm;
 }
 
 CollisionRobotSBPL::CollisionRobotSBPL(const CollisionRobotSBPL& other) :
     CollisionRobot(other)
 {
-    // TODO: implement
+    ROS_INFO("CollisionRobotSBPL(other)");
+    m_rcm = other.m_rcm;
 }
 
 CollisionRobotSBPL::~CollisionRobotSBPL()
 {
+    ROS_INFO("~CollisionRobotSBPL");
+}
+
+const sbpl::collision::RobotCollisionModelConstPtr&
+CollisionRobotSBPL::robotCollisionModel() const
+{
+    return m_rcm;
 }
 
 void CollisionRobotSBPL::checkOtherCollision(

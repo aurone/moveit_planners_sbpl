@@ -29,8 +29,8 @@
 // POSSIBILITY OF SUCH DAMAGE.
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifndef collision_detection_CollisionWorldSBPL_h
-#define collision_detection_CollisionWorldSBPL_h
+#ifndef collision_detection_collision_world_sbpl_h
+#define collision_detection_collision_world_sbpl_h
 
 // standard includes
 #include <memory>
@@ -49,6 +49,7 @@
 
 // project includes
 #include <moveit_planners_sbpl/moveit_robot_model.h>
+#include <moveit_planners_sbpl/collision_robot_sbpl.h>
 
 namespace sbpl_interface {
 class MoveItRobotModel;
@@ -150,7 +151,16 @@ private:
 
     struct GroupModel
     {
+        // variables describing the robot state, limited to only those joints
+        // from the urdf, in the order they are stored within a corresponding
+        // RobotState
+        std::vector<std::string> variable_names;
+        std::vector<int> variable_indices;
+        bool are_variables_contiguous;
+        int variables_offset;
+
         sbpl::OccupancyGridPtr grid;
+
         sbpl::collision::CollisionSpacePtr cspace;
     };
 
@@ -164,18 +174,10 @@ private:
     ros::NodeHandle m_nh;
     ros::Publisher m_cspace_pub;
 
-    // variables describing the robot state, limited to only those joints from
-    // the urdf, in the order they are stored within a corresponding RobotState
-    bool m_robot_initialized;
-    std::vector<std::string> m_robot_variable_names;
-    std::vector<int> m_robot_variable_indices;
-    bool m_are_robot_variables_contiguous;
-    int m_robot_variables_offset;
-
     void construct();
 
     std::vector<double> getCheckedVariables(
-        const moveit::core::RobotState& state) const;
+        const GroupModel& gm, const moveit::core::RobotState& state) const;
 
     // return the internal variable names inside the robot model and their
     // corresponding indices, sorted, within a robot state derived from the
@@ -185,12 +187,15 @@ private:
         std::vector<std::string>& var_names,
         std::vector<int>& var_indices) const;
 
-    sbpl::collision::CollisionSpacePtr getCollisionSpace(
+    GroupModelPtr getGroupModel(
+        const CollisionRobotSBPL& collision_robot,
         const moveit::core::RobotModel& robot_model,
         const std::string& group_name);
 
     // initialize per-robot information
-    void initializeRobotModel(const moveit::core::RobotModel& robot_model);
+    void initializeRobotModel(
+        GroupModel& group_model,
+        const moveit::core::RobotModel& robot_model);
 
     void registerWorldCallback();
     void worldUpdate(const World::ObjectConstPtr& object, World::Action action);
