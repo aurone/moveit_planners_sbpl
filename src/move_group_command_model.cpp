@@ -1051,7 +1051,6 @@ void MoveGroupCommandModel::updateRobotStateValidity()
 
         moveit::core::robotStateToRobotStateMsg(*m_robot_state, req.robot_state);
         req.group_name = m_curr_joint_group_name;
-        // req.constraints;
 
         if (!m_check_state_validity_client->call(req, res)) {
             ROS_WARN("Failed to call service '%s'", m_check_state_validity_client->getService().c_str());
