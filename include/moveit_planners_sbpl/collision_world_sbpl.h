@@ -80,9 +80,12 @@ public:
 
     virtual ~CollisionWorldSBPL();
 
-    /// \name CollisionWorld API Requirements
-    ///@{
+    const distance_field::PropagationDistanceField* distanceField(
+        const std::string& robot_name,
+        const std::string& group_name) const;
 
+    /// \name Reimplemented Public Functions
+    ///@{
     virtual void checkRobotCollision(
         const CollisionRequest& req,
         CollisionResult& res,
@@ -138,11 +141,7 @@ public:
         const AllowedCollisionMatrix& acm) const;
 
     virtual void setWorld(const WorldPtr& world);
-
     ///@}
-
-    const distance_field::PropagationDistanceField* distanceField(
-        const std::string& group_name) const;
 
 private:
 
@@ -175,6 +174,10 @@ private:
     ros::Publisher m_cspace_pub;
 
     void construct();
+
+    std::string groupModelName(
+        const std::string& robot_name,
+        const std::string& group_name) const;
 
     std::vector<double> getCheckedVariables(
         const GroupModel& gm, const moveit::core::RobotState& state) const;

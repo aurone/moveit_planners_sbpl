@@ -714,7 +714,9 @@ bool SBPLPlanningContext::initHeuristicGrid(
         ROS_DEBUG("Using collision information from Collision World SBPL for heuristic!!!");
 
         const distance_field::PropagationDistanceField* df =
-                sbpl_cworld->distanceField(m_robot_model->planningGroupName());
+                sbpl_cworld->distanceField(
+                    scene.getRobotModel()->getName(),
+                    m_robot_model->planningGroupName());
         if (!df) {
             ROS_WARN("Just kidding! Collision World SBPL's distance field is uninitialized");
             return true;

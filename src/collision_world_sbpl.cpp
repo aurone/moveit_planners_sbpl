@@ -45,6 +45,9 @@
 
 namespace collision_detection {
 
+// cdp = collision detection plugin
+static const char* CDP_LOGGER = "collisions";
+
 CollisionWorldSBPL::CollisionWorldSBPL() : CollisionWorld()
 {
     ROS_INFO("CollisionWorldSBPL()");
@@ -287,6 +290,13 @@ void CollisionWorldSBPL::construct()
     // TODO: allowed collisions matrix
 }
 
+std::string CollisionWorldSBPL::groupModelName(
+    const std::string& robot_name,
+    const std::string& group_name) const
+{
+    return robot_name + "." + group_name;
+}
+
 std::vector<double> CollisionWorldSBPL::getCheckedVariables(
     const GroupModel& gm,
     const moveit::core::RobotState& state) const
@@ -369,7 +379,7 @@ CollisionWorldSBPL::GroupModelPtr CollisionWorldSBPL::getGroupModel(
     const moveit::core::RobotModel& robot_model,
     const std::string& group_name)
 {
-    std::string group_model_name = robot_model.getName() + "." + group_name;
+    std::string group_model_name = groupModelName(robot_model.getName(), group_name);
     auto it = m_group_models.find(group_model_name);
     if (it != m_group_models.end()) {
         return it->second;
@@ -383,7 +393,7 @@ CollisionWorldSBPL::GroupModelPtr CollisionWorldSBPL::getGroupModel(
     // Robot Model //
     /////////////////
 
-    ROS_INFO("  Initializing Robot Model");
+    ROS_DEBUG_NAMED(CDP_LOGGER, "  Initializing Robot Model");
     initializeRobotModel(*group_model, robot_model);
 
     ////////////////////
@@ -403,9 +413,9 @@ CollisionWorldSBPL::GroupModelPtr CollisionWorldSBPL::getGroupModel(
     const double df_origin_y = m_world_collision_model_config.origin_y;
     const double df_origin_z = m_world_collision_model_config.origin_z;
 
-    ROS_INFO("  Creating Distance Field");
-    ROS_INFO("    size: (%0.3f, %0.3f, %0.3f)", df_size_x, df_size_y, df_size_z);
-    ROS_INFO("    origin: (%0.3f, %0.3f, %0.3f)", df_origin_x, df_origin_y, df_origin_z);
+    ROS_DEBUG_NAMED(CDP_LOGGER, "  Creating Distance Field");
+    ROS_DEBUG_NAMED(CDP_LOGGER, "    size: (%0.3f, %0.3f, %0.3f)", df_size_x, df_size_y, df_size_z);
+    ROS_DEBUG_NAMED(CDP_LOGGER, "    origin: (%0.3f, %0.3f, %0.3f)", df_origin_x, df_origin_y, df_origin_z);
 
     group_model->grid = std::make_shared<sbpl::OccupancyGrid>(
             df_size_x, df_size_y, df_size_z,
@@ -422,7 +432,7 @@ CollisionWorldSBPL::GroupModelPtr CollisionWorldSBPL::getGroupModel(
     // Collision Space //
     /////////////////////
 
-    ROS_INFO("  Constructing Collision Space");
+    ROS_DEBUG_NAMED(CDP_LOGGER, "  Constructing Collision Space");
 
     const auto rcm = collision_robot.robotCollisionModel();
 
@@ -436,9 +446,9 @@ CollisionWorldSBPL::GroupModelPtr CollisionWorldSBPL::getGroupModel(
         return GroupModelPtr();
     }
 
-    ROS_INFO("  Successfully built collision space");
+    ROS_DEBUG_NAMED(CDP_LOGGER, "  Successfully built collision space");
 
-    ROS_INFO("  Adding world to collision space");
+    ROS_DEBUG_NAMED(CDP_LOGGER, "  Adding world to collision space");
     WorldPtr curr_world = getWorld();
     if (curr_world) {
         // TODO: originally the intention was to automatically determine the
@@ -448,31 +458,34 @@ CollisionWorldSBPL::GroupModelPtr CollisionWorldSBPL::getGroupModel(
         // checking. Warrants review, since the workspace boundaries in the
         // planning request seem like the proper way to express boundaries for
         // the robot
-        ROS_INFO("  Computing world bounding box");
+        ROS_DEBUG_NAMED(CDP_LOGGER, "  Computing world bounding box");
         moveit_msgs::OrientedBoundingBox world_bb = computeWorldAABB(*curr_world);
-        ROS_INFO("  -> Bounding Box:");
-        ROS_INFO("     position: (%0.3f, %0.3f, %0.3f)", world_bb.pose.position.x, world_bb.pose.position.y, world_bb.pose.position.z);
-        ROS_INFO("     extents: (%0.3f, %0.3f, %0.3f)", world_bb.extents.x, world_bb.extents.y, world_bb.extents.z);
+        ROS_DEBUG_NAMED(CDP_LOGGER, "  -> Bounding Box:");
+        ROS_DEBUG_NAMED(CDP_LOGGER, "     position: (%0.3f, %0.3f, %0.3f)", world_bb.pose.position.x, world_bb.pose.position.y, world_bb.pose.position.z);
+        ROS_DEBUG_NAMED(CDP_LOGGER, "     extents: (%0.3f, %0.3f, %0.3f)", world_bb.extents.x, world_bb.extents.y, world_bb.extents.z);
 
         addWorldToCollisionSpace(*curr_world, *cspace);
     }
-    ROS_INFO("  Added world to collision space");
+    ROS_DEBUG_NAMED(CDP_LOGGER, "  Added world to collision space");
 
     // publish collision world visualizations
-    ROS_INFO("Publishing visualization of bounding box");
+    ROS_DEBUG_NAMED(CDP_LOGGER, "Publishing visualization of bounding box");
     visualization_msgs::MarkerArray markers;
     markers = cspace->getBoundingBoxVisualization();
     m_cspace_pub.publish(markers);
 
     // store the successfully initialized group model
-    m_group_models[group_name] = group_model;
+    m_group_models[group_model_name] = group_model;
     return group_model;
 }
 
 const distance_field::PropagationDistanceField*
-CollisionWorldSBPL::distanceField(const std::string& group_name) const
+CollisionWorldSBPL::distanceField(
+    const std::string& robot_name,
+    const std::string& group_name) const
 {
-    auto it = m_group_models.find(group_name);
+    const std::string& group_model_name = groupModelName(robot_name, group_name);
+    auto it = m_group_models.find(group_model_name);
     if (it == m_group_models.end()) {
         return nullptr;
     }
@@ -524,10 +537,10 @@ void CollisionWorldSBPL::initializeRobotModel(
                         robot_var_names.front()));
     }
 
-    ROS_INFO("Sorted Variable Names: %s", to_string(group_model.variable_names).c_str());
-    ROS_INFO("Sorted Variable Indices: %s", to_string(group_model.variable_indices).c_str());
-    ROS_INFO("Contiguous: %s", group_model.are_variables_contiguous ? "true" : "false");
-    ROS_INFO("Variables Offset: %d", group_model.variables_offset);
+    ROS_DEBUG_NAMED(CDP_LOGGER, "Sorted Variable Names: %s", to_string(group_model.variable_names).c_str());
+    ROS_DEBUG_NAMED(CDP_LOGGER, "Sorted Variable Indices: %s", to_string(group_model.variable_indices).c_str());
+    ROS_DEBUG_NAMED(CDP_LOGGER, "Contiguous: %s", group_model.are_variables_contiguous ? "true" : "false");
+    ROS_DEBUG_NAMED(CDP_LOGGER, "Variables Offset: %d", group_model.variables_offset);
 }
 
 void CollisionWorldSBPL::registerWorldCallback()
@@ -720,14 +733,20 @@ void CollisionWorldSBPL::checkRobotCollisionMutable(
 
     double dist;
     const bool verbose = req.verbose;
-    const bool visualize = req.verbose;
-    bool check_res = cspace->isStateValid(vars, verbose, visualize, dist);
+    const bool visualize = true; //req.verbose;
+    bool valid = cspace->isStateValid(vars, verbose, visualize, dist);
     if (visualize) {
-        auto markers = cspace->getCollisionRobotVisualization();
+        auto markers = cspace->getCollisionRobotVisualization(vars);
+        if (!valid) {
+            for (auto& m : markers.markers) {
+                m.color.r = 1.0;
+                m.color.g = m.color.b = 0.0;
+            }
+        }
         m_cspace_pub.publish(markers);
     }
 
-    res.collision = !check_res;
+    res.collision = !valid;
     if (req.distance) {
         res.distance = dist;
     }
