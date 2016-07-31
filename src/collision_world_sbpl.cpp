@@ -417,12 +417,15 @@ CollisionWorldSBPL::GroupModelPtr CollisionWorldSBPL::getGroupModel(
     ROS_DEBUG_NAMED(CDP_LOGGER, "    size: (%0.3f, %0.3f, %0.3f)", df_size_x, df_size_y, df_size_z);
     ROS_DEBUG_NAMED(CDP_LOGGER, "    origin: (%0.3f, %0.3f, %0.3f)", df_origin_x, df_origin_y, df_origin_z);
 
+    const bool propagate_negative_distances = false;
+    const bool ref_counted = true;
     group_model->grid = std::make_shared<sbpl::OccupancyGrid>(
             df_size_x, df_size_y, df_size_z,
             df_res_m,
             df_origin_x, df_origin_y, df_origin_z,
-            df_max_distance,
-            true);
+            df_max_distance_m,
+            propagate_negative_distances,
+            ref_counted);
 
     auto grid = group_model->grid;
 
