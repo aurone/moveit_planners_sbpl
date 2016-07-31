@@ -755,6 +755,29 @@ void CollisionWorldSBPL::checkRobotCollisionMutable(
 
     std::vector<double> vars = getCheckedVariables(*gm, state);
 
+    // TODO: It would be nice to not have to set this before every call, as the
+    // acm changes infrequently yet here forces reevaluation of cached variables
+    // in the cspace.
+    //
+    // Thoughts:
+    //
+    // * We could check for equality between the cached allowed collision matrix
+    //   and the collision matrix here but this is a relatively expensive set of
+    //   string operations
+    //
+    // * create an overload of isStateValid that takes in an allowed collision
+    //   matrix and either remove the cached variables underneath or ignore
+    //   them when a complete allowed collision matrix is given. The goal is to
+    //   not have to set this every time but retain the ability to optimize away
+    //   unnecessary allowed collision entry lookups when the acm changes
+    //   infrequently. Another consideration is that we may want to have an
+    //   internal allowed collision matrix representation in
+    //   sbpl_collisiion_checking (potentially one that is more compact) and so
+    //   we may want to write a wrapper interface class that gets passed to that
+    //   variant of isStateValid that can accept either this representation or
+    //   the internal one
+    cspace->setAllowedCollisionMatrix(acm);
+
     double dist;
     const bool verbose = req.verbose;
     const bool visualize = true; //req.verbose;
