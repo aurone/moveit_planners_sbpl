@@ -705,11 +705,13 @@ bool SBPLPlanningContext::initHeuristicGrid(
     // Fill Distance Field //
     /////////////////////////
 
-    collision_detection::CollisionWorldConstPtr cworld =
-            scene.getCollisionWorld();
-    const collision_detection::CollisionWorldSBPL* sbpl_cworld =
-            dynamic_cast<const collision_detection::CollisionWorldSBPL*>(
-                    cworld.get());
+    bool init_from_sbpl_cc = false;
+
+    using collision_detection::CollisionWorldSBPL;
+
+    auto cworld = scene.getCollisionWorld();
+    const CollisionWorldSBPL* sbpl_cworld =
+            dynamic_cast<const CollisionWorldSBPL*>(cworld.get());
     if (sbpl_cworld) {
         ROS_DEBUG("Using collision information from Collision World SBPL for heuristic!!!");
 
@@ -717,62 +719,82 @@ bool SBPLPlanningContext::initHeuristicGrid(
                 sbpl_cworld->distanceField(
                     scene.getRobotModel()->getName(),
                     m_robot_model->planningGroupName());
-        if (!df) {
-            ROS_WARN("Just kidding! Collision World SBPL's distance field is uninitialized");
-            return true;
-        }
+        if (df) {
+            // copy the collision information
+            // TODO: the distance field at this point should contain the
+            // planning scene world but it will probably contain no or incorrect
+            // voxel information from voxels states...should probably add a
+            // force update function on collisionspace and collisionworldsbpl
+            // to set up the voxel grid for a given robot state here
+            ROS_DEBUG("Copying collision information");
+            copyDistanceField(*df, *m_distance_field);
 
-        // copy the collision information
-        ROS_DEBUG("Copying collision information");
-
-        EigenSTL::vector_Vector3d points;
-        for (int x = 0; x < m_distance_field->getXNumCells(); ++x) {
-            for (int y = 0; y < m_distance_field->getYNumCells(); ++y) {
-                for (int z = 0; z < m_distance_field->getZNumCells(); ++z) {
-                    double wx, wy, wz;
-                    m_distance_field->gridToWorld(x, y, z, wx, wy, wz);
-                    if (df->getDistance(wx, wy, wz) <= 0.0) {
-                        // convert x, y, z to world space
-                        // transform back into the world frame
-                        points.emplace_back(wx, wy, wz);
-                    }
-                }
-            }
-        }
-
-        ROS_DEBUG("Adding %zu points to the bfs distance field", points.size());
-        m_distance_field->addPointsToField(points);
-        m_grid = std::make_shared<sbpl::OccupancyGrid>(m_distance_field);
-        return true;
-    }
-    else {
-        m_grid = std::make_shared<sbpl::OccupancyGrid>(m_distance_field);
-        m_grid->setReferenceFrame(scene.getPlanningFrame());
-        sbpl::collision::WorldCollisionModel cmodel(m_grid.get());
-
-        // insert world objects into the collision model
-        collision_detection::WorldConstPtr world = cworld->getWorld();
-        if (world) {
-            int insert_count = 0;
-            for (auto oit = world->begin(); oit != world->end(); ++oit) {
-                if (!cmodel.insertObject(oit->second)) {
-                    ROS_WARN("Failed to insert object '%s' into heuristic grid", oit->first.c_str());
-                }
-                else {
-                    ++insert_count;
-                }
-            }
-            ROS_DEBUG("Inserted %d objects into the heuristic grid", insert_count);
+            m_grid = std::make_shared<sbpl::OccupancyGrid>(m_distance_field);
+            init_from_sbpl_cc = true;
         }
         else {
-            ROS_WARN("Attempt to insert null World into heuristic grid");
+            ROS_WARN("Just kidding! Collision World SBPL's distance field is uninitialized");
         }
-
-        // note: collision world and going out of scope here will
-        // not destroy the prepared distance field and occupancy grid
     }
 
+    if (init_from_sbpl_cc) {
+        ROS_INFO("Successfully initialized heuristic grid from sbpl collision checker");
+        return true;
+    }
+
+    // TODO: the collision checker might be mature enough to consider
+    // instantiating a full cspace here and using available voxels state
+    // information for a more accurate heuristic
+
+    m_grid = std::make_shared<sbpl::OccupancyGrid>(m_distance_field);
+    m_grid->setReferenceFrame(scene.getPlanningFrame());
+    sbpl::collision::WorldCollisionModel cmodel(m_grid.get());
+
+    // insert world objects into the collision model
+    collision_detection::WorldConstPtr world = cworld->getWorld();
+    if (world) {
+        int insert_count = 0;
+        for (auto oit = world->begin(); oit != world->end(); ++oit) {
+            if (!cmodel.insertObject(oit->second)) {
+                ROS_WARN("Failed to insert object '%s' into heuristic grid", oit->first.c_str());
+            }
+            else {
+                ++insert_count;
+            }
+        }
+        ROS_DEBUG("Inserted %d objects into the heuristic grid", insert_count);
+    }
+    else {
+        ROS_WARN("Attempt to insert null World into heuristic grid");
+    }
+
+    // note: collision world and going out of scope here will
+    // not destroy the prepared distance field and occupancy grid
+
     return true;
+}
+
+void SBPLPlanningContext::copyDistanceField(
+    const distance_field::PropagationDistanceField& dfin,
+    distance_field::PropagationDistanceField& dfout) const
+{
+    EigenSTL::vector_Vector3d points;
+    for (int x = 0; x < dfout.getXNumCells(); ++x) {
+        for (int y = 0; y < dfout.getYNumCells(); ++y) {
+            for (int z = 0; z < dfout.getZNumCells(); ++z) {
+                double wx, wy, wz;
+                dfout.gridToWorld(x, y, z, wx, wy, wz);
+                if (dfin.getDistance(wx, wy, wz) <= 0.0) {
+                    // convert x, y, z to world space
+                    // transform back into the world frame
+                    points.emplace_back(wx, wy, wz);
+                }
+            }
+        }
+    }
+
+    ROS_DEBUG("Add %zu points to the bfs distance field", points.size());
+    dfout.addPointsToField(points);
 }
 
 } // namespace sbpl_interface

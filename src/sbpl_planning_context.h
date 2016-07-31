@@ -104,6 +104,9 @@ private:
     bool initHeuristicGrid(
         const planning_scene::PlanningScene& scene,
         const moveit_msgs::WorkspaceParameters& workspace);
+    void copyDistanceField(
+        const distance_field::PropagationDistanceField& dfin,
+        distance_field::PropagationDistanceField& dfout) const;
 };
 
 MOVEIT_CLASS_FORWARD(SBPLPlanningContext);
