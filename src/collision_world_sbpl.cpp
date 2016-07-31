@@ -249,20 +249,15 @@ void CollisionWorldSBPL::construct()
     ros::NodeHandle ph("~");
 
     const char* world_collision_model_param = "world_collision_model";
-    const char* robot_collision_model_param = "robot_collision_model";
 
-    std::string wcm_key, rcm_key;
+    std::string wcm_key;
     if (!ph.searchParam(world_collision_model_param, wcm_key)) {
         const char* msg = "Failed to find 'world_collision_model' key on the param server";
         ROS_ERROR_STREAM(msg);
         throw std::runtime_error(msg);
     }
 
-    if (!ph.searchParam(robot_collision_model_param, rcm_key)) {
-        const char* msg = "Failed to find 'robot_collision_model' key on the param server";
-        ROS_ERROR_STREAM(msg);
-        throw std::runtime_error(msg);
-    }
+    ROS_INFO_NAMED(CDP_LOGGER, "Found '%s' param at %s", world_collision_model_param, wcm_key.c_str());
 
     // load occupancy grid parameters
     XmlRpc::XmlRpcValue wcm_config;
@@ -270,6 +265,30 @@ void CollisionWorldSBPL::construct()
         std::stringstream ss;
         ss << "Failed to retrieve '" << wcm_key << "' from the param server";
         ROS_ERROR_STREAM(ss.str());
+        throw std::runtime_error(ss.str());
+    }
+
+    if (wcm_config.getType() != XmlRpc::XmlRpcValue::TypeStruct ||
+        !wcm_config.hasMember("size_x") ||
+        !wcm_config.hasMember("size_y") ||
+        !wcm_config.hasMember("size_z") ||
+        !wcm_config.hasMember("origin_x") ||
+        !wcm_config.hasMember("origin_y") ||
+        !wcm_config.hasMember("origin_z") ||
+        !wcm_config.hasMember("res_m") ||
+        !wcm_config.hasMember("max_distance_m"))
+    {
+        std::stringstream ss;
+        ss << "'world_collision_model' param is malformed";
+        ROS_ERROR_STREAM(ss.str());
+        ROS_ERROR_STREAM("has size_x member " << wcm_config.hasMember("size_x"));
+        ROS_ERROR_STREAM("has size_y member " << wcm_config.hasMember("size_y"));
+        ROS_ERROR_STREAM("has size_z member " << wcm_config.hasMember("size_z"));
+        ROS_ERROR_STREAM("has origin_x member " << wcm_config.hasMember("origin_x"));
+        ROS_ERROR_STREAM("has origin_y member " << wcm_config.hasMember("origin_y"));
+        ROS_ERROR_STREAM("has origin_z member " << wcm_config.hasMember("origin_z"));
+        ROS_ERROR_STREAM("has res_m member " << wcm_config.hasMember("res_m"));
+        ROS_ERROR_STREAM("has max_distance_m member " << wcm_config.hasMember("max_distance_m"));
         throw std::runtime_error(ss.str());
     }
 
@@ -403,7 +422,7 @@ CollisionWorldSBPL::GroupModelPtr CollisionWorldSBPL::getGroupModel(
     // TODO: should be dependent on size of the largest sphere in the collision
     // group model (don't forget about attached objects, way to set this
     // explicitly on the collision space or the occupancy grid?)
-    const double df_max_distance = 0.2;
+    const double df_max_distance_m = 0.2;
 
     const double df_size_x = m_world_collision_model_config.size_x;
     const double df_size_y = m_world_collision_model_config.size_y;
@@ -416,6 +435,8 @@ CollisionWorldSBPL::GroupModelPtr CollisionWorldSBPL::getGroupModel(
     ROS_DEBUG_NAMED(CDP_LOGGER, "  Creating Distance Field");
     ROS_DEBUG_NAMED(CDP_LOGGER, "    size: (%0.3f, %0.3f, %0.3f)", df_size_x, df_size_y, df_size_z);
     ROS_DEBUG_NAMED(CDP_LOGGER, "    origin: (%0.3f, %0.3f, %0.3f)", df_origin_x, df_origin_y, df_origin_z);
+    ROS_DEBUG_NAMED(CDP_LOGGER, "    resolution: %0.3f", df_res_m);
+    ROS_DEBUG_NAMED(CDP_LOGGER, "    max_distance: %0.3f", df_max_distance_m);
 
     const bool propagate_negative_distances = false;
     const bool ref_counted = true;
