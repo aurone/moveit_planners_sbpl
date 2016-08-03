@@ -755,33 +755,35 @@ void CollisionWorldSBPL::checkRobotCollisionMutable(
 
     std::vector<double> vars = getCheckedVariables(*gm, state);
 
-    // TODO: It would be nice to not have to set this before every call, as the
-    // acm changes infrequently yet here forces reevaluation of cached variables
-    // in the cspace.
-    //
-    // Thoughts:
-    //
-    // * We could check for equality between the cached allowed collision matrix
-    //   and the collision matrix here but this is a relatively expensive set of
-    //   string operations
-    //
-    // * create an overload of isStateValid that takes in an allowed collision
-    //   matrix and either remove the cached variables underneath or ignore
-    //   them when a complete allowed collision matrix is given. The goal is to
-    //   not have to set this every time but retain the ability to optimize away
-    //   unnecessary allowed collision entry lookups when the acm changes
-    //   infrequently. Another consideration is that we may want to have an
-    //   internal allowed collision matrix representation in
-    //   sbpl_collisiion_checking (potentially one that is more compact) and so
-    //   we may want to write a wrapper interface class that gets passed to that
-    //   variant of isStateValid that can accept either this representation or
-    //   the internal one
-    cspace->setAllowedCollisionMatrix(acm);
+    // proxy class to interface with CollisionSpace
+    class AllowedCollisionMatrixInterface :
+        public sbpl::collision::AllowedCollisionsInterface
+    {
+    public:
+
+        AllowedCollisionMatrixInterface(const AllowedCollisionMatrix& acm) :
+            AllowedCollisionsInterface(),
+            m_acm(acm)
+        { }
+
+        virtual bool getEntry(
+            const std::string& name1,
+            const std::string& name2,
+            sbpl::collision::AllowedCollision::Type& type) const override
+        {
+            return m_acm.getEntry(name1, name2, type);
+        }
+
+    private:
+
+        const AllowedCollisionMatrix& m_acm;
+    };
 
     double dist;
     const bool verbose = req.verbose;
     const bool visualize = true; //req.verbose;
-    bool valid = cspace->isStateValid(vars, verbose, visualize, dist);
+    bool valid = cspace->isStateValid(
+            vars, AllowedCollisionMatrixInterface(acm), verbose, visualize, dist);
     if (visualize) {
         auto markers = cspace->getCollisionRobotVisualization(vars);
         if (!valid) {
