@@ -784,7 +784,7 @@ void CollisionWorldSBPL::checkRobotCollisionMutable(
 
     double dist;
     const bool verbose = req.verbose;
-    const bool visualize = true; //req.verbose;
+    const bool visualize = req.verbose;
     bool valid = cspace->isStateValid(
             vars, AllowedCollisionMatrixInterface(acm), verbose, visualize, dist);
     if (visualize) {
