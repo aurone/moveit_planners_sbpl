@@ -415,14 +415,19 @@ CollisionWorldSBPL::GroupModelPtr CollisionWorldSBPL::getGroupModel(
     ROS_DEBUG_NAMED(CDP_LOGGER, "  Initializing Robot Model");
     initializeRobotModel(*group_model, robot_model);
 
+    const auto rcm = collision_robot.robotCollisionModel();
+
     ////////////////////
     // Distance Field //
     ////////////////////
 
-    // TODO: should be dependent on size of the largest sphere in the collision
-    // group model (don't forget about attached objects, way to set this
-    // explicitly on the collision space or the occupancy grid?)
-    const double df_max_distance_m = 0.2;
+    // TODO: for the purposes of solely detecting collisions, this is set to the
+    // radius of the largest sphere in the robot. it needs to be expanded to
+    // include the radii of attached objects. potentially, this could also be
+    // set to something higher to allow cost-optimizing planners to create paths
+    // further away from collision than this maximum expansion radius
+
+    const double df_max_distance_m = rcm->maxSphereRadius();
 
     const double df_size_x = m_world_collision_model_config.size_x;
     const double df_size_y = m_world_collision_model_config.size_y;
@@ -457,8 +462,6 @@ CollisionWorldSBPL::GroupModelPtr CollisionWorldSBPL::getGroupModel(
     /////////////////////
 
     ROS_DEBUG_NAMED(CDP_LOGGER, "  Constructing Collision Space");
-
-    const auto rcm = collision_robot.robotCollisionModel();
 
     sbpl::collision::CollisionSpaceBuilder builder;
     group_model->cspace = builder.build(
