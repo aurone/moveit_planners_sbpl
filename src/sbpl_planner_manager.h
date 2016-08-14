@@ -57,7 +57,7 @@ private:
     std::string m_ns;
 
     // per-group sbpl robot model
-    std::map<std::string, MoveItRobotModel> m_sbpl_models;
+    std::map<std::string, std::shared_ptr<MoveItRobotModel>> m_sbpl_models;
 
     // per-group sbpl collision allocators
     typedef collision_detection::CollisionDetectorAllocatorPtr

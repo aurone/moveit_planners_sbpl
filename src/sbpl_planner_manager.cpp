@@ -762,9 +762,9 @@ MoveItRobotModel* SBPLPlannerManager::getModelForGroup(
     auto it = m_sbpl_models.find(group_name);
     if (it == m_sbpl_models.end()) {
         auto ent = m_sbpl_models.insert(
-                std::make_pair(group_name, MoveItRobotModel()));
+                std::make_pair(group_name, std::make_shared<MoveItRobotModel>()));
         assert(ent.second);
-        MoveItRobotModel* sbpl_model = &(ent.first->second);
+        MoveItRobotModel* sbpl_model = ent.first->second.get();
         if (!sbpl_model->init(m_robot_model, group_name)) {
             m_sbpl_models.erase(ent.first);
             ROS_WARN("Failed to initialize SBPL Robot Model");
@@ -776,7 +776,7 @@ MoveItRobotModel* SBPLPlannerManager::getModelForGroup(
     }
     else {
         ROS_DEBUG_NAMED(PP_LOGGER, "Using existing SBPL Robot Model for group '%s'", group_name.c_str());
-        return &it->second;
+        return it->second.get();
     }
 }
 

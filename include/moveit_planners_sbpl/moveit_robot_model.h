@@ -43,12 +43,20 @@
 
 namespace sbpl_interface {
 
-class MoveItRobotModel : public sbpl::manip::RobotModel
+class MoveItRobotModel :
+    public virtual sbpl::manip::RobotModel,
+    public virtual sbpl::manip::ForwardKinematicsInterface,
+    public virtual sbpl::manip::InverseKinematicsInterface
 {
 public:
 
     MoveItRobotModel();
     virtual ~MoveItRobotModel();
+
+    // disallow copy/assign since RobotModel holds internal references to
+    // extension interfaces
+    MoveItRobotModel(const MoveItRobotModel&) = delete;
+    MoveItRobotModel& operator=(const MoveItRobotModel&) = delete;
 
     /// \name sbpl::manip::RobotModel API Requirements
     ///@{
@@ -59,16 +67,11 @@ public:
     virtual double velLimit(int jidx) const override;
     virtual double accLimit(int jidx) const override;
 
-    bool setPlanningLink(const std::string& name) override;
+    bool setPlanningLink(const std::string& name);
 
     virtual bool checkJointLimits(
         const std::vector<double>& angles,
         bool verbose = false) override;
-
-    virtual bool computeFK(
-        const std::vector<double>& angles,
-        const std::string& name,
-        std::vector<double>& pose) override;
 
     virtual bool computePlanningLinkFK(
         const std::vector<double>& angles,
@@ -91,9 +94,14 @@ public:
         const std::vector<double>& start,
         std::vector<double>& solution) override;
 
-    virtual void printRobotModelInformation() override;
+    void printRobotModelInformation();
 
     ///@}
+
+    virtual bool computeFK(
+        const std::vector<double>& angles,
+        const std::string& name,
+        std::vector<double>& pose);
 
     /// \brief Initialize the MoveItRobotModel for the given MoveIt! Robot Model
     ///     and the group being planned for

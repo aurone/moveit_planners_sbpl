@@ -45,6 +45,9 @@
 namespace sbpl_interface {
 
 MoveItRobotModel::MoveItRobotModel() :
+    RobotModel(),
+    ForwardKinematicsInterface(),
+    InverseKinematicsInterface(),
     m_group_name(),
     m_robot_model(),
     m_robot_state(),
@@ -53,6 +56,9 @@ MoveItRobotModel::MoveItRobotModel() :
     m_active_var_count(0),
     m_active_var_indices()
 {
+    registerExtension<sbpl::manip::RobotModel>(this);
+    registerExtension<sbpl::manip::ForwardKinematicsInterface>(this);
+    registerExtension<sbpl::manip::InverseKinematicsInterface>(this);
 }
 
 MoveItRobotModel::~MoveItRobotModel()
@@ -272,10 +278,6 @@ bool MoveItRobotModel::setPlanningLink(const std::string& name)
         return false;
     }
 
-    if (!sbpl::manip::RobotModel::setPlanningLink(name)) {
-        return false;
-    }
-
     m_tip_link = m_robot_model->getLinkModel(name);
     assert(m_tip_link);
     return true;
@@ -302,9 +304,7 @@ bool MoveItRobotModel::checkJointLimits(
             if (angles[vidx] < bounds.min_position_ ||
                 angles[vidx] > bounds.max_position_)
             {
-                if (verbose) {
-                    ROS_WARN("Variable '%s' out of bounds [%0.3f, %0.3f]", var_name.c_str(), bounds.min_position_, bounds.max_position_);
-                }
+                ROS_DEBUG("Variable '%s' out of bounds [%0.3f, %0.3f]", var_name.c_str(), bounds.min_position_, bounds.max_position_);
                 return false;
             }
         }
