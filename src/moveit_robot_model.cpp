@@ -423,28 +423,6 @@ bool MoveItRobotModel::computeIK(
     return false;
 }
 
-bool MoveItRobotModel::computeFastIK(
-    const std::vector<double>& pose,
-    const std::vector<double>& start,
-    std::vector<double>& solution)
-{
-    // TODO: find out what this method is supposed to accomplish over the other
-    // methods...
-
-    if (!initialized()) {
-        ROS_ERROR("MoveIt! Robot Model is uninitialized");
-        return false;
-    }
-
-    if (!m_tip_link || !m_joint_group->canSetStateFromIK(m_tip_link->getName())) {
-        ROS_WARN_ONCE("computeIK not available for this Robot Model");
-        return false;
-    }
-
-    return computeIK(
-            pose, start, solution, sbpl::manip::ik_option::UNRESTRICTED);
-}
-
 void MoveItRobotModel::printRobotModelInformation()
 {
     if (!initialized()) {

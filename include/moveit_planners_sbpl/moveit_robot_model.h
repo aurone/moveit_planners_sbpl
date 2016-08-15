@@ -89,11 +89,6 @@ public:
         std::vector<std::vector<double> >& solutions,
         sbpl::manip::ik_option::IkOption option = sbpl::manip::ik_option::UNRESTRICTED) override;
 
-    virtual bool computeFastIK(
-        const std::vector<double>& pose,
-        const std::vector<double>& start,
-        std::vector<double>& solution) override;
-
     void printRobotModelInformation();
 
     ///@}
