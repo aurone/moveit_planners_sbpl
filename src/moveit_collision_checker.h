@@ -86,6 +86,7 @@ public:
 private:
 
     MoveItRobotModel* m_robot_model;
+    std::vector<double> m_var_incs;
 
     planning_scene::PlanningSceneConstPtr m_scene;
 

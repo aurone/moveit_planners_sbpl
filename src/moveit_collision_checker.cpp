@@ -97,6 +97,12 @@ bool MoveItCollisionChecker::init(
 
     m_robot_model = robot_model;
 
+    m_var_incs.reserve(m_robot_model->getPlanningJoints().size());
+    for (const std::string& joint_name : m_robot_model->getPlanningJoints()) {
+        m_var_incs.push_back(sbpl::utils::ToRadians(2.0));
+    }
+    ROS_INFO("Increments: %s", to_string(m_var_incs).c_str());
+
     m_ref_state.reset(new moveit::core::RobotState(scene->getRobotModel()));
     *m_ref_state = ref_state;
 
@@ -227,7 +233,7 @@ bool MoveItCollisionChecker::interpolatePath(
     // compute the number of intermediate waypoints including start and end
     int waypoint_count = 0;
     for (size_t vidx = 0; vidx < m_robot_model->activeVariableCount(); vidx++) {
-        int angle_waypoints = (int)(std::fabs(diffs[vidx]) / m_robot_model->variableIncrements()[vidx]) + 1;
+        int angle_waypoints = (int)(std::fabs(diffs[vidx]) / m_var_incs[vidx]) + 1;
         waypoint_count = std::max(waypoint_count, angle_waypoints);
     }
     waypoint_count = std::max(waypoint_count, 2);

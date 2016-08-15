@@ -109,7 +109,6 @@ bool MoveItRobotModel::init(
     // cache the limits and properties of all planning joint variables
     m_var_min_limits.reserve(m_active_var_count);
     m_var_max_limits.reserve(m_active_var_count);
-    m_var_incs.reserve(m_active_var_count);
     m_var_continuous.reserve(m_active_var_count);
     m_var_vel_limits.reserve(m_active_var_count);
     m_var_acc_limits.reserve(m_active_var_count);
@@ -123,14 +122,12 @@ bool MoveItRobotModel::init(
                 m_var_continuous.push_back(false);
                 m_var_min_limits.push_back(var_bounds.min_position_);
                 m_var_max_limits.push_back(var_bounds.max_position_);
-                m_var_incs.push_back(sbpl::utils::ToRadians(2.0));
             }
             else {
                 // slight hack here? !position_bounded_ => continuous?
                 m_var_continuous.push_back(true);
                 m_var_min_limits.push_back(-M_PI);
                 m_var_max_limits.push_back(M_PI);
-                m_var_incs.push_back(sbpl::utils::ToRadians(2.0));
             }
 
             if (var_bounds.velocity_bounded_) {
@@ -152,7 +149,6 @@ bool MoveItRobotModel::init(
     ROS_INFO("Min Limits: %s", to_string(m_var_min_limits).c_str());
     ROS_INFO("Max Limits: %s", to_string(m_var_max_limits).c_str());
     ROS_INFO("Continuous: %s", to_string(m_var_continuous).c_str());
-    ROS_INFO("Increments: %s", to_string(m_var_incs).c_str());
 
     // identify a tip link to use for forward and inverse kinematics
     // TODO: better default planning link (first tip link)
@@ -479,11 +475,6 @@ const std::vector<double>& MoveItRobotModel::variableMinLimits() const
 const std::vector<double>& MoveItRobotModel::variableMaxLimits() const
 {
     return m_var_max_limits;
-}
-
-const std::vector<double>& MoveItRobotModel::variableIncrements() const
-{
-    return m_var_incs;
 }
 
 const std::vector<bool>& MoveItRobotModel::variableContinuous() const

@@ -136,7 +136,6 @@ public:
     ///@{
     const std::vector<double>& variableMinLimits() const;
     const std::vector<double>& variableMaxLimits() const;
-    const std::vector<double>& variableIncrements() const;
     const std::vector<bool>& variableContinuous() const;
     ///@}
 
@@ -165,7 +164,6 @@ private:
 
     std::vector<double> m_var_min_limits;
     std::vector<double> m_var_max_limits;
-    std::vector<double> m_var_incs;
     std::vector<bool> m_var_continuous;
     std::vector<double> m_var_vel_limits;
     std::vector<double> m_var_acc_limits;
