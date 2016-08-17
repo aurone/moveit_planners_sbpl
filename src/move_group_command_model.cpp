@@ -1454,9 +1454,7 @@ bool MoveGroupCommandModel::getActualState(
     planning_scene::PlanningScenePtr scene = m_scene_monitor->getPlanningScene();
 
     const robot_state::RobotState& curr_state = scene->getCurrentState();
-    sensor_msgs::JointState curr_joint_state;
-    moveit::core::robotStateToJointStateMsg(curr_state, curr_joint_state);
-    robot_state.setVariableValues(curr_joint_state);
+    robot_state = scene->getCurrentState();
 
     m_scene_monitor->unlockSceneRead();
 
