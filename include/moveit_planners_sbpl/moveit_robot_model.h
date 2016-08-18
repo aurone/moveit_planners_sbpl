@@ -90,6 +90,11 @@ public:
 
     moveit::core::RobotModelConstPtr moveitRobotModel() const;
 
+    /// \namem Reimplemented Public Functions from Extension
+    ///@{
+    virtual sbpl::manip::Extension* getExtension(size_t class_code);
+    ///@}
+
     /// \name Reimplemented Public Functions from sbpl::manip::RobotModel
     ///@{
     double minPosLimit(int jidx) const override;

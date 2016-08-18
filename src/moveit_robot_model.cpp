@@ -69,10 +69,6 @@ MoveItRobotModel::MoveItRobotModel() :
     m_wrist_roll_link(),
     m_wrist_flex_joint()
 {
-    registerExtension<sbpl::manip::RobotModel>(this);
-    registerExtension<sbpl::manip::ForwardKinematicsInterface>(this);
-    registerExtension<sbpl::manip::InverseKinematicsInterface>(this);
-    registerExtension<sbpl::manip::RedundantManipulatorInterface>(this);
 }
 
 MoveItRobotModel::~MoveItRobotModel()
@@ -282,6 +278,20 @@ bool MoveItRobotModel::setPlanningFrame(const std::string& planning_frame)
     // TODO: check for frame existence in robot or planning scene?
     m_planning_frame = planning_frame;
     return true;
+}
+
+sbpl::manip::Extension* MoveItRobotModel::getExtension(size_t class_code)
+{
+    if (class_code == sbpl::manip::GetClassCode<sbpl::manip::RobotModel>() ||
+        class_code == sbpl::manip::GetClassCode<sbpl::manip::ForwardKinematicsInterface>() ||
+        class_code == sbpl::manip::GetClassCode<sbpl::manip::InverseKinematicsInterface>() ||
+        class_code == sbpl::manip::GetClassCode<sbpl::manip::RedundantManipulatorInterface>())
+    {
+        return this;
+    }
+    else {
+        return nullptr;
+    }
 }
 
 double MoveItRobotModel::minPosLimit(int jidx) const
