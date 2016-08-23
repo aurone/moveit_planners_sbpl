@@ -72,6 +72,7 @@ CollisionWorldSBPL::CollisionWorldSBPL(
 
     m_world_collision_model_config = other.m_world_collision_model_config;
     m_group_models = other.m_group_models;
+    m_jcgm_map = other.m_jcgm_map;
     // NOTE: no need to copy observer handle
     registerWorldCallback();
     // NOTE: no need to copy node handle
@@ -250,6 +251,7 @@ void CollisionWorldSBPL::construct()
 
     const char* world_collision_model_param = "world_collision_model";
 
+    // resolve "world_collision_model" param
     std::string wcm_key;
     if (!ph.searchParam(world_collision_model_param, wcm_key)) {
         const char* msg = "Failed to find 'world_collision_model' key on the param server";
@@ -259,7 +261,7 @@ void CollisionWorldSBPL::construct()
 
     ROS_INFO_NAMED(CDP_LOGGER, "Found '%s' param at %s", world_collision_model_param, wcm_key.c_str());
 
-    // load occupancy grid parameters
+    // read parameter
     XmlRpc::XmlRpcValue wcm_config;
     if (!ph.getParam(wcm_key, wcm_config)) {
         std::stringstream ss;
@@ -268,6 +270,7 @@ void CollisionWorldSBPL::construct()
         throw std::runtime_error(ss.str());
     }
 
+    // check for required type and members
     if (wcm_config.getType() != XmlRpc::XmlRpcValue::TypeStruct ||
         !wcm_config.hasMember("size_x") ||
         !wcm_config.hasMember("size_y") ||
@@ -275,8 +278,7 @@ void CollisionWorldSBPL::construct()
         !wcm_config.hasMember("origin_x") ||
         !wcm_config.hasMember("origin_y") ||
         !wcm_config.hasMember("origin_z") ||
-        !wcm_config.hasMember("res_m") ||
-        !wcm_config.hasMember("max_distance_m"))
+        !wcm_config.hasMember("res_m"))
     {
         std::stringstream ss;
         ss << "'world_collision_model' param is malformed";
@@ -288,7 +290,6 @@ void CollisionWorldSBPL::construct()
         ROS_ERROR_STREAM("has origin_y member " << wcm_config.hasMember("origin_y"));
         ROS_ERROR_STREAM("has origin_z member " << wcm_config.hasMember("origin_z"));
         ROS_ERROR_STREAM("has res_m member " << wcm_config.hasMember("res_m"));
-        ROS_ERROR_STREAM("has max_distance_m member " << wcm_config.hasMember("max_distance_m"));
         throw std::runtime_error(ss.str());
     }
 
@@ -301,12 +302,60 @@ void CollisionWorldSBPL::construct()
     m_world_collision_model_config.origin_y = wcm_config["origin_y"];
     m_world_collision_model_config.origin_z = wcm_config["origin_z"];
     m_world_collision_model_config.res_m = wcm_config["res_m"];
-    m_world_collision_model_config.max_distance_m = wcm_config["max_distance_m"];
+
+    // check for optional parameters
+    if (wcm_config.hasMember("max_distance_m")) {
+        m_world_collision_model_config.max_distance_m = wcm_config["max_distance_m"];
+    }
+    else {
+        m_world_collision_model_config.max_distance_m = 0.0;
+    }
+
+    loadJointCollisionGroupMap();
+
+    // TODO: allowed collisions matrix
 
     m_cspace_pub = m_nh.advertise<visualization_msgs::MarkerArray>(
             "visualization_markers", 100);
+}
 
-    // TODO: allowed collisions matrix
+/// \brief Load the Joint <-> Collision Group Map from the param server
+///
+/// If the expected parameter is not found or the value on the param server is
+/// malformed, the group map is left unaltered; otherwise it is overwritten.
+void CollisionWorldSBPL::loadJointCollisionGroupMap()
+{
+    ros::NodeHandle ph("~");
+
+    const char* jcgm_param = "joint_collision_group_map";
+    std::string jcgm_key;
+    if (!ph.searchParam(jcgm_param, jcgm_key)) {
+        ROS_INFO("no param '%s' found on the param server. assuming same names for joint and collision groups", jcgm_param);
+        return;
+    }
+
+    XmlRpc::XmlRpcValue jcgm_value;
+    if (!ph.getParam(jcgm_key, jcgm_value)) {
+        ROS_ERROR("failed to retrieve param '%s' from the param server?", jcgm_key.c_str());
+        return;
+    }
+
+    if (jcgm_value.getType() != XmlRpc::XmlRpcValue::TypeStruct) {
+        ROS_ERROR("'%s' value must be a struct", jcgm_param);
+        return;
+    }
+
+    std::unordered_map<std::string, std::string> jcgm_map;
+    for (auto it = jcgm_value.begin(); it != jcgm_value.end(); ++it) {
+        if (it->second.getType() != XmlRpc::XmlRpcValue::TypeString) {
+            ROS_ERROR("'%s' dictionary elements must be strings", jcgm_param);
+            return;
+        }
+
+        jcgm_map[it->first] = (std::string)it->second;
+    }
+
+    m_jcgm_map = std::move(jcgm_map);
 }
 
 std::string CollisionWorldSBPL::groupModelName(
@@ -421,13 +470,32 @@ CollisionWorldSBPL::GroupModelPtr CollisionWorldSBPL::getGroupModel(
     // Distance Field //
     ////////////////////
 
-    // TODO: for the purposes of solely detecting collisions, this is set to the
-    // radius of the largest sphere in the robot. it needs to be expanded to
-    // include the radii of attached objects. potentially, this could also be
-    // set to something higher to allow cost-optimizing planners to create paths
-    // further away from collision than this maximum expansion radius
+    // TODO: include the attached object models when computing th max expansion
+    // distance
 
-    const double df_max_distance_m = rcm->maxSphereRadius();
+    // resolve the maximum expansion distance. this should be at least the
+    // radius of the largest leaf sphere in the collision model but may be
+    // overridden by the user to a larger value
+    double df_max_distance_m;
+    double cfg_max_distance_m = m_world_collision_model_config.max_distance_m;
+    if (cfg_max_distance_m > 0.0) {
+        // allow the user to set the maximum expansion distance. a value between
+        // the max leaf sphere radius and the max sphere radius abandons some
+        // efficiency gained by hierarchical checking in exchange for fewer
+        // distance propagations. a value larger than the max sphere radius
+        // provides additional cost information about how far the robot is from
+        // environment obstacles.
+        const double max_leaf_radius_m = rcm->maxLeafSphereRadius();
+        if (cfg_max_distance_m < max_leaf_radius_m) {
+            ROS_WARN("configured max distance set to %0.3f. overriding to largest leaf sphere radius", cfg_max_distance_m);
+        }
+        df_max_distance_m =
+                std::max(max_leaf_radius_m, cfg_max_distance_m);
+    }
+    else {
+        // default to the value of the largest sphere (leaf and internal nodes)
+        df_max_distance_m = rcm->maxSphereRadius();
+    }
 
     const double df_size_x = m_world_collision_model_config.size_x;
     const double df_size_y = m_world_collision_model_config.size_y;
@@ -463,9 +531,20 @@ CollisionWorldSBPL::GroupModelPtr CollisionWorldSBPL::getGroupModel(
 
     ROS_DEBUG_NAMED(CDP_LOGGER, "  Constructing Collision Space");
 
+    auto jgcgit = m_jcgm_map.find(group_name);
+    std::string collision_group_name;
+    if (jgcgit == m_jcgm_map.end()) {
+        collision_group_name = group_name;
+    }
+    else {
+        collision_group_name = jgcgit->second;
+    }
+
+    ROS_DEBUG_NAMED(CDP_LOGGER, "Constructing cspace for group '%s'", collision_group_name.c_str());
+
     sbpl::collision::CollisionSpaceBuilder builder;
     group_model->cspace = builder.build(
-            grid.get(), rcm, group_name, group_model->variable_names);
+            grid.get(), rcm, collision_group_name, group_model->variable_names);
     auto cspace = group_model->cspace;
 
     if (!cspace) {

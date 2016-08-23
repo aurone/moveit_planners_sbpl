@@ -168,12 +168,16 @@ private:
 
     std::unordered_map<std::string, GroupModelPtr> m_group_models;
 
+    // mapping from joint group name to collision group name
+    std::unordered_map<std::string, std::string> m_jcgm_map;
+
     World::ObserverHandle m_observer_handle;
 
     ros::NodeHandle m_nh;
     ros::Publisher m_cspace_pub;
 
     void construct();
+    void loadJointCollisionGroupMap();
 
     std::string groupModelName(
         const std::string& robot_name,
