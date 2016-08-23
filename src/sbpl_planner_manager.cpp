@@ -120,13 +120,18 @@ planning_interface::PlanningContextPtr SBPLPlannerManager::getPlanningContext(
     }
 
     // TODO: reevaluate these assumptions when different goal types are added
-    assert(!req.goal_constraints.empty() && !req.goal_constraints.front().position_constraints.empty());
-    const std::string& planning_link =
-            req.goal_constraints.front().position_constraints.front().link_name;
-    ROS_INFO("Setting planning link to '%s'", planning_link.c_str());
-    if (!sbpl_model->setPlanningLink(planning_link)) {
-        ROS_ERROR("Failed to set planning link to '%s'", planning_link.c_str());
-        return context;
+    if (!req.goal_constraints.empty()) {
+        const auto& goal_constraint = req.goal_constraints.front();
+        // should've received one pose constraint for a single link, o/w
+        // canServiceRequest would have complained
+        assert(!goal_constraint.position_constraints.empty());
+        const auto& position_constraint = goal_constraint.position_constraints.front();
+        const std::string& planning_link = position_constraint.link_name;
+        ROS_INFO("Setting planning link to '%s'", planning_link.c_str());
+        if (!sbpl_model->setPlanningLink(planning_link)) {
+            ROS_ERROR("Failed to set planning link to '%s'", planning_link.c_str());
+            return context;
+        }
     }
 
     bool res = true;

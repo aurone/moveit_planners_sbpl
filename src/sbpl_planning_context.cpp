@@ -111,10 +111,27 @@ bool SBPLPlanningContext::solve(planning_interface::MotionPlanResponse& res)
     assert(robot);
     const planning_interface::MotionPlanRequest& req = getMotionPlanRequest();
 
-    if (req.goal_constraints.empty()) {
+    // pretend that planning_interface::MotionPlanRequest and
+    // moveit_msgs::MotionPlanRequest are not the same
+    moveit_msgs::MotionPlanRequest req_msg;
+    if (!translateRequest(req_msg)) {
+        ROS_WARN("Unable to translate Motion Plan Request to SBPL Motion Plan Request");
+        return false;
+    }
+
+    // apply requested deltas/overrides to the current start state
+    robot_state::RobotStateConstPtr start_state;
+    start_state = scene->getCurrentStateUpdated(req_msg.start_state);
+    if (!start_state) {
+        ROS_WARN("Unable to update start state with requested start state overrides");
+        return false;
+    }
+
+    if (req_msg.goal_constraints.empty()) {
         // :3
         res.trajectory_.reset(
                 new robot_trajectory::RobotTrajectory(robot, getGroupName()));
+        res.trajectory_->addSuffixWayPoint(*start_state, 0.0);
         res.planning_time_ = 0.0;
         res.error_code_.val = moveit_msgs::MoveItErrorCodes::SUCCESS;
         return true;
@@ -134,18 +151,6 @@ bool SBPLPlanningContext::solve(planning_interface::MotionPlanResponse& res)
     moveit_msgs::PlanningScenePtr scene_msg(new moveit_msgs::PlanningScene);
     scene->getPlanningSceneMsg(*scene_msg);
 
-    moveit_msgs::MotionPlanRequest req_msg;
-    if (!translateRequest(req_msg)) {
-        ROS_WARN("Unable to translate Motion Plan Request to SBPL Motion Plan Request");
-        return false;
-    }
-
-    robot_state::RobotStateConstPtr start_state =
-            scene->getCurrentStateUpdated(req_msg.start_state);
-    if (!start_state) {
-        ROS_WARN("Unable to update start state with requested start state overrides");
-        return false;
-    }
     moveit::core::robotStateToRobotStateMsg(*start_state, req_msg.start_state);
 
     moveit_msgs::MotionPlanResponse res_msg;
