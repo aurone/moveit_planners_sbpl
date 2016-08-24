@@ -484,16 +484,16 @@ CollisionWorldSBPL::GroupModelPtr CollisionWorldSBPL::getGroupModel(
         // distance propagations. a value larger than the max sphere radius
         // provides additional cost information about how far the robot is from
         // environment obstacles.
-        const double max_leaf_radius_m = rcm->maxLeafSphereRadius();
-        if (cfg_max_distance_m < max_leaf_radius_m) {
-            ROS_WARN("configured max distance set to %0.3f. overriding to largest leaf sphere radius", cfg_max_distance_m);
+        const double required_radius = rcm->maxLeafSphereRadius() + m_world_collision_model_config.res_m;
+        if (cfg_max_distance_m < required_radius) {
+            ROS_WARN("configured max distance set to %0.3f. overriding to required radius %0.3f", cfg_max_distance_m, required_radius);
         }
         df_max_distance_m =
-                std::max(max_leaf_radius_m, cfg_max_distance_m);
+                std::max(required_radius, cfg_max_distance_m);
     }
     else {
         // default to the value of the largest sphere (leaf and internal nodes)
-        df_max_distance_m = rcm->maxSphereRadius();
+        df_max_distance_m = rcm->maxSphereRadius() + m_world_collision_model_config.res_m;
     }
 
     const double df_size_x = m_world_collision_model_config.size_x;
