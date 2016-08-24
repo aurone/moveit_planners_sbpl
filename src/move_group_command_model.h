@@ -153,6 +153,8 @@ private:
 
     ros::NodeHandle m_nh;
 
+    ros::Publisher m_command_robot_state_pub;
+
     planning_scene_monitor::PlanningSceneMonitorPtr m_scene_monitor;
 
     moveit::core::RobotStatePtr m_robot_state;
@@ -305,6 +307,8 @@ private:
     bool computeInscribedRadius(
         const moveit::core::LinkModel& link,
         double& radius) const;
+
+    void notifyCommandStateChanged();
 };
 
 } // namespace sbpl_interface

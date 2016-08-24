@@ -84,6 +84,7 @@ static std::string to_string(moveit_msgs::MoveItErrorCodes code)
 MoveGroupCommandModel::MoveGroupCommandModel(QObject* parent) :
     QObject(parent),
     m_nh(),
+    m_command_robot_state_pub(),
     m_scene_monitor(),
     m_robot_state(),
     m_validity(boost::indeterminate),
@@ -104,6 +105,9 @@ MoveGroupCommandModel::MoveGroupCommandModel(QObject* parent) :
     m_im_server("phantom_controls"),
     m_int_marker_names()
 {
+    m_command_robot_state_pub = m_nh.advertise<moveit_msgs::RobotState>(
+            "command_robot_state", 1);
+
     m_workspace.min_corner.x = DefaultWorkspaceMinX;
     m_workspace.min_corner.y = DefaultWorkspaceMinY;
     m_workspace.min_corner.z = DefaultWorkspaceMinZ;
@@ -294,7 +298,7 @@ bool MoveGroupCommandModel::copyCurrentState()
 {
     if (getActualState(*m_robot_state)) {
         updateInteractiveMarkers();
-        Q_EMIT robotStateChanged();
+        notifyCommandStateChanged();
         return true;
     }
     else {
@@ -648,7 +652,7 @@ void MoveGroupCommandModel::setJointVariable(int jidx, double value)
 
         updateRobotStateValidity();
 
-        Q_EMIT robotStateChanged();
+        notifyCommandStateChanged();
     }
 }
 
@@ -680,7 +684,7 @@ void MoveGroupCommandModel::setJointVariable(
 
         updateRobotStateValidity();
 
-        Q_EMIT robotStateChanged();
+        notifyCommandStateChanged();
     }
 }
 
@@ -1533,7 +1537,7 @@ void MoveGroupCommandModel::processInteractiveMarkerFeedback(
         }
         m_robot_state->update();
         updateInteractiveMarkers();
-        Q_EMIT robotStateChanged();
+        notifyCommandStateChanged();
     }   break;
     case visualization_msgs::InteractiveMarkerFeedback::MENU_SELECT:
     case visualization_msgs::InteractiveMarkerFeedback::BUTTON_CLICK:
@@ -1875,6 +1879,14 @@ bool MoveGroupCommandModel::computeInscribedRadius(
     radius = std::min(radius, size.z());
     radius -= pos.norm();
     return true;
+}
+
+void MoveGroupCommandModel::notifyCommandStateChanged()
+{
+    moveit_msgs::RobotState msg;
+    moveit::core::robotStateToRobotStateMsg(*m_robot_state, msg);
+    m_command_robot_state_pub.publish(msg);
+    Q_EMIT robotStateChanged();
 }
 
 } // namespace sbpl_interface

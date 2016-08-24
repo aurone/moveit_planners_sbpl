@@ -21,8 +21,7 @@ JointVariableCommandWidget::JointVariableCommandWidget(
     QGridLayout* grid_layout = new QGridLayout;
 
     const size_t num_vars = robot_model->getVariableCount();
-    const std::vector<std::string>& var_names =
-            robot_model->getVariableNames();
+    const auto& var_names = robot_model->getVariableNames();
 
     // create a (label, spinbox) combo for each joint variable
     // create bijection between spinboxes and joint variable indices
@@ -31,8 +30,7 @@ JointVariableCommandWidget::JointVariableCommandWidget(
         const auto& var_bounds = robot_model->getVariableBounds(var_name);
 
         // set the bounds, step, and wrapping on the spinbox
-        const moveit::core::JointModel* jm =
-                robot_model->getJointOfVariable(var_name);
+        const auto* jm = robot_model->getJointOfVariable(var_name);
 
         QLabel* var_label = new QLabel(QString::fromStdString(var_name));
         QDoubleSpinBox* var_spinbox = setupSpinBoxFor(var_name, var_bounds, *jm);
