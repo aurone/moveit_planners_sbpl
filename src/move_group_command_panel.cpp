@@ -320,7 +320,9 @@ QGroupBox* MoveGroupCommandPanel::setupGoalConstraintsGroup()
     QGroupBox* goal_constraints_group = new QGroupBox(tr("Goal Constraints"));
     QGridLayout* goal_constraints_layout = new QGridLayout;
 
-    QLabel* joint_tol_label = new QLabel(tr("Joint Tolerance (deg):"));
+    // Tolerance Group
+    QGroupBox* tolerance_group = new QGroupBox(tr("Tolerances"));
+    QGridLayout* tolerance_layout = new QGridLayout;
 
     m_joint_tol_spinbox = new QDoubleSpinBox;
     m_joint_tol_spinbox->setMinimum(-180.0);
@@ -329,16 +331,12 @@ QGroupBox* MoveGroupCommandPanel::setupGoalConstraintsGroup()
     m_joint_tol_spinbox->setWrapping(false);
     syncGoalJointToleranceSpinBox();
 
-    QLabel* pos_tol_label = new QLabel(tr("Position Tolerance (m):"));
-
     m_pos_tol_spinbox = new QDoubleSpinBox;
     m_pos_tol_spinbox->setMinimum(-1.0);
     m_pos_tol_spinbox->setMaximum( 1.0);
     m_pos_tol_spinbox->setSingleStep(0.01);
     m_pos_tol_spinbox->setWrapping(false);
     syncGoalPositionToleranceSpinBox();
-
-    QLabel* rot_tol_label = new QLabel(tr("Orientation Tolerance (deg):"));
 
     m_rot_tol_spinbox = new QDoubleSpinBox;
     m_rot_tol_spinbox->setMinimum(0.0);
@@ -347,6 +345,17 @@ QGroupBox* MoveGroupCommandPanel::setupGoalConstraintsGroup()
     m_rot_tol_spinbox->setWrapping(false);
     syncGoalOrientationToleranceSpinBox();
 
+    tolerance_layout->addWidget(new QLabel(tr("Position (m)")), 0, 0);
+    tolerance_layout->addWidget(m_pos_tol_spinbox, 0, 1);
+    tolerance_layout->addWidget(new QLabel(tr("Orientation (deg)")), 1, 0);
+    tolerance_layout->addWidget(m_rot_tol_spinbox, 1, 1);
+    tolerance_layout->addWidget(new QLabel(tr("Joint (deg)")), 2, 0);
+    tolerance_layout->addWidget(m_joint_tol_spinbox, 2, 1);
+
+    tolerance_group->setLayout(tolerance_layout);
+    // End Tolerance Group
+
+    // Workspace Group
     QGroupBox* workspace_group = new QGroupBox(tr("Workspace Parameters"));
     QGridLayout* workspace_layout = new QGridLayout;
 
@@ -405,14 +414,10 @@ QGroupBox* MoveGroupCommandPanel::setupGoalConstraintsGroup()
     workspace_layout->addWidget(m_workspace_max_z_spinbox,      2, 3);
 
     workspace_group->setLayout(workspace_layout);
+    // End Workspace Group
 
-    goal_constraints_layout->addWidget(pos_tol_label,       0, 0);
-    goal_constraints_layout->addWidget(m_pos_tol_spinbox,   0, 1);
-    goal_constraints_layout->addWidget(rot_tol_label,       1, 0);
-    goal_constraints_layout->addWidget(m_rot_tol_spinbox,   1, 1);
-    goal_constraints_layout->addWidget(joint_tol_label,     2, 0);
-    goal_constraints_layout->addWidget(m_joint_tol_spinbox, 2, 1);
-    goal_constraints_layout->addWidget(workspace_group,     3, 0, 1, 2);
+    goal_constraints_layout->addWidget(tolerance_group, 0, 0, 1, 2);
+    goal_constraints_layout->addWidget(workspace_group, 1, 0, 1, 2);
 
     goal_constraints_group->setLayout(goal_constraints_layout);
     return goal_constraints_group;
