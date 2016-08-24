@@ -294,7 +294,6 @@ void CollisionWorldSBPL::construct()
     }
 
     // TODO: more sophisticated parameter checking
-    m_world_collision_model_config.world_frame = "world"; // TODO: scene.getPlanningFrame();
     m_world_collision_model_config.size_x = wcm_config["size_x"];
     m_world_collision_model_config.size_y = wcm_config["size_y"];
     m_world_collision_model_config.size_z = wcm_config["size_z"];
@@ -523,7 +522,7 @@ CollisionWorldSBPL::GroupModelPtr CollisionWorldSBPL::getGroupModel(
 
     auto grid = group_model->grid;
 
-    grid->setReferenceFrame(m_world_collision_model_config.world_frame);
+    grid->setReferenceFrame(robot_model.getModelFrame());
 
     /////////////////////
     // Collision Space //
@@ -968,7 +967,7 @@ bool CollisionWorldSBPL::worldObjectToCollisionObjectMsgFull(
 
     // TODO: safe to assume that the world frame will always be the world
     // frame or should we try to transform things here somehow
-    obj_msg.header.frame_id = m_world_collision_model_config.world_frame;
+//    obj_msg.header.frame_id = m_world_collision_model_config.world_frame;
 
     obj_msg.id = object.id_;
 
@@ -1084,7 +1083,7 @@ bool CollisionWorldSBPL::worldObjectToCollisionObjectMsgName(
 {
     moveit_msgs::CollisionObject obj_msg;
     obj_msg.header.stamp = ros::Time(0);
-    obj_msg.header.frame_id = m_world_collision_model_config.world_frame;
+//    obj_msg.header.frame_id = m_world_collision_model_config.world_frame;
     obj_msg.id = object.id_;
     collision_object = std::move(obj_msg);
     return true;

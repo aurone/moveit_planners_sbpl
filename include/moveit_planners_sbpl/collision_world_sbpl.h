@@ -63,7 +63,6 @@ public:
 
     struct CollisionWorldConfig
     {
-        std::string world_frame;
         double size_x;
         double size_y;
         double size_z;
