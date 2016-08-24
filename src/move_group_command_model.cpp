@@ -1103,79 +1103,6 @@ bool MoveGroupCommandModel::fillWorkspaceParameters(
     return true;
 }
 
-bool MoveGroupCommandModel::fillStartState(
-    const ros::Time& now,
-    const std::string& group_name,
-    moveit_msgs::MotionPlanRequest& req) const
-{
-    moveit::core::RobotState robot_state(robotModel());
-    if (!getActualState(robot_state)) {
-        ROS_ERROR("Failed to get start state");
-        return false;
-    }
-
-    sensor_msgs::JointState joint_state;
-    moveit::core::robotStateToJointStateMsg(robot_state, joint_state);
-
-    // copy over joint state from incoming sensor data
-    req.start_state.joint_state.header.frame_id = "ooga booga";
-    req.start_state.joint_state.header.seq = 0;
-    req.start_state.joint_state.header.stamp = now;
-    req.start_state.joint_state.name = joint_state.name;
-    req.start_state.joint_state.position = joint_state.position;
-    req.start_state.joint_state.velocity = joint_state.velocity;
-    req.start_state.joint_state.effort = joint_state.effort;
-
-    // TODO: keep another robot state around as the "current robot state" and
-    // use it as the single point of access, rather than distinguishing here
-    // between live sources of state and sources of state from the phantom
-
-    // copy over joint
-
-    // for each multi-dof joint
-    //   find the transform between the parent link and the child link and set
-    //   the transform accordingly here
-    sensor_msgs::MultiDOFJointState& multi_dof_joint_state =
-            req.start_state.multi_dof_joint_state;
-
-    // WARN: So, I'm not really sure why a frame id is necessary here. I was
-    // under the impression the multi-DOF transform would be the transform from
-    // the parent link to the child link (which, I believe, agrees with
-    // RobotState::getJointTransform), but there's some weird stuff going on in
-    // moveit/robot_state/conversions.h that leads to believe maybe somewhere is
-    // assuming the transform is from the model frame to the child link. Either
-    // way, we're going to set the header of the joint state to be the model
-    // frame, to avoid that conversion, and then be happy with the fact that the
-    // only multi-dof joint in the pr2 model is the planar joint between /odom
-    // and base_footprint. Here there be monsters.
-
-    multi_dof_joint_state.header.frame_id = robotModel()->getModelFrame();
-    multi_dof_joint_state.header.seq = 0;
-    multi_dof_joint_state.header.stamp = now;
-
-    const std::vector<const moveit::core::JointModel*>& multi_dof_joints =
-            robotModel()->getMultiDOFJointModels();
-    for (size_t jind = 0; jind < multi_dof_joints.size(); ++jind) {
-        const moveit::core::JointModel* jm = multi_dof_joints[jind];
-
-        multi_dof_joint_state.joint_names.push_back(jm->getName());
-
-        const Eigen::Affine3d& joint_transform =
-                m_robot_state->getJointTransform(jm);
-
-        geometry_msgs::Transform trans;
-        tf::transformEigenToMsg(joint_transform, trans);
-
-        multi_dof_joint_state.transforms.push_back(trans);
-    }
-
-    // TODO: attach nailgun
-    req.start_state.attached_collision_objects.clear();
-
-    req.start_state.is_diff = false;
-    return true;
-}
-
 bool MoveGroupCommandModel::fillGoalConstraints(
     const ros::Time& now,
     const std::string& group_name,
@@ -1409,7 +1336,6 @@ bool MoveGroupCommandModel::sendMoveGroupPoseGoal(
 
     moveit_msgs::MotionPlanRequest& req = move_group_goal.request;
     if (!fillWorkspaceParameters(now, group_name, req) ||
-//        !fillStartState(now, group_name, req) ||
         !fillGoalConstraints(now, group_name, req) ||
         !fillPathConstraints(now, group_name, req) ||
         !fillTrajectoryConstraints(now, group_name, req))

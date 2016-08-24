@@ -214,10 +214,6 @@ private:
         const ros::Time& now,
         const std::string& group_name,
         moveit_msgs::MotionPlanRequest& req);
-    bool fillStartState(
-        const ros::Time& now,
-        const std::string& group_name,
-        moveit_msgs::MotionPlanRequest& req) const;
     bool fillGoalConstraints(
         const ros::Time& now,
         const std::string& group,
