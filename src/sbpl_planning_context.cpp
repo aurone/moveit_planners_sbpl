@@ -310,21 +310,34 @@ bool SBPLPlanningContext::init(const std::map<std::string, std::string>& config)
         return false;
     }
 
+    typedef std::unordered_map<std::string, sbpl::manip::ShortcutType> ShortcutTypeNameToValueMap;
+    const ShortcutTypeNameToValueMap shortcut_name_to_value =
+    {
+        { "joint_space", sbpl::manip::ShortcutType::JOINT_SPACE },
+        { "joint_position_velocity_space", sbpl::manip::ShortcutType::JOINT_POSITION_VELOCITY_SPACE },
+        { "workspace", sbpl::manip::ShortcutType::EUCLID_SPACE },
+    };
+    const std::string default_shortcut_type = "joint_space";
+
     bool shortcut_path = config.at("shortcut_path") == "true";
-    sbpl::manip::ShortcutType shortcut_type =
-            sbpl::manip::PlanningParams::DefaultShortcutType;
+    sbpl::manip::ShortcutType shortcut_type = shortcut_name_to_value.at(default_shortcut_type);
     if (shortcut_path) {
         auto it = config.find("shortcut_type");
         if (it != config.end()) {
-            if (it->second == "joint_space") {
-                shortcut_type = sbpl::manip::ShortcutType::JOINT_SPACE;
-            }
-            else if (it->second == "euclidean") {
-                shortcut_type = sbpl::manip::ShortcutType::EUCLID_SPACE;
+            auto svit = shortcut_name_to_value.find(it->second);
+            if (svit == shortcut_name_to_value.end()) {
+                ROS_WARN("parameter 'shortcut_type' has unrecognized value. recognized values are:");
+                for (const auto& entry : shortcut_name_to_value) {
+                    ROS_WARN("  %s", entry.first.c_str());
+                }
+                ROS_WARN("defaulting to '%s'", default_shortcut_type.c_str());
             }
             else {
-                ROS_WARN("Parameter 'shortcut_path' has unrecognized value");
+                shortcut_type = svit->second;
             }
+        }
+        else {
+            ROS_WARN("parameter 'shortcut_type' not found. defaulting to '%s'", default_shortcut_type.c_str());
         }
     }
     bool interpolate_path = config.at("interpolate_path") == "true";
