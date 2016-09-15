@@ -49,8 +49,6 @@ public Q_SLOTS:
     /// \brief Update the robot visualization to reflect the state of the robot
     void updateRobotVisualization();
 
-    void setJointVariableFromSpinBox(double value);
-    void setJointGroup(const QString& joint_group_name);
     void planToGoalPose();
     void moveToGoalPose();
     void copyCurrentState();
@@ -130,17 +128,6 @@ private:
     QGroupBox* setupGoalConstraintsGroup();
     QGroupBox* setupCommandsGroup();
 
-    void setupRobotGUI(
-        QVBoxLayout* main_layout,
-        QGridLayout* goal_constraints_layout);
-
-    // Create a scroll area containing spinboxes for all joint variables. Also
-    // creates a bijection between joint variable indices and spinboxes and
-    // automatically connects all spinboxes to the setJointVariableFromSpinbox
-    // slot. Assumes a robot model has already been loaded into the model.
-    JointVariableCommandWidget* setupJointVariableCommandWidget();
-    void updateJointVariableCommandWidget(const std::string& joint_group_name);
-
     void syncPlannerNameComboBox();
     void syncPlannerIdComboBox();
     void syncNumPlanningAttemptsSpinBox();
@@ -151,8 +138,6 @@ private:
     void syncGoalOrientationToleranceSpinBox();
     void syncGoalJointToleranceSpinBox();
     void syncWorkspaceWidgets();
-
-    bool isVariableAngle(int vind) const;
 
     visualization_msgs::MarkerArray getWorkspaceVisualization() const;
     visualization_msgs::MarkerArray getRobotCollisionMarkers(

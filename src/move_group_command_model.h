@@ -70,10 +70,10 @@ public:
 
     bool readyToPlan() const;
 
-    bool planToGoalPose(const std::string& group_name);
-    bool planToGoalConfiguration(const std::string& group_name);
-    bool moveToGoalPose(const std::string& group_name);
-    bool moveToGoalConfiguration(const std::string& group_name);
+    bool planToGoalPose();
+    bool planToGoalConfiguration();
+    bool moveToGoalPose();
+    bool moveToGoalConfiguration();
 
     bool copyCurrentState();
 

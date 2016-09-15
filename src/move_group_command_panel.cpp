@@ -101,9 +101,6 @@ void MoveGroupCommandPanel::updateRobot()
                 QString::fromStdString(robot_description));
     }
 
-    setupRobotGUI(
-            mainLayout(),
-            qobject_cast<QGridLayout*>(m_goal_constraints_group->layout()));
     syncRobot();
 }
 
@@ -416,8 +413,17 @@ QGroupBox* MoveGroupCommandPanel::setupGoalConstraintsGroup()
     workspace_group->setLayout(workspace_layout);
     // End Workspace Group
 
+    // Goal Command Group
+    QGroupBox* command_group = new QGroupBox(tr("Position Command"));
+    QVBoxLayout* command_layout = new QVBoxLayout;
+    m_var_cmd_widget = new JointVariableCommandWidget(m_model.get());
+    command_layout->addWidget(m_var_cmd_widget);
+    command_group->setLayout(command_layout);
+    // End Goal Command Group
+
     goal_constraints_layout->addWidget(tolerance_group, 0, 0, 1, 2);
     goal_constraints_layout->addWidget(workspace_group, 1, 0, 1, 2);
+    goal_constraints_layout->addWidget(command_group, 2, 0, 1, 2);
 
     goal_constraints_group->setLayout(goal_constraints_layout);
     return goal_constraints_group;
@@ -438,65 +444,6 @@ QGroupBox* MoveGroupCommandPanel::setupCommandsGroup()
 
     commands_group_box->setLayout(commands_group_layout);
     return commands_group_box;
-}
-
-void MoveGroupCommandPanel::setupRobotGUI(
-    QVBoxLayout* main_layout,
-    QGridLayout* goal_constraints_layout)
-{
-    ROS_INFO("Setting up the Robot GUI");
-
-    /////////////////////////////////////////////
-    // Robot-Specific Goal Constraint Controls //
-    /////////////////////////////////////////////
-
-    // set up combobox for selecting the active planning joint group
-    m_joint_groups_combo_box = new QComboBox;
-
-    // add all joint groups as items in the combobox
-    moveit::core::RobotModelConstPtr robot_model = m_model->robotModel();
-    for (size_t jgind = 0;
-        jgind < robot_model->getJointModelGroupNames().size();
-        ++jgind)
-    {
-        const std::string& jg_name =
-                robot_model->getJointModelGroupNames()[jgind];
-        m_joint_groups_combo_box->addItem(QString::fromStdString(jg_name));
-    }
-
-    syncPlanningJointGroupComboBox();
-
-    m_var_cmd_widget = setupJointVariableCommandWidget();
-
-    updateJointVariableCommandWidget(
-        m_joint_groups_combo_box->currentText().toStdString());
-
-    int base_row_count = goal_constraints_layout->rowCount();
-    goal_constraints_layout->addWidget(new QLabel(tr("Joint Group:")), base_row_count, 0);
-    goal_constraints_layout->addWidget(m_joint_groups_combo_box, base_row_count, 1);
-    base_row_count = goal_constraints_layout->rowCount();
-    goal_constraints_layout->addWidget(m_var_cmd_widget, base_row_count, 0, 1, 2);
-
-    connect(m_joint_groups_combo_box,
-            SIGNAL(currentIndexChanged(const QString&)),
-            this,
-            SLOT(setJointGroup(const QString&)));
-    for (QDoubleSpinBox* spinbox : m_var_cmd_widget->spinboxes()) {
-        connect(spinbox, SIGNAL(valueChanged(double)),
-                this, SLOT(setJointVariableFromSpinBox(double)));
-    }
-}
-
-JointVariableCommandWidget*
-MoveGroupCommandPanel::setupJointVariableCommandWidget()
-{
-    return new JointVariableCommandWidget(m_model.get());
-}
-
-void MoveGroupCommandPanel::updateJointVariableCommandWidget(
-    const std::string& joint_group_name)
-{
-    m_var_cmd_widget->displayJointGroupCommands(joint_group_name);
 }
 
 void MoveGroupCommandPanel::syncPlannerNameComboBox()
@@ -541,57 +488,12 @@ void MoveGroupCommandPanel::syncAllowedPlanningTimeSpinBox()
 
 void MoveGroupCommandPanel::syncPlanningJointGroupComboBox()
 {
-    assert(m_model/* && m_joint_groups_combo_box*/);
-    moveit::core::RobotModelConstPtr robot_model = m_model->robotModel();
-    if (!robot_model) {
-        // TODO: set to empty selection?
-        return;
-    }
-
-    assert(m_joint_groups_combo_box);
-
-    // set the selected item to match the active planning joint group
-    if (!robot_model->getJointModelGroups().empty()) {
-        const int ajg_idx = m_joint_groups_combo_box->findText(
-                QString::fromStdString(m_model->planningJointGroupName()));
-        m_joint_groups_combo_box->setCurrentIndex(ajg_idx);
-    }
+    m_var_cmd_widget->syncPlanningJointGroupComboBox();
 }
 
 void MoveGroupCommandPanel::syncSpinBoxes()
 {
-    if (!m_model->isRobotLoaded()) {
-        ROS_WARN("Robot not yet loaded");
-        return;
-    }
-
-    auto robot_model = m_model->robotModel();
-    auto robot_state = m_model->robotState();
-
-    for (int i = 0; i < (int)robot_model->getVariableCount(); ++i) {
-        QDoubleSpinBox* spinbox = m_var_cmd_widget->variableIndexToSpinBox(i);
-
-        if (isVariableAngle(i)) {
-            double value =
-                    sbpl::utils::ToDegrees(robot_state->getVariablePosition(i));
-            if (value != spinbox->value()) {
-                spinbox->setValue(value);
-            }
-        }
-        else {
-            double value = robot_state->getVariablePosition(i);
-            // this check is required because the internal value of the spinbox
-            // may differ from the displayed value. Apparently, scrolling the
-            // spinbox by a step less than the precision will update the
-            // internal value, but calling setValue will ensure that the
-            // internal value is the same as the value displayed. The absence
-            // of this check can result in not being able to update a joint
-            // variable
-            if (value != spinbox->value()) {
-                spinbox->setValue(value);
-            }
-        }
-    }
+    m_var_cmd_widget->syncSpinBoxes();
 }
 
 void MoveGroupCommandPanel::syncGoalPositionToleranceSpinBox()
@@ -723,52 +625,16 @@ void MoveGroupCommandPanel::updateRobotVisualization()
     m_marker_pub.publish(marr);
 }
 
-void MoveGroupCommandPanel::setJointVariableFromSpinBox(double value)
-{
-    QDoubleSpinBox* spinbox = qobject_cast<QDoubleSpinBox*>(sender());
-    if (!spinbox) {
-        ROS_WARN("setJointVariableFromSpinBox not called from a spinbox");
-        return;
-    }
-
-    int vind = m_var_cmd_widget->spinboxToVariableIndex(spinbox);
-    if (vind == -1) {
-        ROS_ERROR("setJointVariableFromSpinBox called from spinbox not associated with a joint variable");
-        return;
-    }
-
-    ROS_DEBUG("Joint variable %d set to %f from spinbox", vind, value);
-
-    if (isVariableAngle(vind)) {
-        // convert to radians and assign
-        m_model->setJointVariable(vind, sbpl::utils::ToRadians(value));
-    }
-    else {
-        // assign without conversion
-        m_model->setJointVariable(vind, value);
-    }
-}
-
-void MoveGroupCommandPanel::setJointGroup(const QString& joint_group_name)
-{
-    updateJointVariableCommandWidget(joint_group_name.toStdString());
-    m_model->setPlanningJointGroup(joint_group_name.toStdString());
-}
-
 void MoveGroupCommandPanel::planToGoalPose()
 {
-    std::string current_joint_group =
-            m_joint_groups_combo_box->currentText().toStdString();
-    if (!m_model->planToGoalPose(current_joint_group)) {
+    if (!m_model->planToGoalPose()) {
         ROS_ERROR("This should be a message box");
     }
 }
 
 void MoveGroupCommandPanel::moveToGoalPose()
 {
-    std::string curr_joint_group =
-            m_joint_groups_combo_box->currentText().toStdString();
-    if (!m_model->moveToGoalPose(curr_joint_group)) {
+    if (!m_model->moveToGoalPose()) {
         ROS_ERROR("This should also be a message box");
     }
 }
@@ -850,31 +716,6 @@ void MoveGroupCommandPanel::setWorkspaceMaxZ(double value)
     moveit_msgs::WorkspaceParameters params = m_model->workspace();
     params.max_corner.z = value;
     m_model->setWorkspace(params);
-}
-
-bool MoveGroupCommandPanel::isVariableAngle(int vind) const
-{
-    auto robot_model = m_model->robotModel();
-    if (!robot_model) {
-        ROS_WARN("Asking whether variable %d in uninitialized robot is an angle", vind);
-        return false;
-    }
-
-    const moveit::core::JointModel* jm = robot_model->getJointOfVariable(vind);
-
-    const std::string& var_name = robot_model->getVariableNames()[vind];
-
-    const auto& var_bounds = jm->getVariableBounds(var_name);
-
-    return (jm->getType() == moveit::core::JointModel::REVOLUTE ||
-        (
-            jm->getType() == moveit::core::JointModel::PLANAR &&
-            !var_bounds.position_bounded_
-        ) ||
-        (
-            jm->getType() == moveit::core::JointModel::FLOATING &&
-            !var_bounds.position_bounded_
-        ));
 }
 
 visualization_msgs::MarkerArray

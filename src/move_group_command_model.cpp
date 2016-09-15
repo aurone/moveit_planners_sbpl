@@ -253,7 +253,7 @@ bool MoveGroupCommandModel::readyToPlan() const
     return true;
 }
 
-bool MoveGroupCommandModel::planToGoalPose(const std::string& group_name)
+bool MoveGroupCommandModel::planToGoalPose()
 {
     moveit_msgs::PlanningOptions ops;
     ops.planning_scene_diff.robot_state.is_diff = true;
@@ -264,17 +264,16 @@ bool MoveGroupCommandModel::planToGoalPose(const std::string& group_name)
     ops.replan = false;
     ops.replan_attempts = 0;
     ops.replan_delay = 0.0;
-    return sendMoveGroupPoseGoal(group_name, ops);
+    return sendMoveGroupPoseGoal(m_curr_joint_group_name, ops);
 }
 
-bool MoveGroupCommandModel::planToGoalConfiguration(
-    const std::string& group_name)
+bool MoveGroupCommandModel::planToGoalConfiguration()
 {
     ROS_ERROR("planToGoalConfiguration unimplemented");
     return false;
 }
 
-bool MoveGroupCommandModel::moveToGoalPose(const std::string& group_name)
+bool MoveGroupCommandModel::moveToGoalPose()
 {
     moveit_msgs::PlanningOptions ops;
     ops.planning_scene_diff.robot_state.is_diff = true;
@@ -285,10 +284,10 @@ bool MoveGroupCommandModel::moveToGoalPose(const std::string& group_name)
     ops.replan = false;
     ops.replan_attempts = 0;
     ops.replan_delay = 0.0;
-    return sendMoveGroupPoseGoal(group_name, ops);
+    return sendMoveGroupPoseGoal(m_curr_joint_group_name, ops);
 }
 
-bool MoveGroupCommandModel::moveToGoalConfiguration(const std::string& group_name)
+bool MoveGroupCommandModel::moveToGoalConfiguration()
 {
     ROS_ERROR("moveToGoalConfiguration unimplemented");
     return false;
@@ -300,8 +299,7 @@ bool MoveGroupCommandModel::copyCurrentState()
         updateInteractiveMarkers();
         notifyCommandStateChanged();
         return true;
-    }
-    else {
+    } else {
         return false;
     }
 }
@@ -882,7 +880,13 @@ void MoveGroupCommandModel::logRobotModelInfo(
     for (size_t vind = 0; vind < rm.getVariableCount(); ++vind) {
         const std::string& var_name = rm.getVariableNames()[vind];
         const auto& var_bounds = rm.getVariableBounds(var_name);
-        ROS_INFO("%s: { min: %f, max: %f, vel: %f, acc: %f }", var_name.c_str(), var_bounds.min_position_, var_bounds.max_position_, var_bounds.max_velocity_, var_bounds.max_acceleration_);
+        ROS_INFO("%s: { bounded: %s, min: %f, max: %f, vel: %f, acc: %f }",
+                var_name.c_str(),
+                var_bounds.position_bounded_ ? "true" : "false",
+                var_bounds.min_position_,
+                var_bounds.max_position_,
+                var_bounds.max_velocity_,
+                var_bounds.max_acceleration_);
     }
 }
 
