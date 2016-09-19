@@ -395,8 +395,10 @@ void JointVariableCommandWidget::updateRobotControls()
             }
         }   break;
         case moveit::core::JointModel::PLANAR: {
-            QDoubleSpinBox* x_spinbox = createRealVariableSpinBox(jm->getVariableBounds("x"));
-            QDoubleSpinBox* y_spinbox = createRealVariableSpinBox(jm->getVariableBounds("y"));
+            QDoubleSpinBox* x_spinbox = createRealVariableSpinBox(
+                    robot_model->getVariableBounds(jm->getName() + "/x"));
+            QDoubleSpinBox* y_spinbox = createRealVariableSpinBox(
+                    robot_model->getVariableBounds(jm->getName() + "/y"));
             QDoubleSpinBox* theta_spinbox = createAngleVariableSpinBox();
 
             m_spinboxes.push_back(x_spinbox);
