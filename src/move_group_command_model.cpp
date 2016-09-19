@@ -1367,8 +1367,10 @@ void MoveGroupCommandModel::moveGroupResultCallback(
     const actionlib::SimpleClientGoalState& state,
     const moveit_msgs::MoveGroupResult::ConstPtr& result)
 {
-    const auto& res = *result;
-    logMotionPlanResponse(res);
+    if (result) {
+        const auto& res = *result;
+        logMotionPlanResponse(res);
+    }
 }
 
 bool MoveGroupCommandModel::getActualState(
