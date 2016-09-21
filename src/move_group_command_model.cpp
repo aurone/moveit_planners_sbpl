@@ -256,7 +256,7 @@ bool MoveGroupCommandModel::readyToPlan() const
 bool MoveGroupCommandModel::planToGoalPose()
 {
     moveit_msgs::PlanningOptions ops;
-    ops.planning_scene_diff.robot_state.is_diff = true;
+    ops.planning_scene_diff.robot_state.is_diff = false;
     ops.look_around = false;
     ops.look_around_attempts = 0;
     ops.max_safe_execution_cost = 1.0;
@@ -276,7 +276,7 @@ bool MoveGroupCommandModel::planToGoalConfiguration()
 bool MoveGroupCommandModel::moveToGoalPose()
 {
     moveit_msgs::PlanningOptions ops;
-    ops.planning_scene_diff.robot_state.is_diff = true;
+    ops.planning_scene_diff.robot_state.is_diff = false;
     ops.look_around = false;
     ops.look_around_attempts = 0;
     ops.max_safe_execution_cost = 1.0;
@@ -1347,7 +1347,7 @@ bool MoveGroupCommandModel::sendMoveGroupPoseGoal(
         return false;
     }
 
-    req.start_state.is_diff = true;
+    req.start_state.is_diff = false;
     req.planner_id = plannerID();
     req.group_name = group_name;
     req.num_planning_attempts = m_num_planning_attempts;
