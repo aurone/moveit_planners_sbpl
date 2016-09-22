@@ -829,9 +829,13 @@ void SBPLPlanningContext::copyDistanceField(
             for (int z = 0; z < dfout.getZNumCells(); ++z) {
                 double wx, wy, wz;
                 dfout.gridToWorld(x, y, z, wx, wy, wz);
-                if (dfin.getDistance(wx, wy, wz) <= 0.0) {
-                    // convert x, y, z to world space
-                    // transform back into the world frame
+                int gx, gy, gz;
+                if (dfin.worldToGrid(wx, wy, wz, gx, gy, gz)) {
+                    if (dfin.getDistance(gx, gy, gz) <= 0.0) {
+                        points.emplace_back(wx, wy, wz);
+                    }
+                }
+                else {
                     points.emplace_back(wx, wy, wz);
                 }
             }
