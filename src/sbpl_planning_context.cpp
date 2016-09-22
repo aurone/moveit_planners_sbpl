@@ -609,17 +609,42 @@ bool SBPLPlanningContext::getPlanningFrameWorkspaceAABB(
     Eigen::Affine3d T_planning_workspace =
             T_scene_planning.inverse() * T_scene_workspace;
 
-    Eigen::Vector3d min(
-            workspace.min_corner.x,
-            workspace.min_corner.y,
-            workspace.min_corner.z);
-    Eigen::Vector3d max(
-            workspace.max_corner.x,
-            workspace.max_corner.y,
-            workspace.max_corner.z);
+    // l = left, r = right, n = near, f = far, b = bottom, t = top
 
-    Eigen::Vector3d min_planning = T_planning_workspace * min;
-    Eigen::Vector3d max_planning = T_planning_workspace * max;
+    // w = workspace
+    Eigen::Vector3d cw[8] = {
+        Eigen::Vector3d(workspace.min_corner.x, workspace.min_corner.y, workspace.min_corner.z),
+        Eigen::Vector3d(workspace.min_corner.x, workspace.min_corner.y, workspace.max_corner.z),
+        Eigen::Vector3d(workspace.min_corner.x, workspace.max_corner.y, workspace.min_corner.z),
+        Eigen::Vector3d(workspace.min_corner.x, workspace.max_corner.y, workspace.max_corner.z),
+        Eigen::Vector3d(workspace.max_corner.x, workspace.min_corner.y, workspace.min_corner.z),
+        Eigen::Vector3d(workspace.max_corner.x, workspace.min_corner.y, workspace.max_corner.z),
+        Eigen::Vector3d(workspace.max_corner.x, workspace.max_corner.y, workspace.min_corner.z),
+        Eigen::Vector3d(workspace.max_corner.x, workspace.max_corner.y, workspace.max_corner.z),
+    };
+
+    // p = planning
+    Eigen::Vector3d cp[8] = {
+        T_planning_workspace * cw[0],
+        T_planning_workspace * cw[1],
+        T_planning_workspace * cw[2],
+        T_planning_workspace * cw[3],
+        T_planning_workspace * cw[4],
+        T_planning_workspace * cw[5],
+        T_planning_workspace * cw[6],
+        T_planning_workspace * cw[7],
+    };
+    Eigen::Vector3d min_planning = cp[0];
+    Eigen::Vector3d max_planning = cp[0];
+    for (int i = 1; i < 8; ++i) {
+        min_planning.x() = std::min(min_planning.x(), cp[i].x());
+        min_planning.y() = std::min(min_planning.y(), cp[i].y());
+        min_planning.z() = std::min(min_planning.z(), cp[i].z());
+
+        max_planning.x() = std::max(max_planning.x(), cp[i].x());
+        max_planning.y() = std::max(max_planning.y(), cp[i].y());
+        max_planning.z() = std::max(max_planning.z(), cp[i].z());
+    }
 
     const double mid_x = 0.5 * (min_planning.x() + max_planning.x());
     const double mid_y = 0.5 * (min_planning.y() + max_planning.y());
