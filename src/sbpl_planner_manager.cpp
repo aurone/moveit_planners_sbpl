@@ -1,5 +1,6 @@
 #include "sbpl_planner_manager.h"
 
+#include <leatherman/print.h>
 #include <moveit/planning_scene/planning_scene.h>
 #include <moveit/robot_state/conversions.h>
 

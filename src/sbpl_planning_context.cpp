@@ -8,7 +8,6 @@
 #include <moveit/robot_state/conversions.h>
 #include <moveit_msgs/GetMotionPlan.h>
 #include <moveit_msgs/PlanningScene.h>
-#include <sbpl_arm_planner/arm_planner_interface.h>
 #include <sbpl_arm_planner/motion_primitive.h>
 
 // project includes
@@ -93,8 +92,7 @@ SBPLPlanningContext::SBPLPlanningContext(
     Base(name, group),
     m_robot_model(robot_model),
     m_collision_checker(),
-    m_action_set(),
-    m_distance_field(),
+    m_grid(),
     m_planner()
 {
     ROS_DEBUG_NAMED(PP_LOGGER, "Constructed SBPL Planning Context");
@@ -150,8 +148,8 @@ bool SBPLPlanningContext::solve(planning_interface::MotionPlanResponse& res)
     ROS_DEBUG_NAMED(PP_LOGGER, "Successfully initialized SBPL");
 
     // translate planning scene to planning scene message
-    moveit_msgs::PlanningScenePtr scene_msg(new moveit_msgs::PlanningScene);
-    scene->getPlanningSceneMsg(*scene_msg);
+    moveit_msgs::PlanningScene scene_msg;
+    scene->getPlanningSceneMsg(scene_msg);
 
     moveit::core::robotStateToRobotStateMsg(*start_state, req_msg.start_state);
 
@@ -211,7 +209,7 @@ bool SBPLPlanningContext::init(const std::map<std::string, std::string>& config)
     ROS_DEBUG_NAMED(PP_LOGGER, "Initializing SBPL Planning Context");
 
     // TODO: implement a way to pass down planner-specific parameters to the
-    // SBPL Arm Planner Interface from above and to query the interface for
+    // Planner Interface from above and to query the interface for
     // expected parameters
 
     if (!m_robot_model->initialized()) {
@@ -219,11 +217,6 @@ bool SBPLPlanningContext::init(const std::map<std::string, std::string>& config)
         return false;
     }
 
-    //////////////////////////
-    // check for parameters //
-    //////////////////////////
-
-    // check for required parameters
     const std::vector<std::string>& required_params =
     {
         // environment
@@ -251,6 +244,7 @@ bool SBPLPlanningContext::init(const std::map<std::string, std::string>& config)
         "interpolate_path"
     };
 
+    // check for all required parameters
     for (const std::string& req_param : required_params) {
         if (config.find(req_param) == config.end()) {
             ROS_ERROR_NAMED(PP_LOGGER, "Missing parameter '%s'", req_param.c_str());
@@ -258,7 +252,7 @@ bool SBPLPlanningContext::init(const std::map<std::string, std::string>& config)
         }
     }
 
-    // check for conditionally-required parameters
+    // define conditionally-required parameters
     const std::vector<std::string>& bfs_required_params =
     {
         "bfs_res_x",
@@ -267,6 +261,7 @@ bool SBPLPlanningContext::init(const std::map<std::string, std::string>& config)
         "bfs_sphere_radius"
     };
 
+    // check for all required parameters
     if (config.at("use_bfs_heuristic") == "true") {
         for (const std::string& req_param : bfs_required_params) {
             if (config.find(req_param) == config.end()) {
@@ -278,83 +273,88 @@ bool SBPLPlanningContext::init(const std::map<std::string, std::string>& config)
 
     ROS_DEBUG_NAMED(PP_LOGGER, " -> Required Parameters Found");
 
-    ///////////////////////////////////
-    // parse and validate parameters //
-    ///////////////////////////////////
+    sbpl::manip::PlanningParams pp;
 
+    //////////////////////////////////
+    // parse state space parameters //
+    //////////////////////////////////
+
+    pp.planning_frame = m_robot_model->planningFrame();
+
+    // check that we have discretization
     std::map<std::string, double> disc;
+    std::stringstream ss(config.at("discretization"));
+    std::string joint;
+    double jres;
+    while (ss >> joint >> jres) {
+        disc.insert(std::make_pair(joint, jres));
+    }
 
-    bool use_xyz_snap_mprim = config.at("use_xyz_snap_mprim") == "true";
-    bool use_rpy_snap_mprim = config.at("use_rpy_snap_mprim") == "true";
-    bool use_xyzrpy_snap_mprim = config.at("use_xyzrpy_snap_mprim") == "true";
-    bool use_short_dist_mprims = config.at("use_short_dist_mprims") == "true";
-    double xyz_snap_thresh = 0.0;
-    double rpy_snap_thresh = 0.0;
-    double xyzrpy_snap_thresh = 0.0;
-    double short_dist_mprims_thresh = 0.0;
+    ROS_DEBUG_NAMED(PP_LOGGER, "Parsed discretization for %zu joints", disc.size());
+
+    std::vector<int> discretization(m_robot_model->activeVariableCount());
+    for (size_t vind = 0; vind < discretization.size(); ++vind) {
+        const std::string& vname = m_robot_model->planningVariableNames()[vind];
+        auto dit = disc.find(vname);
+        if (dit == disc.end()) {
+            ROS_ERROR_NAMED(PP_LOGGER, "Discretization for variable '%s' not available in config", vname.c_str());
+            return false;
+        }
+        // number of discretizations in a circle
+        discretization[vind] = (int)round((2.0 * M_PI) / dit->second);
+    }
+
+    std::vector<double> deltas(m_robot_model->activeVariableCount());
+    for (size_t vind = 0; vind < deltas.size(); ++vind) {
+        deltas[vind] = (2.0 * M_PI) / (double)discretization[vind];
+    }
+
+    pp.coord_vals = discretization;
+    pp.coord_delta = deltas;
+
+    ///////////////////////////////////
+    // parse action space parameters //
+    ///////////////////////////////////
+
+    pp.action_filename = config.at("mprim_filename");
+    pp.use_xyz_snap_mprim = config.at("use_xyz_snap_mprim") == "true";
+    pp.use_rpy_snap_mprim = config.at("use_rpy_snap_mprim") == "true";
+    pp.use_xyzrpy_snap_mprim = config.at("use_xyzrpy_snap_mprim") == "true";
+    pp.use_short_dist_mprims = config.at("use_short_dist_mprims") == "true";
+    pp.xyz_snap_thresh = 0.0;
+    pp.rpy_snap_thresh = 0.0;
+    pp.xyzrpy_snap_thresh = 0.0;
+    pp.short_dist_mprims_thresh = 0.0;
     try {
-        xyz_snap_thresh = std::stod(config.at("xyz_snap_dist_thresh"));
-        rpy_snap_thresh = std::stod(config.at("rpy_snap_dist_thresh"));
-        xyzrpy_snap_thresh = std::stod(config.at("xyzrpy_snap_dist_thresh"));
-        short_dist_mprims_thresh = std::stod(config.at("short_dist_mprims_thresh"));
+        pp.xyz_snap_thresh = std::stod(config.at("xyz_snap_dist_thresh"));
+        pp.rpy_snap_thresh = std::stod(config.at("rpy_snap_dist_thresh"));
+        pp.xyzrpy_snap_thresh = std::stod(config.at("xyzrpy_snap_dist_thresh"));
+        pp.short_dist_mprims_thresh = std::stod(config.at("short_dist_mprims_thresh"));
     }
     catch (const std::logic_error& ex) {
         ROS_ERROR_NAMED(PP_LOGGER, "Failed to convert amp distance thresholds to floating-point values");
         return false;
     }
 
-    double epsilon;
-    try {
-        epsilon = std::stod(config.at("epsilon"));
-    }
-    catch (const std::logic_error& ex) {
-        ROS_ERROR_NAMED(PP_LOGGER, "Failed to convert epsilon to floating-point value");
-        return false;
-    }
+    pp.use_multiple_ik_solutions = false; // TODO: config parameter for this
 
-    typedef std::unordered_map<std::string, sbpl::manip::ShortcutType> ShortcutTypeNameToValueMap;
-    const ShortcutTypeNameToValueMap shortcut_name_to_value =
-    {
-        { "joint_space", sbpl::manip::ShortcutType::JOINT_SPACE },
-        { "joint_position_velocity_space", sbpl::manip::ShortcutType::JOINT_POSITION_VELOCITY_SPACE },
-        { "workspace", sbpl::manip::ShortcutType::EUCLID_SPACE },
-    };
-    const std::string default_shortcut_type = "joint_space";
+    // NOTE: default cost function parameters
 
-    bool shortcut_path = config.at("shortcut_path") == "true";
-    sbpl::manip::ShortcutType shortcut_type = shortcut_name_to_value.at(default_shortcut_type);
-    if (shortcut_path) {
-        auto it = config.find("shortcut_type");
-        if (it != config.end()) {
-            auto svit = shortcut_name_to_value.find(it->second);
-            if (svit == shortcut_name_to_value.end()) {
-                ROS_WARN_NAMED(PP_LOGGER, "parameter 'shortcut_type' has unrecognized value. recognized values are:");
-                for (const auto& entry : shortcut_name_to_value) {
-                    ROS_WARN_NAMED(PP_LOGGER, "  %s", entry.first.c_str());
-                }
-                ROS_WARN_NAMED(PP_LOGGER, "defaulting to '%s'", default_shortcut_type.c_str());
-            }
-            else {
-                shortcut_type = svit->second;
-            }
-        }
-        else {
-            ROS_WARN_NAMED(PP_LOGGER, "parameter 'shortcut_type' not found. defaulting to '%s'", default_shortcut_type.c_str());
-        }
-    }
-    bool interpolate_path = config.at("interpolate_path") == "true";
+    ////////////////////////////////
+    // parse heuristic parameters //
+    ////////////////////////////////
 
-    bool use_bfs_heuristic = config.at("use_bfs_heuristic") == "true";
+    pp.use_bfs_heuristic = config.at("use_bfs_heuristic") == "true";
     double bfs_res_x = 0.0;
     double bfs_res_y = 0.0;
     double bfs_res_z = 0.0;
-    double bfs_sphere_radius = 0.0;
-    if (use_bfs_heuristic) {
+    pp.planning_link_sphere_radius = 0.0;
+    if (pp.use_bfs_heuristic) {
         try {
             bfs_res_x = std::stod(config.at("bfs_res_x"));
             bfs_res_y = std::stod(config.at("bfs_res_y"));
             bfs_res_z = std::stod(config.at("bfs_res_z"));
-            bfs_sphere_radius = std::stod(config.at("bfs_sphere_radius"));
+            pp.planning_link_sphere_radius = std::stod(config.at("bfs_sphere_radius"));
 
             if (bfs_res_x != bfs_res_y || bfs_res_x != bfs_res_z) {
                 ROS_WARN_NAMED(PP_LOGGER, "Distance field currently only supports uniformly discretized grids. Using x resolution (%0.3f) as resolution for all dimensions", bfs_res_x);
@@ -366,109 +366,72 @@ bool SBPLPlanningContext::init(const std::map<std::string, std::string>& config)
         }
     }
 
-    // check that we have discretization
-    std::stringstream ss(config.at("discretization"));
-    std::string joint;
-    double jres;
-    while (ss >> joint >> jres) {
-        disc.insert(std::make_pair(joint, jres));
+    /////////////////////////////
+    // parse search parameters //
+    /////////////////////////////
+
+    pp.epsilon = 1.0;
+    try {
+        pp.epsilon = std::stod(config.at("epsilon"));
     }
-
-    ROS_DEBUG_NAMED(PP_LOGGER, "Parsed discretization for %zu joints", disc.size());
-
-    // TODO: check that we have discretization for all active planning variables
-
-    const std::string& action_filename = config.at("mprim_filename");
-
-    sbpl::manip::ActionSet* as = new sbpl::manip::ActionSet;
-
-    if (!as) {
-        ROS_ERROR_NAMED(PP_LOGGER, "Failed to instantiate appropriate Action Set");
+    catch (const std::logic_error& ex) {
+        ROS_ERROR_NAMED(PP_LOGGER, "Failed to convert epsilon to floating-point value");
         return false;
     }
 
-    if (!sbpl::manip::ActionSet::Load(action_filename, *as)) {
-        ROS_ERROR_NAMED(PP_LOGGER, "Failed to load action set from '%s'", action_filename.c_str());
-        delete as;
-        return false;
+    //////////////////////////////////////
+    // parse post-processing parameters //
+    //////////////////////////////////////
+
+    typedef std::unordered_map<std::string, sbpl::manip::ShortcutType> ShortcutTypeNameToValueMap;
+    const ShortcutTypeNameToValueMap shortcut_name_to_value =
+    {
+        { "joint_space", sbpl::manip::ShortcutType::JOINT_SPACE },
+        { "joint_position_velocity_space", sbpl::manip::ShortcutType::JOINT_POSITION_VELOCITY_SPACE },
+        { "workspace", sbpl::manip::ShortcutType::EUCLID_SPACE },
+    };
+    const std::string default_shortcut_type = "joint_space";
+
+    pp.shortcut_path = config.at("shortcut_path") == "true";
+    pp.shortcut_type = shortcut_name_to_value.at(default_shortcut_type);
+    if (pp.shortcut_path) {
+        auto it = config.find("shortcut_type");
+        if (it != config.end()) {
+            auto svit = shortcut_name_to_value.find(it->second);
+            if (svit == shortcut_name_to_value.end()) {
+                ROS_WARN_NAMED(PP_LOGGER, "parameter 'shortcut_type' has unrecognized value. recognized values are:");
+                for (const auto& entry : shortcut_name_to_value) {
+                    ROS_WARN_NAMED(PP_LOGGER, "  %s", entry.first.c_str());
+                }
+                ROS_WARN_NAMED(PP_LOGGER, "defaulting to '%s'", default_shortcut_type.c_str());
+            }
+            else {
+                pp.shortcut_type = svit->second;
+            }
+        }
+        else {
+            ROS_WARN_NAMED(PP_LOGGER, "parameter 'shortcut_type' not found. defaulting to '%s'", default_shortcut_type.c_str());
+        }
     }
+    pp.interpolate_path = config.at("interpolate_path") == "true";
+
+    //////////////////////////////
+    // parse logging parameters //
+    //////////////////////////////
+
+    pp.print_path = false;
 
     //////////////////////////////////////////////
     // initialize structures against parameters //
     //////////////////////////////////////////////
 
-    m_config = config;
+    m_config = config; // save config, for science
+    m_pp = pp; // save fully-initialized config
 
-    m_disc = disc;
-    m_action_set.reset(as);
-    m_use_xyz_snap_mprim = use_xyz_snap_mprim;
-    m_use_rpy_snap_mprim = use_rpy_snap_mprim;
-    m_use_xyzrpy_snap_mprim = use_xyzrpy_snap_mprim;
-    m_use_short_dist_mprims = use_short_dist_mprims;
-    m_xyz_snap_thresh = xyz_snap_thresh;
-    m_rpy_snap_thresh = rpy_snap_thresh;
-    m_xyzrpy_snap_thresh = xyzrpy_snap_thresh;
-    m_short_dist_mprims_thresh = short_dist_mprims_thresh;
-
-    m_use_bfs_heuristic = use_bfs_heuristic;
+    // these parameters are for us
     m_bfs_res_x = bfs_res_x;
     m_bfs_res_y = bfs_res_y;
     m_bfs_res_z = bfs_res_z;
-    m_bfs_sphere_radius = bfs_sphere_radius;
-
-    m_epsilon = epsilon;
-
-    m_shortcut_path = shortcut_path;
-    m_shortcut_type = shortcut_type;
-    m_interpolate_path = interpolate_path;
-
-    m_action_set->useAmp(
-            sbpl::manip::MotionPrimitive::SNAP_TO_XYZ,
-            use_xyz_snap_mprim);
-    m_action_set->useAmp(
-            sbpl::manip::MotionPrimitive::SNAP_TO_RPY,
-            use_rpy_snap_mprim);
-    m_action_set->useAmp(
-            sbpl::manip::MotionPrimitive::SNAP_TO_XYZ_RPY,
-            use_xyzrpy_snap_mprim);
-    m_action_set->useAmp(
-            sbpl::manip::MotionPrimitive::SHORT_DISTANCE,
-            use_short_dist_mprims);
-
-    m_action_set->ampThresh(
-            sbpl::manip::MotionPrimitive::SNAP_TO_XYZ,
-            xyz_snap_thresh);
-    m_action_set->ampThresh(
-            sbpl::manip::MotionPrimitive::SNAP_TO_RPY,
-            rpy_snap_thresh);
-    m_action_set->ampThresh(
-            sbpl::manip::MotionPrimitive::SNAP_TO_XYZ_RPY,
-            xyzrpy_snap_thresh);
-    m_action_set->ampThresh(
-            sbpl::manip::MotionPrimitive::SHORT_DISTANCE,
-            short_dist_mprims_thresh);
-
-    ROS_DEBUG_NAMED(PP_LOGGER, "Action Set:");
-    for (auto ait = m_action_set->begin(); ait != m_action_set->end(); ++ait) {
-        ROS_DEBUG_NAMED(PP_LOGGER, "  type: %s", to_string(ait->type).c_str());
-        if (ait->type == sbpl::manip::MotionPrimitive::SNAP_TO_RPY) {
-            ROS_DEBUG_NAMED(PP_LOGGER, "    enabled: %s", m_action_set->useAmp(sbpl::manip::MotionPrimitive::SNAP_TO_RPY) ? "true" : "false");
-            ROS_DEBUG_NAMED(PP_LOGGER, "    thresh: %0.3f", m_action_set->ampThresh(sbpl::manip::MotionPrimitive::SNAP_TO_RPY));
-        }
-        else if (ait->type == sbpl::manip::MotionPrimitive::SNAP_TO_XYZ) {
-            ROS_DEBUG_NAMED(PP_LOGGER, "    enabled: %s", m_action_set->useAmp(sbpl::manip::MotionPrimitive::SNAP_TO_XYZ) ? "true" : "false");
-            ROS_DEBUG_NAMED(PP_LOGGER, "    thresh: %0.3f", m_action_set->ampThresh(sbpl::manip::MotionPrimitive::SNAP_TO_XYZ));
-        }
-        else if (ait->type == sbpl::manip::MotionPrimitive::SNAP_TO_XYZ_RPY) {
-            ROS_DEBUG_NAMED(PP_LOGGER, "    enabled: %s", m_action_set->useAmp(sbpl::manip::MotionPrimitive::SNAP_TO_XYZ_RPY) ? "true" : "false");
-            ROS_DEBUG_NAMED(PP_LOGGER, "    thresh: %0.3f", m_action_set->ampThresh(sbpl::manip::MotionPrimitive::SNAP_TO_XYZ_RPY));
-        }
-        else if (ait->type == sbpl::manip::MotionPrimitive::LONG_DISTANCE ||
-            ait->type == sbpl::manip::MotionPrimitive::SHORT_DISTANCE)
-        {
-            ROS_DEBUG_NAMED(PP_LOGGER, "    action: %s", to_string(ait->action).c_str());
-        }
-    }
 
     return true;
 }
@@ -503,77 +466,18 @@ bool SBPLPlanningContext::initSBPL(std::string& why)
         return false;
     }
 
-    ///////////////////////////////
-    // Action Set Initialization //
-    ///////////////////////////////
-
-    // TODO: the motion primitive file currently must have joint variable
-    // changes specified in the active variable order...which the user may not
-    // know...fix that
-
-    // Action Set loaded upon initialization
-
-    //////////////////////////////////
-    // Distance Field Initalization //
-    //////////////////////////////////
-
     if (!initHeuristicGrid(*scene, req.workspace_parameters)) {
         why = "Failed to initialize heuristic information";
         return false;
     }
 
-    ///////////////////////////////////////////////
-    // SBPL Arm Planner Interface Initialization //
-    ///////////////////////////////////////////////
-
-    m_planner.reset(new sbpl::manip::ArmPlannerInterface(
+    m_planner = std::make_shared<sbpl::manip::PlannerInterface>(
             m_robot_model,
             &m_collision_checker,
-            m_action_set.get(),
-            m_grid.get()));
+            m_grid.get());
 
-    sbpl::manip::PlanningParams params;
-
-    // number of discretizations in a circle
-    std::vector<int> discretization(m_robot_model->activeVariableCount());
-    for (size_t vind = 0; vind < discretization.size(); ++vind) {
-        const std::string& vname = m_robot_model->planningVariableNames()[vind];
-        auto dit = m_disc.find(vname);
-        if (dit == m_disc.end()) {
-            ROS_ERROR_NAMED(PP_LOGGER, "Discretization for variable '%s' not available in config", vname.c_str());
-            return false;
-        }
-        discretization[vind] = (int)round((2.0 * M_PI) / dit->second);
-    }
-
-    std::vector<double> deltas(m_robot_model->activeVariableCount());
-    for (size_t vind = 0; vind < deltas.size(); ++vind) {
-        deltas[vind] = (2.0 * M_PI) / (double)discretization[vind];
-    }
-
-    params.planning_frame_ = m_robot_model->planningFrame();
-    params.num_joints_ = m_robot_model->activeVariableCount();
-    params.planning_joints_ = m_robot_model->planningVariableNames();
-    params.coord_vals_ = discretization;
-    params.coord_delta_ = deltas;
-
-    params.use_multiple_ik_solutions_ = false;
-
-    // NOTE: default cost function parameters
-
-    params.use_bfs_heuristic_ = m_use_bfs_heuristic;
-    params.planning_link_sphere_radius_ = m_bfs_sphere_radius;
-
-    params.planner_name_ = getMotionPlanRequest().planner_id;
-    params.epsilon_ = m_epsilon;
-
-    params.print_path_ = false;
-    params.shortcut_path_ = m_shortcut_path;
-    params.shortcut_type = m_shortcut_type;
-    params.interpolate_path_ = m_interpolate_path;
-
-    if (!m_planner->init(params)) {
-        why = "Failed to initialize SBPL Arm Planner Interface";
+    if (!m_planner->init(m_pp)) {
+        why = "Failed to initialize Planner Interface";
         return false;
     }
 
@@ -669,9 +573,6 @@ bool SBPLPlanningContext::initHeuristicGrid(
     const planning_scene::PlanningScene& scene,
     const moveit_msgs::WorkspaceParameters& workspace)
 {
-    // TODO: find the transform from the workspace to the planning frame and
-    // use as the origin
-
     // create a distance field in the planning frame that represents the
     // workspace boundaries
 
@@ -701,17 +602,14 @@ bool SBPLPlanningContext::initHeuristicGrid(
     const double size_y = workspace_aabb.extents.y;
     const double size_z = workspace_aabb.extents.z;
 
-    // TODO: need to either plan in the workspace frame here rather than the
-    // common joint root...or need to expand the size of the distance field to
-    // match the axis-aligned bb of the workspace and then fill cells outside of
-    // the workspace
-
     const double default_bfs_res = 0.02;
-    const double res_x_m = m_use_bfs_heuristic ? m_bfs_res_x : default_bfs_res;
-    const double res_y_m = m_use_bfs_heuristic ? m_bfs_res_y : default_bfs_res;
-    const double res_z_m = m_use_bfs_heuristic ? m_bfs_res_z : default_bfs_res;
+    const double res_x_m = m_pp.use_bfs_heuristic ? m_bfs_res_x : default_bfs_res;
+    const double res_y_m = m_pp.use_bfs_heuristic ? m_bfs_res_y : default_bfs_res;
+    const double res_z_m = m_pp.use_bfs_heuristic ? m_bfs_res_z : default_bfs_res;
 
-    const double max_distance = m_use_bfs_heuristic ? m_bfs_sphere_radius + res_x_m : res_x_m;
+    const double max_distance = m_pp.use_bfs_heuristic ?
+            m_pp.planning_link_sphere_radius + res_x_m :
+            res_x_m;
     const bool propagate_negative_distances = false;
 
     Eigen::Affine3d T_planning_workspace;
@@ -732,7 +630,7 @@ bool SBPLPlanningContext::initHeuristicGrid(
     ROS_DEBUG_NAMED(PP_LOGGER, "  origin_z: %0.3f", workspace_pos_in_planning.z());
     ROS_DEBUG_NAMED(PP_LOGGER, "  propagate_negative_distances: %s", propagate_negative_distances ? "true" : "false");
 
-    m_distance_field = std::make_shared<distance_field::PropagationDistanceField>(
+    auto hdf = std::make_shared<distance_field::PropagationDistanceField>(
             size_x, size_y, size_z,
             res_x_m,
             workspace_pos_in_planning.x(),
@@ -741,7 +639,7 @@ bool SBPLPlanningContext::initHeuristicGrid(
             max_distance,
             propagate_negative_distances);
 
-    if (!m_use_bfs_heuristic) {
+    if (!m_pp.use_bfs_heuristic) {
         ROS_DEBUG_NAMED(PP_LOGGER, "Not using BFS heuristic (Skipping occupancy grid filling)");
         return true;
     }
@@ -772,9 +670,9 @@ bool SBPLPlanningContext::initHeuristicGrid(
             // force update function on collisionspace and collisionworldsbpl
             // to set up the voxel grid for a given robot state here
             ROS_DEBUG_NAMED(PP_LOGGER, "Copying collision information");
-            copyDistanceField(*df, *m_distance_field);
+            copyDistanceField(*df, *hdf);
 
-            m_grid = std::make_shared<sbpl::OccupancyGrid>(m_distance_field);
+            m_grid = std::make_shared<sbpl::OccupancyGrid>(hdf);
             init_from_sbpl_cc = true;
         }
         else {
@@ -791,7 +689,7 @@ bool SBPLPlanningContext::initHeuristicGrid(
     // instantiating a full cspace here and using available voxels state
     // information for a more accurate heuristic
 
-    m_grid = std::make_shared<sbpl::OccupancyGrid>(m_distance_field);
+    m_grid = std::make_shared<sbpl::OccupancyGrid>(hdf);
     m_grid->setReferenceFrame(scene.getPlanningFrame());
     sbpl::collision::WorldCollisionModel cmodel(m_grid.get());
 

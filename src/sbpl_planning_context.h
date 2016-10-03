@@ -9,7 +9,7 @@
 #include <moveit/planning_interface/planning_interface.h>
 #include <moveit_msgs/OrientedBoundingBox.h>
 #include <moveit_msgs/MotionPlanRequest.h>
-#include <sbpl_arm_planner/arm_planner_interface.h>
+#include <sbpl_arm_planner/planner_interface.h>
 
 #include <moveit_planners_sbpl/moveit_robot_model.h>
 
@@ -59,35 +59,17 @@ private:
     // sbpl planner components
     MoveItRobotModel* m_robot_model;
     MoveItCollisionChecker m_collision_checker;
-    sbpl::manip::ActionSetPtr m_action_set;
-    std::shared_ptr<distance_field::PropagationDistanceField> m_distance_field;
+
     sbpl::OccupancyGridPtr m_grid;
 
-    std::unique_ptr<sbpl::manip::ArmPlannerInterface> m_planner;
+    sbpl::manip::PlannerInterfacePtr m_planner;
 
     std::map<std::string, std::string> m_config;
+    sbpl::manip::PlanningParams m_pp;
 
-    std::map<std::string, double> m_disc;
-    bool m_use_xyz_snap_mprim;
-    bool m_use_rpy_snap_mprim;
-    bool m_use_xyzrpy_snap_mprim;
-    bool m_use_short_dist_mprims;
-    double m_xyz_snap_thresh;
-    double m_rpy_snap_thresh;
-    double m_xyzrpy_snap_thresh;
-    double m_short_dist_mprims_thresh;
-
-    double m_epsilon;
-
-    bool m_shortcut_path;
-    sbpl::manip::ShortcutType m_shortcut_type;
-    bool m_interpolate_path;
-
-    bool m_use_bfs_heuristic;
     double m_bfs_res_x;
     double m_bfs_res_y;
     double m_bfs_res_z;
-    double m_bfs_sphere_radius;
 
     /// \brief Initialize SBPL constructs
     /// \param[out] Reason for failure if initialization is unsuccessful
