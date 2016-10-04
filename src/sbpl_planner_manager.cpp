@@ -39,7 +39,7 @@ namespace sbpl_interface {
 // pp = planning plugin
 static const char* PP_LOGGER = "planning";
 
-const std::string DefaultPlanningAlgorithm = "ARA*";
+const std::string DefaultPlanningAlgorithm = "arastar";
 
 SBPLPlannerManager::SBPLPlannerManager() :
     Base(),
