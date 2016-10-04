@@ -7,6 +7,8 @@
 
 #include <moveit_planners_sbpl/moveit_robot_model.h>
 
+#include <sbpl_arm_planner/visualizer_ros.h>
+
 namespace sbpl_interface {
 
 class SBPLPlannerManager : public planning_interface::PlannerManager
@@ -63,6 +65,8 @@ private:
     typedef collision_detection::CollisionDetectorAllocatorPtr
     CollisionCheckerAllocatorPtr;
     std::map<std::string, CollisionCheckerAllocatorPtr> m_cc_allocators;
+
+    sbpl::VisualizerROS m_viz;
 
     void logPlanningScene(const planning_scene::PlanningScene& scene) const;
     void logMotionPlanRequest(

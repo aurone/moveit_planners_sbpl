@@ -44,14 +44,19 @@ const std::string DefaultPlanningAlgorithm = "ARA*";
 SBPLPlannerManager::SBPLPlannerManager() :
     Base(),
     m_robot_model(),
-    m_ns()
+    m_ns(),
+    m_viz()
 {
     ROS_DEBUG_NAMED(PP_LOGGER, "Constructed SBPL Planner Manager");
+    sbpl::viz::set_visualizer(&m_viz);
 }
 
 SBPLPlannerManager::~SBPLPlannerManager()
 {
     ROS_DEBUG_NAMED(PP_LOGGER, "Destructed SBPL Planner Manager");
+    if (sbpl::viz::visualizer() == &m_viz) {
+        sbpl::viz::unset_visualizer();
+    }
 }
 
 bool SBPLPlannerManager::initialize(
