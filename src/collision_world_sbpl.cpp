@@ -382,6 +382,11 @@ std::vector<double> CollisionWorldSBPL::getCheckedVariables(
     }
 }
 
+/// Traverse a robot model to extract all variable names corresponding to the
+/// URDF model (disregarding any virtual joints). The returned variables are
+/// sorted by the order they appear in the robot model.
+///
+/// \return true if the model has a valid root link; false otherwise
 bool CollisionWorldSBPL::getRobotVariableNames(
     const moveit::core::RobotModel& model,
     std::vector<std::string>& var_names,
@@ -469,7 +474,7 @@ CollisionWorldSBPL::GroupModelPtr CollisionWorldSBPL::getGroupModel(
     // Distance Field //
     ////////////////////
 
-    // TODO: include the attached object models when computing th max expansion
+    // TODO: include the attached object models when computing the max expansion
     // distance
 
     // resolve the maximum expansion distance. this should be at least the
@@ -609,7 +614,6 @@ void CollisionWorldSBPL::initializeRobotModel(
     // here. The other robot state variables will be set via the world to model
     // transform in the collision space
 
-    // get all variables that are descendants of the root link
     std::vector<std::string> robot_var_names;
     std::vector<int> robot_var_indices;
     if (!getRobotVariableNames(robot_model, robot_var_names, robot_var_indices))
