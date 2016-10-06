@@ -269,8 +269,16 @@ bool MoveGroupCommandModel::planToGoalPose()
 
 bool MoveGroupCommandModel::planToGoalConfiguration()
 {
-    ROS_ERROR("planToGoalConfiguration unimplemented");
-    return false;
+    moveit_msgs::PlanningOptions ops;
+    ops.planning_scene_diff.robot_state.is_diff = false;
+    ops.look_around = false;
+    ops.look_around_attempts = 0;
+    ops.max_safe_execution_cost = 1.0;
+    ops.plan_only = true;
+    ops.replan = false;
+    ops.replan_attempts = 0;
+    ops.replan_delay = 0.0;
+    return sendMoveGroupConfigurationGoal(m_curr_joint_group_name, ops);
 }
 
 bool MoveGroupCommandModel::moveToGoalPose()
@@ -289,7 +297,16 @@ bool MoveGroupCommandModel::moveToGoalPose()
 
 bool MoveGroupCommandModel::moveToGoalConfiguration()
 {
-    ROS_ERROR("moveToGoalConfiguration unimplemented");
+    moveit_msgs::PlanningOptions ops;
+    ops.planning_scene_diff.robot_state.is_diff = false;
+    ops.look_around = false;
+    ops.look_around_attempts = 0;
+    ops.max_safe_execution_cost = 1.0;
+    ops.plan_only = false;
+    ops.replan = false;
+    ops.replan_attempts = 0;
+    ops.replan_delay = 0.0;
+    return sendMoveGroupConfigurationGoal(m_curr_joint_group_name, ops);
     return false;
 }
 
@@ -1107,7 +1124,7 @@ bool MoveGroupCommandModel::fillWorkspaceParameters(
     return true;
 }
 
-bool MoveGroupCommandModel::fillGoalConstraints(
+bool MoveGroupCommandModel::fillPoseGoalConstraints(
     const ros::Time& now,
     const std::string& group_name,
     moveit_msgs::MotionPlanRequest& req) const
@@ -1182,6 +1199,45 @@ bool MoveGroupCommandModel::fillGoalConstraints(
 //    goal_constraints.visibility_constraints;
 
     req.goal_constraints.push_back(goal_constraints);
+
+    return true;
+}
+
+bool MoveGroupCommandModel::fillConfigurationGoalConstraints(
+    const ros::Time& now,
+    const std::string& group_name,
+    moveit_msgs::MotionPlanRequest& req) const
+{
+    moveit_msgs::Constraints constraints;
+    constraints.name = "goal_constraints";
+
+    const moveit::core::JointModelGroup* jmg =
+            robotModel()->getJointModelGroup(group_name);
+
+    // make a joint constraint for each active joint in the joint model group
+    for (const moveit::core::JointModel* jm : jmg->getActiveJointModels()) {
+        if (jm->getType() != moveit::core::JointModel::JointType::REVOLUTE &&
+            jm->getType() != moveit::core::JointModel::JointType::PRISMATIC)
+        {
+            ROS_WARN("Skipping Multi-DOF joint '%s' in joint group '%s'", jm->getName().c_str(), group_name.c_str());
+            continue;
+        }
+
+        if (jm->getType() == moveit::core::JointModel::JointType::PRISMATIC) {
+            ROS_WARN("Joint tolerance specified in radians for prismatic joint '%s'. This may not be what you want", jm->getName().c_str());
+        }
+
+        moveit_msgs::JointConstraint joint_constraint;
+        joint_constraint.joint_name = jm->getName();
+        joint_constraint.position = m_robot_state->getVariablePosition(jm->getName());
+        joint_constraint.tolerance_above = m_joint_tol_rad;
+        joint_constraint.tolerance_below = m_joint_tol_rad;
+        joint_constraint.weight = 1.0;
+
+        constraints.joint_constraints.push_back(joint_constraint);
+    }
+
+    req.goal_constraints.push_back(constraints);
 
     return true;
 }
@@ -1340,7 +1396,44 @@ bool MoveGroupCommandModel::sendMoveGroupPoseGoal(
 
     moveit_msgs::MotionPlanRequest& req = move_group_goal.request;
     if (!fillWorkspaceParameters(now, group_name, req) ||
-        !fillGoalConstraints(now, group_name, req) ||
+        !fillPoseGoalConstraints(now, group_name, req) ||
+        !fillPathConstraints(now, group_name, req) ||
+        !fillTrajectoryConstraints(now, group_name, req))
+    {
+        return false;
+    }
+
+    req.start_state.is_diff = false;
+    req.planner_id = plannerID();
+    req.group_name = group_name;
+    req.num_planning_attempts = m_num_planning_attempts;
+    req.allowed_planning_time = m_allowed_planning_time_s;
+    req.max_velocity_scaling_factor = 1.0;
+
+    move_group_goal.planning_options = ops;
+
+    auto result_callback = boost::bind(
+            &MoveGroupCommandModel::moveGroupResultCallback, this, _1, _2);
+    m_move_group_client->sendGoal(move_group_goal, result_callback);
+
+    return true;
+}
+
+bool MoveGroupCommandModel::sendMoveGroupConfigurationGoal(
+    const std::string& group_name,
+    const moveit_msgs::PlanningOptions& ops)
+{
+    if (!readyToPlan()) {
+        return false;
+    }
+
+    moveit_msgs::MoveGroupGoal move_group_goal;
+
+    const ros::Time now = ros::Time::now();
+
+    moveit_msgs::MotionPlanRequest& req = move_group_goal.request;
+    if (!fillWorkspaceParameters(now, group_name, req) ||
+        !fillConfigurationGoalConstraints(now, group_name, req) ||
         !fillPathConstraints(now, group_name, req) ||
         !fillTrajectoryConstraints(now, group_name, req))
     {

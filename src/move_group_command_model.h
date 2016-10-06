@@ -214,7 +214,11 @@ private:
         const ros::Time& now,
         const std::string& group_name,
         moveit_msgs::MotionPlanRequest& req);
-    bool fillGoalConstraints(
+    bool fillPoseGoalConstraints(
+        const ros::Time& now,
+        const std::string& group,
+        moveit_msgs::MotionPlanRequest& req) const;
+    bool fillConfigurationGoalConstraints(
         const ros::Time& now,
         const std::string& group,
         moveit_msgs::MotionPlanRequest& req) const;
@@ -233,6 +237,9 @@ private:
         const moveit_msgs::MoveGroupResult& res) const;
 
     bool sendMoveGroupPoseGoal(
+        const std::string& group_name,
+        const moveit_msgs::PlanningOptions& ops);
+    bool sendMoveGroupConfigurationGoal(
         const std::string& group_name,
         const moveit_msgs::PlanningOptions& ops);
 

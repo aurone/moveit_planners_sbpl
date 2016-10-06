@@ -51,6 +51,8 @@ public Q_SLOTS:
 
     void planToGoalPose();
     void moveToGoalPose();
+    void planToGoalConfiguration();
+    void moveToGoalConfiguration();
     void copyCurrentState();
 
     void setGoalJointTolerance(double tol_deg);
@@ -115,6 +117,8 @@ private:
     ///@{
     QPushButton* m_plan_to_position_button;
     QPushButton* m_move_to_position_button;
+    QPushButton* m_plan_to_configuration_button;
+    QPushButton* m_move_to_configuration_button;
     QPushButton* m_copy_current_state_button;
     ///@}
 

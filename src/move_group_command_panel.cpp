@@ -24,6 +24,10 @@ MoveGroupCommandPanel::MoveGroupCommandPanel(QWidget* parent) :
     m_joint_groups_combo_box(nullptr),
     m_marker_pub(),
     m_var_cmd_widget(nullptr),
+    m_plan_to_position_button(nullptr),
+    m_move_to_position_button(nullptr),
+    m_plan_to_configuration_button(nullptr),
+    m_move_to_configuration_button(nullptr),
     m_joint_tol_spinbox(nullptr),
     m_pos_tol_spinbox(nullptr),
     m_rot_tol_spinbox(nullptr),
@@ -226,6 +230,10 @@ void MoveGroupCommandPanel::setupGUI()
             this, SLOT(planToGoalPose()));
     connect(m_move_to_position_button, SIGNAL(clicked()),
             this, SLOT(moveToGoalPose()));
+    connect(m_plan_to_configuration_button, SIGNAL(clicked()),
+            this, SLOT(planToGoalConfiguration()));
+    connect(m_move_to_configuration_button, SIGNAL(clicked()),
+            this, SLOT(moveToGoalConfiguration()));
     connect(m_copy_current_state_button, SIGNAL(clicked()),
             this, SLOT(copyCurrentState()));
 }
@@ -436,10 +444,14 @@ QGroupBox* MoveGroupCommandPanel::setupCommandsGroup()
 
     m_plan_to_position_button = new QPushButton(tr("Plan to Position"));
     m_move_to_position_button = new QPushButton(tr("Move to Position"));
+    m_plan_to_configuration_button = new QPushButton(tr("Plan To Configuration"));
+    m_move_to_configuration_button = new QPushButton(tr("Move To Configuration"));
     m_copy_current_state_button = new QPushButton(tr("Copy Current State"));
 
     commands_group_layout->addWidget(m_plan_to_position_button);
     commands_group_layout->addWidget(m_move_to_position_button);
+    commands_group_layout->addWidget(m_plan_to_configuration_button);
+    commands_group_layout->addWidget(m_move_to_configuration_button);
     commands_group_layout->addWidget(m_copy_current_state_button);
 
     commands_group_box->setLayout(commands_group_layout);
@@ -636,6 +648,20 @@ void MoveGroupCommandPanel::moveToGoalPose()
 {
     if (!m_model->moveToGoalPose()) {
         ROS_ERROR("This should also be a message box");
+    }
+}
+
+void MoveGroupCommandPanel::planToGoalConfiguration()
+{
+    if (!m_model->planToGoalConfiguration()) {
+        ROS_ERROR("This should be a message box");
+    }
+}
+
+void MoveGroupCommandPanel::moveToGoalConfiguration()
+{
+    if (!m_model->moveToGoalConfiguration()) {
+        ROS_ERROR("This should be a message box");
     }
 }
 
