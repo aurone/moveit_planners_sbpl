@@ -589,7 +589,8 @@ bool MoveItRobotModel::computeFastIK(
         return false;
     }
 
-    return computeUnrestrictedIK(pose, start, solution, true);
+    bool lock_redundant_joints = m_redundant_var_count > 0; // because i got a crash once from this?
+    return computeUnrestrictedIK(pose, start, solution, lock_redundant_joints);
 }
 
 bool MoveItRobotModel::computeUnrestrictedIK(
