@@ -635,7 +635,7 @@ bool MoveItRobotModel::computeUnrestrictedIK(
             T_model_link, m_tip_link->getName(),
             num_attempts, timeout, fn, ops))
     {
-        ROS_DEBUG("IK Failed");
+        ROS_DEBUG_STREAM("IK to pose " << pose << " Failed");
         return false;
     }
 
