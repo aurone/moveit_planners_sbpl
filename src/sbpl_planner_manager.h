@@ -89,6 +89,9 @@ private:
 
     // retrive an already-initialized model for a given group
     MoveItRobotModel* getModelForGroup(const std::string& group_name);
+
+    std::string selectPlanningLink(
+        const planning_interface::MotionPlanRequest& req) const;
 };
 
 MOVEIT_CLASS_FORWARD(SBPLPlannerManager);

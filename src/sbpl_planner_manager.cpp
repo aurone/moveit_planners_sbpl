@@ -125,19 +125,16 @@ planning_interface::PlanningContextPtr SBPLPlannerManager::getPlanningContext(
         return context;
     }
 
-    // TODO: reevaluate these assumptions when different goal types are added
-    if (!req.goal_constraints.empty()) {
-        const auto& goal_constraint = req.goal_constraints.front();
-        // should've received one pose constraint for a single link, o/w
-        // canServiceRequest would have complained
-        assert(!goal_constraint.position_constraints.empty());
-        const auto& position_constraint = goal_constraint.position_constraints.front();
-        const std::string& planning_link = position_constraint.link_name;
+    std::string planning_link = selectPlanningLink(req);
+    if (planning_link.empty()) {
+        ROS_INFO_NAMED(PP_LOGGER, "Clear the planning link");
+    } else {
         ROS_INFO_NAMED(PP_LOGGER, "Setting planning link to '%s'", planning_link.c_str());
-        if (!sbpl_model->setPlanningLink(planning_link)) {
-            ROS_ERROR_NAMED(PP_LOGGER, "Failed to set planning link to '%s'", planning_link.c_str());
-            return context;
-        }
+    }
+
+    if (!sbpl_model->setPlanningLink(planning_link)) {
+        ROS_ERROR_NAMED(PP_LOGGER, "Failed to set planning link to '%s'", planning_link.c_str());
+        return context;
     }
 
     bool res = true;
@@ -196,10 +193,6 @@ bool SBPLPlannerManager::canServiceRequest(
 {
     ROS_DEBUG_NAMED(PP_LOGGER, "SBPLPlannerManager::canServiceRequest()");
 
-    // TODO: Most of this is just duplicate of
-    // SBPLArmPlannerInterface::canServiceRequest. Can we make that static and
-    // just call that here?
-
     if (req.allowed_planning_time < 0.0) {
         ROS_WARN_NAMED(PP_LOGGER, "allowed_planning_time must be non-negative");
         return false;
@@ -222,32 +215,16 @@ bool SBPLPlannerManager::canServiceRequest(
         return false;
     }
 
-    // guard against unsupported constraints
-
-    if (req.goal_constraints.size() > 1) {
-        ROS_WARN_NAMED(PP_LOGGER, "SBPL planner does not currently support more than one goal constraint");
+    // guard against unsupported constraints in the underlying interface
+    std::string why;
+    if (!sbpl::manip::PlannerInterface::SupportsGoalConstraints(
+            req.goal_constraints, why))
+    {
+        ROS_ERROR_NAMED(PP_LOGGER, "goal constraints not supported (%s)", why.c_str());
         return false;
     }
 
-    for (const moveit_msgs::Constraints& constraints : req.goal_constraints) {
-        if (!constraints.joint_constraints.empty()) {
-            ROS_WARN_NAMED(PP_LOGGER, "SBPL planner does not currently support goal constraints on joint positions");
-            return false;
-        }
-
-        if (!constraints.visibility_constraints.empty()) {
-            ROS_WARN_NAMED(PP_LOGGER, "SBPL planner does not currently support goal constraints on visibility");
-            return false;
-        }
-
-        if (constraints.position_constraints.size() != 1 ||
-            constraints.orientation_constraints.size() != 1)
-        {
-            ROS_WARN_NAMED(PP_LOGGER, "SBPL planner only supports goal constraints with exactly one position constraint and one orientation constraint");
-            return false;
-        }
-    }
-
+    // TODO: ...an unfortunate moveit plugin truth
     if (!req.path_constraints.position_constraints.empty() ||
         !req.path_constraints.orientation_constraints.empty() ||
         !req.path_constraints.joint_constraints.empty() ||
@@ -791,6 +768,43 @@ MoveItRobotModel* SBPLPlannerManager::getModelForGroup(
         ROS_DEBUG_NAMED(PP_LOGGER, "Using existing SBPL Robot Model for group '%s'", group_name.c_str());
         return it->second.get();
     }
+}
+
+std::string SBPLPlannerManager::selectPlanningLink(
+    const planning_interface::MotionPlanRequest& req) const
+{
+    if (req.goal_constraints.empty()) {
+        return std::string(); // doesn't matter, we'll bail out soon
+    }
+
+    const auto& goal_constraint = req.goal_constraints.front();
+    // should've received one pose constraint for a single link, o/w
+    // canServiceRequest would have complained
+    if (!goal_constraint.position_constraints.empty()) {
+        const auto& position_constraint = goal_constraint.position_constraints.front();
+        return position_constraint.link_name;
+    }
+
+    // it's still useful to have a planning link for obstacle-based
+    // heuristic information...inspect the joint model group
+
+    const moveit::core::JointModelGroup* jmg =
+            m_robot_model->getJointModelGroup(req.group_name);
+
+    std::vector<std::string> ee_tips;
+    if (jmg->getEndEffectorTips(ee_tips) && !ee_tips.empty()) {
+        return ee_tips.front();
+    }
+
+    // TODO: can still pick a useful planning as the most descendant
+    // link in the joint group...possibly prefer links for which an ik solver
+    // is available
+
+    if (!jmg->getLinkModelNames().empty()) {
+        return jmg->getLinkModelNames().back();
+    }
+
+    return std::string(); // well...nothing we can do about this
 }
 
 } // namespace sbpl_interface
