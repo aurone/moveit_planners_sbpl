@@ -322,8 +322,14 @@ double MoveItRobotModel::accLimit(int jidx) const
 /// \brief Set the link for which default forward kinematics is computed.
 bool MoveItRobotModel::setPlanningLink(const std::string& name)
 {
+    if (name.empty()) {
+        // clear the planning link
+        m_tip_link = nullptr;
+        return true;
+    }
+
     if (!m_robot_model->hasLinkModel(name)) {
-        ROS_ERROR("Cannot set planning link to link that is not in the robot model");
+        ROS_ERROR("planning link '%s' is not in the robot model", name.c_str());
         return false;
     }
 
