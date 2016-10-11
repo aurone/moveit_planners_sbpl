@@ -35,6 +35,9 @@
 
 namespace collision_detection {
 
+// crp = collision robot plugin
+static const char* CRP_LOGGER = "self_collisions";
+
 CollisionRobotSBPL::CollisionRobotSBPL(
     const robot_model::RobotModelConstPtr& model,
     double padding,
@@ -42,7 +45,7 @@ CollisionRobotSBPL::CollisionRobotSBPL(
 :
     CollisionRobot(model, padding, scale)
 {
-    ROS_INFO("CollisionRobotSBPL(const RobotModelConstPtr&, double, double)");
+    ROS_INFO_NAMED(CRP_LOGGER, "CollisionRobotSBPL(const RobotModelConstPtr&, double, double)");
     ros::NodeHandle ph("~");
 
     // search for the robot collision model on the param server
@@ -82,20 +85,41 @@ CollisionRobotSBPL::CollisionRobotSBPL(
         throw std::runtime_error(msg);
     }
 
+    const char* self_collision_model_param = "self_collision_model";
+    LoadCollisionGridConfig(ph, self_collision_model_param, m_scm_config);
+
     // ok! store the robot collision model
     m_rcm = rcm;
+
+    LoadJointCollisionGroupMap(ph, m_jcgm_map);
+
+    ExtractRobotVariables(
+            *model,
+            m_variable_names,
+            m_variable_indices,
+            m_are_variables_contiguous,
+            m_variables_offset);
+
+    GetRobotCollisionModelJointIndices(
+            m_variable_names, *model, m_rcm_joint_indices);
+
+    m_rcs = std::make_shared<sbpl::collision::RobotCollisionState>(m_rcm.get());
+
+    m_joint_vars.assign(
+            m_rcs->getJointVarPositions(),
+            m_rcs->getJointVarPositions() + m_rcm->jointVarCount());
 }
 
 CollisionRobotSBPL::CollisionRobotSBPL(const CollisionRobotSBPL& other) :
     CollisionRobot(other)
 {
-    ROS_INFO("CollisionRobotSBPL(other)");
+    ROS_INFO_NAMED(CRP_LOGGER, "CollisionRobotSBPL(other)");
     m_rcm = other.m_rcm;
 }
 
 CollisionRobotSBPL::~CollisionRobotSBPL()
 {
-    ROS_INFO("~CollisionRobotSBPL");
+    ROS_INFO_NAMED(CRP_LOGGER, "~CollisionRobotSBPL");
 }
 
 const sbpl::collision::RobotCollisionModelConstPtr&
@@ -113,6 +137,7 @@ void CollisionRobotSBPL::checkOtherCollision(
 {
     // TODO: implement
     clearAllCollisions(res);
+    setVacuousCollision(res);
 }
 
 void CollisionRobotSBPL::checkOtherCollision(
@@ -125,6 +150,7 @@ void CollisionRobotSBPL::checkOtherCollision(
 {
     // TODO: implement
     clearAllCollisions(res);
+    setVacuousCollision(res);
 }
 
 void CollisionRobotSBPL::checkOtherCollision(
@@ -138,6 +164,7 @@ void CollisionRobotSBPL::checkOtherCollision(
 {
     // TODO: implement
     clearAllCollisions(res);
+    setVacuousCollision(res);
 }
 
 void CollisionRobotSBPL::checkOtherCollision(
@@ -152,6 +179,7 @@ void CollisionRobotSBPL::checkOtherCollision(
 {
     // TODO: implement
     clearAllCollisions(res);
+    setVacuousCollision(res);
 }
 
 void CollisionRobotSBPL::checkSelfCollision(
@@ -161,6 +189,7 @@ void CollisionRobotSBPL::checkSelfCollision(
 {
     // TODO: implement
     clearAllCollisions(res);
+    setVacuousCollision(res);
 }
 
 void CollisionRobotSBPL::checkSelfCollision(
@@ -171,6 +200,9 @@ void CollisionRobotSBPL::checkSelfCollision(
 {
     // TODO: implement
     clearAllCollisions(res);
+
+    const_cast<CollisionRobotSBPL*>(this)->checkSelfCollisionMutable(
+            req, res, state, acm);
 }
 
 void CollisionRobotSBPL::checkSelfCollision(
@@ -181,6 +213,7 @@ void CollisionRobotSBPL::checkSelfCollision(
 {
     // TODO: implement
     clearAllCollisions(res);
+    setVacuousCollision(res);
 }
 
 void CollisionRobotSBPL::checkSelfCollision(
@@ -192,6 +225,7 @@ void CollisionRobotSBPL::checkSelfCollision(
 {
     // TODO: implement
     clearAllCollisions(res);
+    setVacuousCollision(res);
 }
 
 double CollisionRobotSBPL::distanceOther(
@@ -241,6 +275,99 @@ void CollisionRobotSBPL::clearAllCollisions(CollisionResult& res) const
     res.contacts.clear();
     res.cost_sources.clear();
     res.distance = 100.0;
+}
+
+void CollisionRobotSBPL::setVacuousCollision(CollisionResult& res) const
+{
+    res.collision = true;
+    res.contact_count = 0;
+    res.contacts.clear();
+    res.cost_sources.clear();
+    res.distance = 0.0;
+}
+
+void CollisionRobotSBPL::checkSelfCollisionMutable(
+    const CollisionRequest& req,
+    CollisionResult& res,
+    const robot_state::RobotState& state,
+    const AllowedCollisionMatrix& acm)
+{
+    using sbpl::collision::AttachedBodiesCollisionModel;
+    using sbpl::collision::RobotCollisionState;
+    using sbpl::collision::SelfCollisionModel;
+
+    if (state.getRobotModel()->getName() != m_rcm->name()) {
+        ROS_ERROR_NAMED(CRP_LOGGER, "Collision Robot Model does not match Robot Model");
+        setVacuousCollision(res);
+        return;
+    }
+
+    auto jgcgit = m_jgcm_map.find(group_name);
+    const std::string& collision_group_name =
+            jgcgit == m_jcgm_map.end() ? group_name : jgcgit->second;
+
+    if (!m_rcm->hasGroup(collision_group_name)) {
+        ROS_ERROR_NAMED(CRP_LOGGER, "No group '%s' found in the Robot Collision Model", collision_group_name.c_str());
+        setVacuousCollision(res);
+        return;
+    }
+
+    if (!m_grid) {
+        // lazily initialize self collision model
+        m_grid = createGridFor(m_scm_config);
+        m_grid->setReferenceFrame(m_rcm->modelFrame());
+        m_ab_model = std::make_shared<AttachedBodiesCollisionModel>(m_rcm.get());
+        m_scm = std::make_shared<SelfCollisionModel>(
+                m_grid.get(), m_rcm.get(), m_ab_model.get());
+    }
+
+
+    int gidx = m_rcm->groupIndex(group_name);
+}
+
+double CollisionRobotSBPL::getSelfCollisionPropagationDistance() const
+{
+    // TODO: include the attached object models when computing the max expansion
+    // distance
+
+    // resolve the maximum expansion distance. this should be at least the
+    // radius of the largest leaf sphere in the collision model but may be
+    // overridden by the user to a larger value
+    double cfg_max_distance_m = m_scm_config.max_distance_m;
+    if (cfg_max_distance_m > 0.0) {
+        // allow the user to set the maximum expansion distance. a value between
+        // the max leaf sphere radius and the max sphere radius abandons some
+        // efficiency gained by hierarchical checking in exchange for fewer
+        // distance propagations. a value larger than the max sphere radius
+        // provides additional cost information about how far the robot is from
+        // environment obstacles.
+        const double required_radius = m_rcm->maxLeafSphereRadius() + m_scm_config.res_m;
+        if (cfg_max_distance_m < required_radius) {
+            ROS_WARN_NAMED(CRP_LOGGER, "configured max distance set to %0.3f. overriding to required radius %0.3f", cfg_max_distance_m, required_radius);
+        }
+        return std::max(required_radius, cfg_max_distance_m);
+    } else {
+        // default to the value of the largest sphere (leaf and internal nodes)
+        return m_rcm->maxSphereRadius() + m_scm_config.res_m;
+    }
+}
+
+sbpl::OccupancyGridPtr CollisionRobotSBPL::createGridFor(
+    const CollisionGridConfig& config) const
+{
+    const bool propagate_negative_distances = false;
+    const bool ref_counted = true;
+    return std::make_shared<sbpl::OccupancyGrid>(
+            config.size_x,
+            config.size_y,
+            config.size_z,
+            config.res_m,
+            config.origin_x,
+            config.origin_y,
+            config.origin_z,
+            config.max_distance_m,
+            propagate_negative_distances,
+            ref_counted);
 }
 
 } // namespace collision_detection

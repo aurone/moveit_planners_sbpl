@@ -144,22 +144,25 @@ public:
 
 private:
 
-    CollisionWorldConfig m_world_collision_model_config;
-    sbpl::collision::CollisionModelConfig m_robot_collision_model_config;
+    CollisionWorldConfig m_wcm_config;
 
+    // mapping from joint group name to collision group name
+    std::unordered_map<std::string, std::string> m_jcgm_map;
+
+    sbpl::OccupancyGridConstPtr m_parent_grid;
+    sbpl::collision::WorldCollisionModelConstPtr m_parent_wcm;
+
+    sbpl::OccupancyGridPtr m_grid;
+    sbpl::collision::WorldCollisionModelPtr m_wcm;
+
+    // Variables used to extract the robot-only state information (state not
+    // including virtual joints connecting robot to the world)
     struct GroupModel
     {
-        // variables describing the robot state, limited to only those joints
-        // from the urdf, in the order they are stored within a corresponding
-        // RobotState
         std::vector<std::string> variable_names;
         std::vector<int> variable_indices;
         bool are_variables_contiguous;
         int variables_offset;
-
-        sbpl::OccupancyGridPtr grid;
-
-        sbpl::collision::CollisionSpacePtr cspace;
     };
 
     typedef std::shared_ptr<GroupModel> GroupModelPtr;
@@ -167,16 +170,17 @@ private:
 
     std::unordered_map<std::string, GroupModelPtr> m_group_models;
 
-    // mapping from joint group name to collision group name
-    std::unordered_map<std::string, std::string> m_jcgm_map;
-
     World::ObserverHandle m_observer_handle;
 
     ros::NodeHandle m_nh;
     ros::Publisher m_cspace_pub;
 
     void construct();
-    void loadJointCollisionGroupMap();
+
+    void copyOnWrite();
+
+    sbpl::OccupancyGridPtr createGridFor(
+        const CollisionWorldConfig& config) const;
 
     std::string groupModelName(
         const std::string& robot_name,
@@ -185,31 +189,13 @@ private:
     std::vector<double> getCheckedVariables(
         const GroupModel& gm, const moveit::core::RobotState& state) const;
 
-    // return the internal variable names inside the robot model and their
-    // corresponding indices, sorted, within a robot state derived from the
-    // model
-    bool getRobotVariableNames(
-        const moveit::core::RobotModel& model,
-        std::vector<std::string>& var_names,
-        std::vector<int>& var_indices) const;
-
     GroupModelPtr getGroupModel(
         const CollisionRobotSBPL& collision_robot,
         const moveit::core::RobotModel& robot_model,
         const std::string& group_name);
 
-    // initialize per-robot information
-    void initializeRobotModel(
-        GroupModel& group_model,
-        const moveit::core::RobotModel& robot_model);
-
     void registerWorldCallback();
     void worldUpdate(const World::ObjectConstPtr& object, World::Action action);
-
-    // signals collision in the case of an uninitialized world and no collision
-    // in the case of an initialized model with no world; returns true if either
-    // of these cases is present and false otherwise
-    bool checkDegenerateCollision(CollisionResult& res) const;
 
     void setVacuousCollision(CollisionResult& res) const;
     void clearAllCollisions(CollisionResult& res) const;
@@ -253,6 +239,9 @@ private:
 
     std::vector<double> extractPlanningVariables(
         const moveit::core::RobotState& state) const;
+
+    double getSelfCollisionPropagationDistance(
+        const sbpl::collision::RobotCollisionModel&) const;
 
     void processWorldUpdateUninitialized(const World::ObjectConstPtr& object);
     void processWorldUpdateCreate(const World::ObjectConstPtr& object);

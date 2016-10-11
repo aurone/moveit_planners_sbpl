@@ -32,9 +32,15 @@
 #ifndef collision_detection_CollisionRobotSBPL_h
 #define collision_detection_CollisionRobotSBPL_h
 
+// system includes
 #include <moveit/collision_detection/collision_robot.h>
-
+#include <sbpl_arm_planner/occupancy_grid.h>
+#include <sbpl_collision_checking/attached_bodies_collision_model.h>
 #include <sbpl_collision_checking/robot_collision_model.h>
+#include <sbpl_collision_checking/self_collision_model.h>
+
+// module includes
+#include "collision_common_sbpl.h"
 
 namespace collision_detection {
 
@@ -146,7 +152,49 @@ private:
 
     sbpl::collision::RobotCollisionModelConstPtr m_rcm;
 
+    CollisionGridConfig m_scm_config;
+
+    // robot-only joint variable names
+    std::vector<std::string> m_variable_names;
+
+    // ...their indices in the robot state
+    std::vector<int> m_variable_indices;
+
+    // whether the indices are contiguous
+    bool m_are_variables_contiguous;
+
+    // offset into robot state, if variables are contiguous
+    int m_variables_offset;
+
+    // corresponding joint variable indices in robot collision model/state
+    std::vector<int> m_rcm_joint_indices;
+
+    // robot collision state joint variables for batch updates
+    std::vector<double> m_joint_vars;
+
+    // full collision model state
+    sbpl::collision::RobotCollisionStatePtr m_rcs;
+
+    sbpl::OccupancyGridPtr m_grid;
+    sbpl::collision::AttachedBodiesCollisionModelPtr m_ab_model;
+    sbpl::collision::AttachedBodiesCollisionStatePtr m_ab_state;
+    sbpl::collision::SelfCollisionModelPtr m_scm;
+
+    std::unordered_map<std::string, std::string> m_jcgm_map;
+
     void clearAllCollisions(CollisionResult& res) const;
+    void setVacuousCollision(CollisionResult& res) const;
+
+    void checkSelfCollisionMutable(
+        const CollisionRequest& req,
+        CollisionResult& res,
+        const robot_state::RobotState& state,
+        const AllowedCollisionMatrix& acm);
+
+    double getSelfCollisionPropagationDistance() const;
+
+    sbpl::OccupancyGridPtr createGridFor(
+        const CollisionGridConfig& config) const;
 };
 
 } // namespace collision_detection
