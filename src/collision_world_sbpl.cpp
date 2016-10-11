@@ -75,8 +75,8 @@ CollisionWorldSBPL::CollisionWorldSBPL(
     m_wcm_config = other.m_wcm_config;
     m_jcgm_map = other.m_jcgm_map;
 
-    m_parent_grid = other.m_grid;
-    m_parent_wcm = other.m_wcm;
+    m_parent_grid = other.m_grid ? other.m_grid : other.m_parent_grid;
+    m_parent_wcm = other.m_wcm ? other.m_wcm : other.m_parent_wcm;
 
     m_updaters = other.m_updaters;
     // NOTE: no need to copy observer handle
@@ -218,8 +218,8 @@ void CollisionWorldSBPL::setWorld(const WorldPtr& world)
 void CollisionWorldSBPL::construct()
 {
     ros::NodeHandle ph("~");
-    const char* world_collision_model_param = "world_collision_model";
 
+    const char* world_collision_model_param = "world_collision_model";
     LoadCollisionGridConfig(ph, world_collision_model_param, m_wcm_config);
 
     LoadJointCollisionGroupMap(ph, m_jcgm_map);
@@ -232,6 +232,10 @@ void CollisionWorldSBPL::construct()
     ros::NodeHandle nh;
     m_cspace_pub = nh.advertise<visualization_msgs::MarkerArray>(
             "visualization_markers", 100);
+
+    ROS_INFO("Sleep to allow publish to set up");
+    ros::Duration(0.5).sleep();
+    ROS_INFO("Done sleeping");
 
     // publish collision world visualizations
     auto markers = m_grid->getBoundingBoxVisualization();
@@ -269,7 +273,7 @@ sbpl::OccupancyGridPtr CollisionWorldSBPL::createGridFor(
 
     const bool propagate_negative_distances = false;
     const bool ref_counted = true;
-    return std::make_shared<sbpl::OccupancyGrid>(
+    auto dmap = std::make_shared<sbpl::OccupancyGrid>(
             config.size_x,
             config.size_y,
             config.size_z,
@@ -280,6 +284,8 @@ sbpl::OccupancyGridPtr CollisionWorldSBPL::createGridFor(
             config.max_distance_m,
             propagate_negative_distances,
             ref_counted);
+    dmap->setReferenceFrame(config.frame_id);
+    return dmap;
 }
 
 CollisionStateUpdaterPtr CollisionWorldSBPL::getCollisionStateUpdater(
@@ -601,11 +607,15 @@ CollisionWorldSBPL::getCollisionRobotVisualization(
     for (int ssidx : rcs.groupSpheresStateIndices(gidx)) {
         rcs.updateSphereStates(ssidx);
     }
-    auto markers = rcs.getVisualization(gidx);
-    for (auto& m : markers.markers) {
-        m.header.frame_id = m_grid->getReferenceFrame();
+    auto ma = rcs.getVisualization(gidx);
+    for (auto& m : ma.markers) {
+        if (m_grid) {
+            m.header.frame_id = m_grid->getReferenceFrame();
+        } else if (m_parent_grid) {
+            m.header.frame_id = m_parent_grid->getReferenceFrame();
+        }
     }
-    return markers;
+    return ma;
 }
 
 } // collision_detection
