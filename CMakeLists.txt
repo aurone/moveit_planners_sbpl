@@ -67,6 +67,7 @@ target_link_libraries(
 add_library(
     collision_detection_sbpl
     src/collision_plugin_sbpl.cpp
+    src/collision_common_sbpl.cpp
     src/collision_detector_allocator_sbpl.cpp
     src/collision_robot_sbpl.cpp
     src/collision_world_sbpl.cpp)

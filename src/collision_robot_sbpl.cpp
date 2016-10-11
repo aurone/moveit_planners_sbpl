@@ -88,9 +88,6 @@ CollisionRobotSBPL::CollisionRobotSBPL(
     const char* self_collision_model_param = "self_collision_model";
     LoadCollisionGridConfig(ph, self_collision_model_param, m_scm_config);
 
-    // ok! store the robot collision model
-    m_rcm = rcm;
-
     LoadJointCollisionGroupMap(ph, m_jcgm_map);
 
     ExtractRobotVariables(
@@ -101,13 +98,16 @@ CollisionRobotSBPL::CollisionRobotSBPL(
             m_variables_offset);
 
     GetRobotCollisionModelJointIndices(
-            m_variable_names, *model, m_rcm_joint_indices);
+            m_variable_names, *rcm, m_rcm_joint_indices);
 
-    m_rcs = std::make_shared<sbpl::collision::RobotCollisionState>(m_rcm.get());
+    m_rcs = std::make_shared<sbpl::collision::RobotCollisionState>(rcm.get());
 
     m_joint_vars.assign(
             m_rcs->getJointVarPositions(),
             m_rcs->getJointVarPositions() + m_rcm->jointVarCount());
+
+    // ok! store the robot collision model
+    m_rcm = rcm;
 }
 
 CollisionRobotSBPL::CollisionRobotSBPL(const CollisionRobotSBPL& other) :
@@ -302,9 +302,10 @@ void CollisionRobotSBPL::checkSelfCollisionMutable(
         return;
     }
 
-    auto jgcgit = m_jgcm_map.find(group_name);
+    // lookup the name of the corresponding collision group
+    auto jgcgit = m_jcgm_map.find(req.group_name);
     const std::string& collision_group_name =
-            jgcgit == m_jcgm_map.end() ? group_name : jgcgit->second;
+            jgcgit == m_jcgm_map.end() ? req.group_name : jgcgit->second;
 
     if (!m_rcm->hasGroup(collision_group_name)) {
         ROS_ERROR_NAMED(CRP_LOGGER, "No group '%s' found in the Robot Collision Model", collision_group_name.c_str());
@@ -321,8 +322,33 @@ void CollisionRobotSBPL::checkSelfCollisionMutable(
                 m_grid.get(), m_rcm.get(), m_ab_model.get());
     }
 
+    int gidx = m_rcm->groupIndex(collision_group_name);
 
-    int gidx = m_rcm->groupIndex(group_name);
+    getCheckedVariables(state, m_joint_vars);
+    m_rcs->setJointVarPositions(m_joint_vars.data());
+
+    double dist;
+    const bool verbose = req.verbose;
+    const bool visualize = req.verbose;
+    bool valid = m_scm->checkCollision(
+            *m_rcs,
+            AllowedCollisionMatrixInterface(acm),
+            gidx,
+            dist);
+    if (visualize) {
+        // TODO: visualizations
+    }
+
+    res.collision = !valid;
+    if (req.distance) {
+        res.distance = dist;
+    }
+    if (req.cost) {
+        ROS_WARN_ONCE("Cost sources not computed by sbpl collision checker");
+    }
+    if (req.contacts) {
+        ROS_WARN_ONCE("Contacts not computed by sbpl collision checker");
+    }
 }
 
 double CollisionRobotSBPL::getSelfCollisionPropagationDistance() const
@@ -355,6 +381,8 @@ double CollisionRobotSBPL::getSelfCollisionPropagationDistance() const
 sbpl::OccupancyGridPtr CollisionRobotSBPL::createGridFor(
     const CollisionGridConfig& config) const
 {
+    // TODO: this can be substantially smaller since it only has to encompass
+    // the range of motion of the robot
     const bool propagate_negative_distances = false;
     const bool ref_counted = true;
     return std::make_shared<sbpl::OccupancyGrid>(
@@ -368,6 +396,30 @@ sbpl::OccupancyGridPtr CollisionRobotSBPL::createGridFor(
             config.max_distance_m,
             propagate_negative_distances,
             ref_counted);
+}
+
+void CollisionRobotSBPL::getCheckedVariables(
+    const moveit::core::RobotState& state,
+    std::vector<double>& vars) const
+{
+    std::vector<double> state_vars;
+    if (m_are_variables_contiguous) {
+        state_vars.assign(
+                state.getVariablePositions() + m_variables_offset,
+                state.getVariablePositions() + m_variables_offset + m_variable_names.size());
+    } else {
+        state_vars.clear();
+        for (size_t i = 0; i < m_variable_indices.size(); ++i) {
+            state_vars.push_back(state.getVariablePosition(m_variable_indices[i]));
+        }
+    }
+
+    // TODO:: check whether they order of joints is identical...maybe it's
+    // worthwhile to make them such if not already?
+    for (size_t i = 0; i < state_vars.size(); ++i) {
+        int jidx = m_rcm_joint_indices[i];
+        vars[jidx] = state_vars[i];
+    }
 }
 
 } // namespace collision_detection

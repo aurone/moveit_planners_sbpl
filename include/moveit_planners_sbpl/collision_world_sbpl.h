@@ -61,18 +61,6 @@ class CollisionWorldSBPL : public CollisionWorld
 {
 public:
 
-    struct CollisionWorldConfig
-    {
-        double size_x;
-        double size_y;
-        double size_z;
-        double origin_x;
-        double origin_y;
-        double origin_z;
-        double res_m;
-        double max_distance_m;
-    };
-
     CollisionWorldSBPL();
     CollisionWorldSBPL(const WorldPtr& world);
     CollisionWorldSBPL(const CollisionWorldSBPL& other, const WorldPtr& world);
@@ -144,7 +132,7 @@ public:
 
 private:
 
-    CollisionWorldConfig m_wcm_config;
+    CollisionGridConfig m_wcm_config;
 
     // mapping from joint group name to collision group name
     std::unordered_map<std::string, std::string> m_jcgm_map;
@@ -154,19 +142,6 @@ private:
 
     sbpl::OccupancyGridPtr m_grid;
     sbpl::collision::WorldCollisionModelPtr m_wcm;
-
-    // Variables used to extract the robot-only state information (state not
-    // including virtual joints connecting robot to the world)
-    struct GroupModel
-    {
-        std::vector<std::string> variable_names;
-        std::vector<int> variable_indices;
-        bool are_variables_contiguous;
-        int variables_offset;
-    };
-
-    typedef std::shared_ptr<GroupModel> GroupModelPtr;
-    typedef std::shared_ptr<const GroupModel> GroupModelConstPtr;
 
     std::unordered_map<std::string, GroupModelPtr> m_group_models;
 
@@ -180,19 +155,15 @@ private:
     void copyOnWrite();
 
     sbpl::OccupancyGridPtr createGridFor(
-        const CollisionWorldConfig& config) const;
+        const CollisionGridConfig& config) const;
 
-    std::string groupModelName(
-        const std::string& robot_name,
-        const std::string& group_name) const;
-
-    std::vector<double> getCheckedVariables(
-        const GroupModel& gm, const moveit::core::RobotState& state) const;
+    void getCheckedVariables(
+        GroupModel& gm,
+        const moveit::core::RobotState& state) const;
 
     GroupModelPtr getGroupModel(
         const CollisionRobotSBPL& collision_robot,
-        const moveit::core::RobotModel& robot_model,
-        const std::string& group_name);
+        const moveit::core::RobotModel& robot_model);
 
     void registerWorldCallback();
     void worldUpdate(const World::ObjectConstPtr& object, World::Action action);
@@ -240,9 +211,6 @@ private:
     std::vector<double> extractPlanningVariables(
         const moveit::core::RobotState& state) const;
 
-    double getSelfCollisionPropagationDistance(
-        const sbpl::collision::RobotCollisionModel&) const;
-
     void processWorldUpdateUninitialized(const World::ObjectConstPtr& object);
     void processWorldUpdateCreate(const World::ObjectConstPtr& object);
     void processWorldUpdateDestroy(const World::ObjectConstPtr& object);
@@ -260,6 +228,11 @@ private:
     bool worldObjectToCollisionObjectMsgName(
         const World::Object& object,
         moveit_msgs::CollisionObject& collision_object) const;
+
+    visualization_msgs::MarkerArray
+    getCollisionRobotVisualization(
+        sbpl::collision::RobotCollisionState& rcs,
+        int gidx) const;
 };
 
 } // namespace collision_detection

@@ -150,9 +150,10 @@ private:
     typedef std::shared_ptr<const sbpl::collision::CollisionModelConfig>
     CollisionModelConfigConstPtr;
 
-    sbpl::collision::RobotCollisionModelConstPtr m_rcm;
-
+    std::unordered_map<std::string, std::string> m_jcgm_map;
     CollisionGridConfig m_scm_config;
+
+    sbpl::collision::RobotCollisionModelConstPtr m_rcm;
 
     // robot-only joint variable names
     std::vector<std::string> m_variable_names;
@@ -180,8 +181,6 @@ private:
     sbpl::collision::AttachedBodiesCollisionStatePtr m_ab_state;
     sbpl::collision::SelfCollisionModelPtr m_scm;
 
-    std::unordered_map<std::string, std::string> m_jcgm_map;
-
     void clearAllCollisions(CollisionResult& res) const;
     void setVacuousCollision(CollisionResult& res) const;
 
@@ -195,6 +194,10 @@ private:
 
     sbpl::OccupancyGridPtr createGridFor(
         const CollisionGridConfig& config) const;
+
+    void getCheckedVariables(
+        const moveit::core::RobotState& state,
+        std::vector<double>& vars) const;
 };
 
 } // namespace collision_detection

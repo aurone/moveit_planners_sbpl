@@ -323,7 +323,7 @@ void CollisionWorldSBPL::copyOnWrite()
 }
 
 sbpl::OccupancyGridPtr CollisionWorldSBPL::createGridFor(
-    const CollisionWorldConfig& config) const
+    const CollisionGridConfig& config) const
 {
     ROS_DEBUG_NAMED(CWP_LOGGER, "  Creating Distance Field");
     ROS_DEBUG_NAMED(CWP_LOGGER, "    size: (%0.3f, %0.3f, %0.3f)", config.size_x, config.size_y, config.size_z);
@@ -346,112 +346,58 @@ sbpl::OccupancyGridPtr CollisionWorldSBPL::createGridFor(
             ref_counted);
 }
 
-std::string CollisionWorldSBPL::groupModelName(
-    const std::string& robot_name,
-    const std::string& group_name) const
-{
-    return robot_name + "." + group_name;
-}
-
-std::vector<double> CollisionWorldSBPL::getCheckedVariables(
-    const GroupModel& gm,
+void CollisionWorldSBPL::getCheckedVariables(
+    GroupModel& gm,
     const moveit::core::RobotState& state) const
 {
     if (gm.are_variables_contiguous) {
-        return std::vector<double>(
+        gm.joint_vars.assign(
                 state.getVariablePositions() + gm.variables_offset,
                 state.getVariablePositions() + gm.variables_offset + gm.variable_names.size());
-    }
-    else {
-        std::vector<double> vars;
+    } else {
+        gm.joint_vars.clear();
         for (size_t i = 0; i < gm.variable_indices.size(); ++i) {
-            vars.push_back(state.getVariablePosition(gm.variable_indices[i]));
+            gm.joint_vars.push_back(state.getVariablePosition(gm.variable_indices[i]));
         }
-        return vars;
     }
 }
 
-CollisionWorldSBPL::GroupModelPtr CollisionWorldSBPL::getGroupModel(
+GroupModelPtr CollisionWorldSBPL::getGroupModel(
     const CollisionRobotSBPL& collision_robot,
-    const moveit::core::RobotModel& robot_model,
-    const std::string& group_name)
+    const moveit::core::RobotModel& robot_model)
 {
     // return an existing group model if we've instantiated one for this group
-    std::string group_model_name = groupModelName(robot_model.getName(), group_name);
+    const std::string& group_model_name = robot_model.getName();
     auto it = m_group_models.find(group_model_name);
     if (it != m_group_models.end()) {
         return it->second;
     }
 
-    ROS_INFO_NAMED(CWP_LOGGER, "Creating Group Model '%s'", group_model_name.c_str());
+    ROS_INFO_NAMED(CWP_LOGGER, "Create Group Model '%s'", group_model_name.c_str());
 
-    GroupModelPtr group_model = std::make_shared<GroupModel>();
+    auto gm = std::make_shared<GroupModel>();
 
-    /////////////////
-    // Robot Model //
-    /////////////////
-
-    ROS_DEBUG_NAMED(CWP_LOGGER, "  Initializing Robot Model");
-    ExtractRoboVariables(
+    ExtractRobotVariables(
             robot_model,
-            group_model->variable_names,
-            group_model->variable_indices,
-            group_model->are_variables_contiguous,
-            group_model->variables_offset);
+            gm->variable_names,
+            gm->variable_indices,
+            gm->are_variables_contiguous,
+            gm->variables_offset);
 
     const auto rcm = collision_robot.robotCollisionModel();
+    GetRobotCollisionModelJointIndices(
+            gm->variable_names, *rcm, gm->rcm_joint_indices);
 
-    ////////////////////
-    // Distance Field //
-    ////////////////////
+    gm->rcs = std::make_shared<sbpl::collision::RobotCollisionState>(
+            rcm.get());
 
-    double df_max_distance_m = getSelfCollisionPropagationDistance(*rcm);
-
-    // TODO: this can be substantially smaller since it only has to encompass
-    // the range of motion of the robot
-
-    group_model->grid = createGridFor(m_wcm_config);
-
-    auto grid = group_model->grid;
-
-    grid->setReferenceFrame(robot_model.getModelFrame());
-
-    /////////////////////
-    // Collision Space //
-    /////////////////////
-
-    ROS_DEBUG_NAMED(CWP_LOGGER, "  Constructing Collision Space");
-
-    auto jgcgit = m_jcgm_map.find(group_name);
-    std::string collision_group_name;
-    if (jgcgit == m_jcgm_map.end()) {
-        collision_group_name = group_name;
-    }
-    else {
-        collision_group_name = jgcgit->second;
-    }
-
-    ROS_DEBUG_NAMED(CWP_LOGGER, "Constructing cspace for group '%s'", collision_group_name.c_str());
-
-    sbpl::collision::CollisionSpaceBuilder builder;
-    auto cspace = builder.build(
-            grid.get(),
-            rcm,
-            collision_group_name,
-            group_model->variable_names);
-
-    if (!cspace) {
-        ROS_ERROR_NAMED(CWP_LOGGER, "  Failed to initialize collision space");
-        return GroupModelPtr();
-    }
-
-    group_model->cspace = cspace;
-
-    ROS_DEBUG_NAMED(CWP_LOGGER, "  Successfully built collision space");
+    gm->joint_vars.assign(
+            gm->rcs->getJointVarPositions(),
+            gm->rcs->getJointVarPositions()+ rcm->jointVarCount());
 
     // store the successfully initialized group model
-    m_group_models[group_model_name] = group_model;
-    return group_model;
+    m_group_models[group_model_name] = gm;
+    return gm;
 }
 
 const distance_field::PropagationDistanceField*
@@ -459,13 +405,12 @@ CollisionWorldSBPL::distanceField(
     const std::string& robot_name,
     const std::string& group_name) const
 {
-    const std::string& group_model_name = groupModelName(robot_name, group_name);
-    auto it = m_group_models.find(group_model_name);
-    if (it == m_group_models.end()) {
+    if (m_grid) {
+        return m_grid->getDistanceField().get();
+    } else if (m_parent_grid) {
+        return m_parent_grid->getDistanceField().get();
+    } else {
         return nullptr;
-    }
-    else {
-        return it->second->grid->getDistanceField().get();
     }
 }
 
@@ -620,33 +565,46 @@ void CollisionWorldSBPL::checkRobotCollisionMutable(
     const AllowedCollisionMatrix& acm)
 {
     const CollisionRobotSBPL& crobot = (const CollisionRobotSBPL&)robot;
-    const RobotCollisionModelConstPtr& rcm = crobot.robotCollisionModel();
+    const auto& rcm = crobot.robotCollisionModel();
     if (state.getRobotModel()->getName() != rcm->name()) {
         ROS_ERROR_NAMED(CWP_LOGGER, "Collision Robot Model does not match Robot Model");
         setVacuousCollision(res);
         return;
     }
 
-    auto gm = getGroupModel(crobot, *state.getRobotModel(), req.group_name);
+    auto gm = getGroupModel(crobot, *state.getRobotModel());
     if (!gm) {
         ROS_ERROR_NAMED(CWP_LOGGER, "Failed to get Group Model for robot '%s', group '%s'", state.getRobotModel()->getName().c_str(), req.group_name.c_str());
         setVacuousCollision(res);
         return;
     }
 
+    // lookup the name of the corresponding collision group
+    auto jgcgit = m_jcgm_map.find(req.group_name);
+    const std::string& collision_group_name =
+            jgcgit == m_jcgm_map.end() ? req.group_name : jgcgit->second;
+
+    if (!rcm->hasGroup(collision_group_name)) {
+        ROS_ERROR_NAMED(CWP_LOGGER, "No group '%s' found in the Robot Collision Model", collision_group_name.c_str());
+        setVacuousCollision(res);
+        return;
+    }
+
+    int gidx = rcm->groupIndex(collision_group_name);
+
     const Eigen::Affine3d& T_model_robot =
             state.getGlobalLinkTransform(state.getRobotModel()->getRootLink());
-    cspace->setWorldToModelTransform(T_model_robot);
+    gm->rcs->setWorldToModelTransform(T_model_robot);
 
-    std::vector<double> vars = getCheckedVariables(*gm, state);
+    getCheckedVariables(*gm, state);
 
     double dist;
     const bool verbose = req.verbose;
+    bool valid = m_wcm->checkCollision(*gm->rcs, gidx, dist);
+
     const bool visualize = req.verbose;
-    bool valid = cspace->checkCollision(
-            vars, AllowedCollisionMatrixInterface(acm), verbose, visualize, dist);
     if (visualize) {
-        auto markers = cspace->getCollisionRobotVisualization(vars);
+        auto markers = getCollisionRobotVisualization(*gm->rcs, gidx);
         if (!valid) {
             for (auto& m : markers.markers) {
                 m.color.r = 1.0;
@@ -689,12 +647,6 @@ void CollisionWorldSBPL::checkRobotCollisionMutable(
 {
     // TODO: implement
     ROS_ERROR_NAMED(CWP_LOGGER, "checkRobotCollision(req, res, robot, state1, state2, acm)");
-}
-
-double CollisionWorldSBPL::getSelfCollisionPropagationDistance(
-    const sbpl::collision::RobotCollisionModel& rcm) const
-{
-    return 0.0;
 }
 
 void CollisionWorldSBPL::processWorldUpdateUninitialized(
@@ -868,6 +820,22 @@ bool CollisionWorldSBPL::worldObjectToCollisionObjectMsgName(
     obj_msg.id = object.id_;
     collision_object = std::move(obj_msg);
     return true;
+}
+
+visualization_msgs::MarkerArray
+CollisionWorldSBPL::getCollisionRobotVisualization(
+    sbpl::collision::RobotCollisionState& rcs,
+    int gidx) const
+{
+    // update the spheres within the group
+    for (int ssidx : rcs.groupSpheresStateIndices(gidx)) {
+        rcs.updateSphereStates(ssidx);
+    }
+    auto markers = rcs.getVisualization(gidx);
+    for (auto& m : markers.markers) {
+        m.header.frame_id = m_grid->getReferenceFrame();
+    }
+    return markers;
 }
 
 } // collision_detection
