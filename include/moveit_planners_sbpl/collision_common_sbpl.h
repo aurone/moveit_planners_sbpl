@@ -40,12 +40,19 @@
 
 // system includes
 #include <ros/ros.h>
+#include <moveit/collision_detection/collision_world.h>
 #include <moveit/robot_model/robot_model.h>
+#include <moveit/robot_state/robot_state.h>
+#include <moveit_msgs/CollisionObject.h>
 #include <sbpl_collision_checking/robot_collision_model.h>
 #include <sbpl_collision_checking/robot_collision_state.h>
 #include <sbpl_collision_checking/allowed_collisions_interface.h>
 
 namespace collision_detection {
+
+bool LoadJointCollisionGroupMap(
+    ros::NodeHandle& nh,
+    std::unordered_map<std::string, std::string>& _jcgm_map);
 
 struct CollisionGridConfig
 {
@@ -59,30 +66,75 @@ struct CollisionGridConfig
     double max_distance_m;
 };
 
-// Poorly named struct that represents an efficient pipeline for converting
-// RobotStates into RobotCollisionStates for collision checking routines
-struct GroupModel
+void LoadCollisionGridConfig(
+    ros::NodeHandle& nh,
+    const std::string& param_name,
+    CollisionGridConfig& config);
+
+// Represents an efficient pipeline for converting RobotStates into
+// RobotCollisionStates for collision checking routines
+class CollisionStateUpdater
 {
-    // variables for extracting robot-only state information (state not
-    // including joints that connect the robot to the world)
-    std::vector<std::string> variable_names;
-    std::vector<int> variable_indices;
-    bool are_variables_contiguous;
-    int variables_offset;
+public:
 
-    // variables for mapping joint variables in the order specified by
-    // RobotState to the corresponding variables in a RobotCollisionState
-    std::vector<int> rcm_joint_indices;
+    CollisionStateUpdater();
 
-    // robot collision state joint variables for batch processing
-    std::vector<double> joint_vars;
+    bool init(
+        const moveit::core::RobotModel& robot,
+        const sbpl::collision::RobotCollisionModelConstPtr& rcm);
+
+    void update(const moveit::core::RobotState& state);
+    void updateInternal(const moveit::core::RobotState& state);
+
+    const sbpl::collision::RobotCollisionStatePtr& collisionState() { return m_rcs; }
+    sbpl::collision::RobotCollisionStateConstPtr collisionState() const { return m_rcs; }
+
+private:
+
+    // robot-only joint variable names
+    std::vector<std::string> m_var_names;
+
+    // ...their indices in the robot state
+    std::vector<int> m_var_indices;
+
+    // whether the indices are contiguous
+    bool m_vars_contiguous;
+
+    // offset into robot state, if variables are contiguous
+    int m_vars_offset;
+
+    // corresponding joint variables indices in robot collision model/state
+    std::vector<int> m_rcm_var_indices;
+
+    // storage for extract internal robot state, used if not contiguous
+    std::vector<double> m_rm_vars;
+
+    // robot collision state joint variables for batch updating
+    std::vector<double> m_rcm_vars;
 
     // the final RobotCollisionState
-    sbpl::collision::RobotCollisionStatePtr rcs;
+    sbpl::collision::RobotCollisionStatePtr m_rcs;
+
+    bool extractRobotVariables(
+        const moveit::core::RobotModel& model,
+        std::vector<std::string>& variable_names,
+        std::vector<int>& variable_indices,
+        bool& are_variables_contiguous,
+        int& variables_offset);
+
+    bool getRobotCollisionModelJointIndices(
+        const std::vector<std::string>& joint_names,
+        const sbpl::collision::RobotCollisionModel& rcm,
+        std::vector<int>& rcm_joint_indices);
+
+    bool getRobotVariableNames(
+        const moveit::core::RobotModel& robot_model,
+        std::vector<std::string>& var_names,
+        std::vector<int>& var_indices);
 };
 
-typedef std::shared_ptr<GroupModel> GroupModelPtr;
-typedef std::shared_ptr<const GroupModel> GroupModelConstPtr;
+typedef std::shared_ptr<CollisionStateUpdater> CollisionStateUpdaterPtr;
+typedef std::shared_ptr<const CollisionStateUpdater> CollisionStateUpdaterConstPtr;
 
 // proxy class to interface with CollisionSpace
 class AllowedCollisionMatrixInterface :
@@ -108,31 +160,13 @@ private:
     const AllowedCollisionMatrix& m_acm;
 };
 
-void LoadCollisionGridConfig(
-    ros::NodeHandle& nh,
-    const std::string& param_name,
-    CollisionGridConfig& config);
+bool WorldObjectToCollisionObjectMsgFull(
+    const World::Object& object,
+    moveit_msgs::CollisionObject& collision_object);
 
-bool LoadJointCollisionGroupMap(
-    ros::NodeHandle& nh,
-    std::unordered_map<std::string, std::string>& _jcgm_map);
-
-bool ExtractRobotVariables(
-    const moveit::core::RobotModel& model,
-    std::vector<std::string>& variable_names,
-    std::vector<int>& variable_indices,
-    bool& are_variables_contiguous,
-    int& variables_offset);
-
-bool GetRobotVariableNames(
-    const moveit::core::RobotModel& robot_model,
-    std::vector<std::string>& var_names,
-    std::vector<int>& var_indices);
-
-bool GetRobotCollisionModelJointIndices(
-    const std::vector<std::string>& joint_names,
-    const sbpl::collision::RobotCollisionModel& rcm,
-    std::vector<int>& rcm_joint_indices);
+bool WorldObjectToCollisionObjectMsgName(
+    const World::Object& object,
+    moveit_msgs::CollisionObject& collision_object);
 
 } // namespace collision_detection
 

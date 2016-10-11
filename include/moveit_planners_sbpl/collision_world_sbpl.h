@@ -143,11 +143,10 @@ private:
     sbpl::OccupancyGridPtr m_grid;
     sbpl::collision::WorldCollisionModelPtr m_wcm;
 
-    std::unordered_map<std::string, GroupModelPtr> m_group_models;
+    std::unordered_map<std::string, CollisionStateUpdaterPtr> m_updaters;
 
     World::ObserverHandle m_observer_handle;
 
-    ros::NodeHandle m_nh;
     ros::Publisher m_cspace_pub;
 
     void construct();
@@ -157,11 +156,7 @@ private:
     sbpl::OccupancyGridPtr createGridFor(
         const CollisionGridConfig& config) const;
 
-    void getCheckedVariables(
-        GroupModel& gm,
-        const moveit::core::RobotState& state) const;
-
-    GroupModelPtr getGroupModel(
+    CollisionStateUpdaterPtr getCollisionStateUpdater(
         const CollisionRobotSBPL& collision_robot,
         const moveit::core::RobotModel& robot_model);
 
@@ -173,12 +168,6 @@ private:
 
     moveit_msgs::OrientedBoundingBox computeWorldAABB(const World& world) const;
     bool emptyBoundingBox(const moveit_msgs::OrientedBoundingBox& bb) const;
-
-    void addWorldToCollisionSpace(
-        const World& world,
-        sbpl::collision::CollisionSpace& cspace);
-
-    void updateCollisionSpaceJointState(const moveit::core::RobotState& state);
 
     void checkRobotCollisionMutable(
         const CollisionRequest& req,
@@ -208,26 +197,12 @@ private:
         const robot_state::RobotState& state2,
         const AllowedCollisionMatrix& acm);
 
-    std::vector<double> extractPlanningVariables(
-        const moveit::core::RobotState& state) const;
-
     void processWorldUpdateUninitialized(const World::ObjectConstPtr& object);
     void processWorldUpdateCreate(const World::ObjectConstPtr& object);
     void processWorldUpdateDestroy(const World::ObjectConstPtr& object);
     void processWorldUpdateMoveShape(const World::ObjectConstPtr& object);
     void processWorldUpdateAddShape(const World::ObjectConstPtr& object);
     void processWorldUpdateRemoveShape(const World::ObjectConstPtr& object);
-
-    // Converts a world object to a collision object.
-    // The collision object's frame_id is the planning frame and the operation
-    // is unspecified via this call
-    bool worldObjectToCollisionObjectMsgFull(
-        const World::Object& object,
-        moveit_msgs::CollisionObject& collision_object) const;
-
-    bool worldObjectToCollisionObjectMsgName(
-        const World::Object& object,
-        moveit_msgs::CollisionObject& collision_object) const;
 
     visualization_msgs::MarkerArray
     getCollisionRobotVisualization(

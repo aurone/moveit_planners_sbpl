@@ -150,38 +150,21 @@ private:
     typedef std::shared_ptr<const sbpl::collision::CollisionModelConfig>
     CollisionModelConfigConstPtr;
 
-    std::unordered_map<std::string, std::string> m_jcgm_map;
     CollisionGridConfig m_scm_config;
+
+    // mapping from joint group name to collision group name
+    std::unordered_map<std::string, std::string> m_jcgm_map;
 
     sbpl::collision::RobotCollisionModelConstPtr m_rcm;
 
-    // robot-only joint variable names
-    std::vector<std::string> m_variable_names;
+    CollisionStateUpdater m_updater;
 
-    // ...their indices in the robot state
-    std::vector<int> m_variable_indices;
-
-    // whether the indices are contiguous
-    bool m_are_variables_contiguous;
-
-    // offset into robot state, if variables are contiguous
-    int m_variables_offset;
-
-    // corresponding joint variable indices in robot collision model/state
-    std::vector<int> m_rcm_joint_indices;
-
-    // robot collision state joint variables for batch updates
-    std::vector<double> m_joint_vars;
-
-    // full collision model state
-    sbpl::collision::RobotCollisionStatePtr m_rcs;
-
+    // self colllision models
     sbpl::OccupancyGridPtr m_grid;
     sbpl::collision::AttachedBodiesCollisionModelPtr m_ab_model;
     sbpl::collision::AttachedBodiesCollisionStatePtr m_ab_state;
     sbpl::collision::SelfCollisionModelPtr m_scm;
 
-    void clearAllCollisions(CollisionResult& res) const;
     void setVacuousCollision(CollisionResult& res) const;
 
     void checkSelfCollisionMutable(
@@ -194,10 +177,6 @@ private:
 
     sbpl::OccupancyGridPtr createGridFor(
         const CollisionGridConfig& config) const;
-
-    void getCheckedVariables(
-        const moveit::core::RobotState& state,
-        std::vector<double>& vars) const;
 };
 
 } // namespace collision_detection

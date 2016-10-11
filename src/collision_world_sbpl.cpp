@@ -38,7 +38,6 @@
 #include <ros/ros.h>
 #include <geometric_shapes/shape_operations.h>
 #include <leatherman/print.h>
-#include <eigen_conversions/eigen_msg.h>
 
 // project includes
 #include <moveit_planners_sbpl/moveit_robot_model.h>
@@ -79,7 +78,7 @@ CollisionWorldSBPL::CollisionWorldSBPL(
     m_parent_grid = other.m_grid;
     m_parent_wcm = other.m_wcm;
 
-    m_group_models = other.m_group_models;
+    m_updaters = other.m_updaters;
     // NOTE: no need to copy observer handle
     registerWorldCallback();
     // NOTE: no need to copy node handle
@@ -103,8 +102,6 @@ void CollisionWorldSBPL::checkRobotCollision(
 {
     ROS_INFO_NAMED(CWP_LOGGER, "checkRobotCollision(req, res, robot, state)");
 
-    clearAllCollisions(res);
-
     const_cast<CollisionWorldSBPL*>(this)->checkRobotCollisionMutable(
             req, res, robot, state);
 }
@@ -116,8 +113,6 @@ void CollisionWorldSBPL::checkRobotCollision(
     const robot_state::RobotState& state,
     const AllowedCollisionMatrix& acm) const
 {
-    clearAllCollisions(res);
-
     const_cast<CollisionWorldSBPL*>(this)->checkRobotCollisionMutable(
             req, res, robot, state, acm);
 }
@@ -130,8 +125,6 @@ void CollisionWorldSBPL::checkRobotCollision(
     const robot_state::RobotState& state2) const
 {
     ROS_INFO_NAMED(CWP_LOGGER, "checkRobotCollision(req, res, robot, state1, state2)");
-
-    clearAllCollisions(res);
 
     const_cast<CollisionWorldSBPL*>(this)->checkRobotCollisionMutable(
             req, res, robot, state1, state2);
@@ -147,8 +140,6 @@ void CollisionWorldSBPL::checkRobotCollision(
 {
     ROS_INFO_NAMED(CWP_LOGGER, "checkRobotCollision(req, res, robot, state1, state2, acm)");
 
-    clearAllCollisions(res);
-
     const_cast<CollisionWorldSBPL*>(this)->checkRobotCollisionMutable(
             req, res, robot, state1, state2, acm);
 }
@@ -159,10 +150,8 @@ void CollisionWorldSBPL::checkWorldCollision(
     const CollisionWorld& other_world) const
 {
     ROS_INFO_NAMED(CWP_LOGGER, "checkWorldCollision(req, res, other_world)");
-
-    clearAllCollisions(res);
-
     // TODO: implement
+    setVacuousCollision(res);
 }
 
 void CollisionWorldSBPL::checkWorldCollision(
@@ -172,10 +161,8 @@ void CollisionWorldSBPL::checkWorldCollision(
     const AllowedCollisionMatrix& acm) const
 {
     ROS_INFO_NAMED(CWP_LOGGER, "checkWorldCollision(req, res, other_world, acm)");
-
-    clearAllCollisions(res);
-
     // TODO: implement
+    setVacuousCollision(res);
 }
 
 double CollisionWorldSBPL::distanceRobot(
@@ -231,71 +218,19 @@ void CollisionWorldSBPL::setWorld(const WorldPtr& world)
 void CollisionWorldSBPL::construct()
 {
     ros::NodeHandle ph("~");
-
     const char* world_collision_model_param = "world_collision_model";
 
-    // resolve "world_collision_model" param
-    std::string wcm_key;
-    if (!ph.searchParam(world_collision_model_param, wcm_key)) {
-        const char* msg = "Failed to find 'world_collision_model' key on the param server";
-        ROS_ERROR_STREAM(msg);
-        throw std::runtime_error(msg);
-    }
-
-    ROS_INFO_NAMED(CWP_LOGGER, "Found '%s' param at %s", world_collision_model_param, wcm_key.c_str());
-
-    // read parameter
-    XmlRpc::XmlRpcValue wcm_config;
-    if (!ph.getParam(wcm_key, wcm_config)) {
-        std::stringstream ss;
-        ss << "Failed to retrieve '" << wcm_key << "' from the param server";
-        ROS_ERROR_STREAM(ss.str());
-        throw std::runtime_error(ss.str());
-    }
-
-    // check for required type and members
-    if (wcm_config.getType() != XmlRpc::XmlRpcValue::TypeStruct ||
-        !wcm_config.hasMember("size_x") ||
-        !wcm_config.hasMember("size_y") ||
-        !wcm_config.hasMember("size_z") ||
-        !wcm_config.hasMember("origin_x") ||
-        !wcm_config.hasMember("origin_y") ||
-        !wcm_config.hasMember("origin_z") ||
-        !wcm_config.hasMember("res_m") ||
-        !wcm_config.hasMember("max_distance_m"))
-    {
-        std::stringstream ss;
-        ss << "'world_collision_model' param is malformed";
-        ROS_ERROR_STREAM(ss.str());
-        ROS_ERROR_STREAM("has size_x member " << wcm_config.hasMember("size_x"));
-        ROS_ERROR_STREAM("has size_y member " << wcm_config.hasMember("size_y"));
-        ROS_ERROR_STREAM("has size_z member " << wcm_config.hasMember("size_z"));
-        ROS_ERROR_STREAM("has origin_x member " << wcm_config.hasMember("origin_x"));
-        ROS_ERROR_STREAM("has origin_y member " << wcm_config.hasMember("origin_y"));
-        ROS_ERROR_STREAM("has origin_z member " << wcm_config.hasMember("origin_z"));
-        ROS_ERROR_STREAM("has res_m member " << wcm_config.hasMember("res_m"));
-        throw std::runtime_error(ss.str());
-    }
-
-    // TODO: more sophisticated parameter checking
-    m_wcm_config.size_x = wcm_config["size_x"];
-    m_wcm_config.size_y = wcm_config["size_y"];
-    m_wcm_config.size_z = wcm_config["size_z"];
-    m_wcm_config.origin_x = wcm_config["origin_x"];
-    m_wcm_config.origin_y = wcm_config["origin_y"];
-    m_wcm_config.origin_z = wcm_config["origin_z"];
-    m_wcm_config.res_m = wcm_config["res_m"];
-    m_wcm_config.max_distance_m = wcm_config["max_distance_m"];
+    LoadCollisionGridConfig(ph, world_collision_model_param, m_wcm_config);
 
     LoadJointCollisionGroupMap(ph, m_jcgm_map);
 
-    const bool propagate_negative_distances = false;
-    const bool ref_counted = true;
     m_grid = createGridFor(m_wcm_config);
+    m_wcm = std::make_shared<sbpl::collision::WorldCollisionModel>(m_grid.get());
 
     // TODO: allowed collisions matrix
 
-    m_cspace_pub = m_nh.advertise<visualization_msgs::MarkerArray>(
+    ros::NodeHandle nh;
+    m_cspace_pub = nh.advertise<visualization_msgs::MarkerArray>(
             "visualization_markers", 100);
 
     // publish collision world visualizations
@@ -307,6 +242,7 @@ void CollisionWorldSBPL::construct()
 void CollisionWorldSBPL::copyOnWrite()
 {
     if (!m_wcm) {
+        ROS_DEBUG_NAMED(CWP_LOGGER, "Spawning derivative world collision model");
         assert(!m_grid);
 
         // create our own grid
@@ -318,6 +254,9 @@ void CollisionWorldSBPL::copyOnWrite()
         if (m_parent_wcm) {
             m_wcm = std::make_shared<sbpl::collision::WorldCollisionModel>(
                     *m_parent_wcm, m_grid.get());
+
+            m_parent_grid.reset();
+            m_parent_wcm.reset();
         }
     }
 }
@@ -346,57 +285,25 @@ sbpl::OccupancyGridPtr CollisionWorldSBPL::createGridFor(
             ref_counted);
 }
 
-void CollisionWorldSBPL::getCheckedVariables(
-    GroupModel& gm,
-    const moveit::core::RobotState& state) const
-{
-    if (gm.are_variables_contiguous) {
-        gm.joint_vars.assign(
-                state.getVariablePositions() + gm.variables_offset,
-                state.getVariablePositions() + gm.variables_offset + gm.variable_names.size());
-    } else {
-        gm.joint_vars.clear();
-        for (size_t i = 0; i < gm.variable_indices.size(); ++i) {
-            gm.joint_vars.push_back(state.getVariablePosition(gm.variable_indices[i]));
-        }
-    }
-}
-
-GroupModelPtr CollisionWorldSBPL::getGroupModel(
+CollisionStateUpdaterPtr CollisionWorldSBPL::getCollisionStateUpdater(
     const CollisionRobotSBPL& collision_robot,
     const moveit::core::RobotModel& robot_model)
 {
-    // return an existing group model if we've instantiated one for this group
-    const std::string& group_model_name = robot_model.getName();
-    auto it = m_group_models.find(group_model_name);
-    if (it != m_group_models.end()) {
+    // return an existing updater if available
+    auto it = m_updaters.find(robot_model.getName());
+    if (it != m_updaters.end()) {
         return it->second;
     }
 
-    ROS_INFO_NAMED(CWP_LOGGER, "Create Group Model '%s'", group_model_name.c_str());
+    ROS_INFO_NAMED(CWP_LOGGER, "Create Collision State Updater for '%s'", robot_model.getName().c_str());
 
-    auto gm = std::make_shared<GroupModel>();
-
-    ExtractRobotVariables(
-            robot_model,
-            gm->variable_names,
-            gm->variable_indices,
-            gm->are_variables_contiguous,
-            gm->variables_offset);
-
-    const auto rcm = collision_robot.robotCollisionModel();
-    GetRobotCollisionModelJointIndices(
-            gm->variable_names, *rcm, gm->rcm_joint_indices);
-
-    gm->rcs = std::make_shared<sbpl::collision::RobotCollisionState>(
-            rcm.get());
-
-    gm->joint_vars.assign(
-            gm->rcs->getJointVarPositions(),
-            gm->rcs->getJointVarPositions()+ rcm->jointVarCount());
+    auto gm = std::make_shared<CollisionStateUpdater>();
+    if (!gm->init(robot_model, collision_robot.robotCollisionModel())) {
+        return CollisionStateUpdaterPtr();
+    }
 
     // store the successfully initialized group model
-    m_group_models[group_model_name] = gm;
+    m_updaters[robot_model.getName()] = gm;
     return gm;
 }
 
@@ -464,15 +371,6 @@ void CollisionWorldSBPL::setVacuousCollision(CollisionResult& res) const
     res.distance = 0.0;
 }
 
-void CollisionWorldSBPL::clearAllCollisions(CollisionResult& res) const
-{
-    res.collision = false;
-    res.contact_count = 0;
-    res.contacts.clear();
-    res.cost_sources.clear();
-    res.distance = 100.0;
-}
-
 moveit_msgs::OrientedBoundingBox CollisionWorldSBPL::computeWorldAABB(
     const World& world) const
 {
@@ -536,17 +434,6 @@ bool CollisionWorldSBPL::emptyBoundingBox(
     return bb.extents.x == 0.0 && bb.extents.y == 0.0 && bb.extents.z == 0.0;
 }
 
-void CollisionWorldSBPL::addWorldToCollisionSpace(
-    const World& world,
-    sbpl::collision::CollisionSpace& cspace)
-{
-    for (auto oit = world.begin(); oit != world.end(); ++oit) {
-        ROS_DEBUG_NAMED(CWP_LOGGER, "Adding object '%s' to the configuration space", oit->first.c_str());
-        assert(oit->second.get());
-        cspace.insertObject(oit->second);
-    }
-}
-
 void CollisionWorldSBPL::checkRobotCollisionMutable(
     const CollisionRequest& req,
     CollisionResult& res,
@@ -555,8 +442,12 @@ void CollisionWorldSBPL::checkRobotCollisionMutable(
 {
     // TODO: implement
     ROS_ERROR_NAMED(CWP_LOGGER, "checkRobotCollision(req, res, robot, state)");
+    setVacuousCollision(res);
 }
 
+/// Note: The output CollisionResult is shared between multiple collision
+/// checking calls (i.e. both for world and self collisions). The policy is to
+/// only set fields when a collision occurs and not to clear fields.
 void CollisionWorldSBPL::checkRobotCollisionMutable(
     const CollisionRequest& req,
     CollisionResult& res,
@@ -572,14 +463,13 @@ void CollisionWorldSBPL::checkRobotCollisionMutable(
         return;
     }
 
-    auto gm = getGroupModel(crobot, *state.getRobotModel());
+    auto gm = getCollisionStateUpdater(crobot, *state.getRobotModel());
     if (!gm) {
         ROS_ERROR_NAMED(CWP_LOGGER, "Failed to get Group Model for robot '%s', group '%s'", state.getRobotModel()->getName().c_str(), req.group_name.c_str());
         setVacuousCollision(res);
         return;
     }
 
-    // lookup the name of the corresponding collision group
     auto jgcgit = m_jcgm_map.find(req.group_name);
     const std::string& collision_group_name =
             jgcgit == m_jcgm_map.end() ? req.group_name : jgcgit->second;
@@ -592,31 +482,44 @@ void CollisionWorldSBPL::checkRobotCollisionMutable(
 
     int gidx = rcm->groupIndex(collision_group_name);
 
-    const Eigen::Affine3d& T_model_robot =
-            state.getGlobalLinkTransform(state.getRobotModel()->getRootLink());
-    gm->rcs->setWorldToModelTransform(T_model_robot);
+    gm->update(state);
 
-    getCheckedVariables(*gm, state);
+    sbpl::collision::WorldCollisionModelConstPtr ewcm;
+    if (m_wcm) {
+        ewcm = m_wcm;
+    } else if (m_parent_wcm) {
+        ewcm = m_parent_wcm;
+    } else {
+        ROS_ERROR_NAMED(CWP_LOGGER, "Neither local nor parent world collision model valid");
+        setVacuousCollision(res);
+        return;
+    }
 
     double dist;
-    const bool verbose = req.verbose;
-    bool valid = m_wcm->checkCollision(*gm->rcs, gidx, dist);
+    bool valid = ewcm->checkCollision(*gm->collisionState(), gidx, dist);
 
+    const bool verbose = true; //req.verbose;
     const bool visualize = req.verbose;
+    if (verbose) {
+        ROS_DEBUG_STREAM_NAMED(CWP_LOGGER, "valid: " << std::boolalpha << valid << ", dist: " << dist);
+    }
+
     if (visualize) {
-        auto markers = getCollisionRobotVisualization(*gm->rcs, gidx);
+        auto ma = getCollisionRobotVisualization(*gm->collisionState(), gidx);
         if (!valid) {
-            for (auto& m : markers.markers) {
+            for (auto& m : ma.markers) {
                 m.color.r = 1.0;
                 m.color.g = m.color.b = 0.0;
             }
         }
-        m_cspace_pub.publish(markers);
+        m_cspace_pub.publish(ma);
     }
 
-    res.collision = !valid;
+    if (!valid) {
+        res.collision = true;
+    }
     if (req.distance) {
-        res.distance = dist;
+        res.distance = std::min(res.distance, dist);
     }
     if (req.cost) {
         ROS_WARN_ONCE("Cost sources not computed by sbpl collision checker");
@@ -635,6 +538,7 @@ void CollisionWorldSBPL::checkRobotCollisionMutable(
 {
     // TODO: implement
     ROS_ERROR_NAMED(CWP_LOGGER, "checkRobotCollision(req, res, robot, state1, state2)");
+    setVacuousCollision(res);
 }
 
 void CollisionWorldSBPL::checkRobotCollisionMutable(
@@ -647,6 +551,7 @@ void CollisionWorldSBPL::checkRobotCollisionMutable(
 {
     // TODO: implement
     ROS_ERROR_NAMED(CWP_LOGGER, "checkRobotCollision(req, res, robot, state1, state2, acm)");
+    setVacuousCollision(res);
 }
 
 void CollisionWorldSBPL::processWorldUpdateUninitialized(
@@ -688,138 +593,6 @@ void CollisionWorldSBPL::processWorldUpdateRemoveShape(
 {
     copyOnWrite();
     m_wcm->removeShapes(object);
-}
-
-bool CollisionWorldSBPL::worldObjectToCollisionObjectMsgFull(
-    const World::Object& object,
-    moveit_msgs::CollisionObject& collision_object) const
-{
-    moveit_msgs::CollisionObject obj_msg;
-
-    obj_msg.header.stamp = ros::Time(0);
-
-    // TODO: safe to assume that the world frame will always be the world
-    // frame or should we try to transform things here somehow
-//    obj_msg.header.frame_id = m_wcm_config.world_frame;
-
-    obj_msg.id = object.id_;
-
-    assert(object.shape_poses_.size() == object.shapes_.size());
-    for (size_t sind = 0; sind < object.shapes_.size(); ++sind) {
-        const Eigen::Affine3d& shape_transform = object.shape_poses_[sind];
-        const shapes::ShapeConstPtr& shape = object.shapes_[sind];
-
-        // convert shape to corresponding shape_msgs type
-        switch (shape->type) {
-        case shapes::UNKNOWN_SHAPE:
-        {
-            ROS_WARN_NAMED(CWP_LOGGER, "Object '%s' contains shape of unknown type", object.id_.c_str());
-            return false;
-        }   break;
-        case shapes::SPHERE:
-        {
-            const shapes::Sphere* sphere =
-                    dynamic_cast<const shapes::Sphere*>(shape.get());
-
-            shape_msgs::SolidPrimitive prim;
-            prim.type = shape_msgs::SolidPrimitive::SPHERE;
-            prim.dimensions.resize(1);
-            prim.dimensions[0] = sphere->radius;
-            obj_msg.primitives.push_back(prim);
-
-            geometry_msgs::Pose pose;
-            tf::poseEigenToMsg(shape_transform, pose);
-            obj_msg.primitive_poses.push_back(pose);
-        }   break;
-        case shapes::CYLINDER:
-        {
-            const shapes::Cylinder* cylinder =
-                    dynamic_cast<const shapes::Cylinder*>(shape.get());
-
-            shape_msgs::SolidPrimitive prim;
-            prim.type = shape_msgs::SolidPrimitive::CYLINDER;
-            prim.dimensions.resize(2);
-            prim.dimensions[0] = cylinder->radius;
-            prim.dimensions[1] = cylinder->length;
-            obj_msg.primitives.push_back(prim);
-
-            geometry_msgs::Pose pose;
-            tf::poseEigenToMsg(shape_transform, pose);
-            obj_msg.primitive_poses.push_back(pose);
-        }   break;
-        case shapes::CONE:
-        {
-            ROS_ERROR_NAMED(CWP_LOGGER, "Unsupported object type: Cone");
-        }   break;
-        case shapes::BOX:
-        {
-            const shapes::Box* box =
-                    dynamic_cast<const shapes::Box*>(shape.get());
-
-            shape_msgs::SolidPrimitive prim;
-            prim.type = shape_msgs::SolidPrimitive::BOX;
-            prim.dimensions.resize(3);
-            prim.dimensions[0] = box->size[0];
-            prim.dimensions[1] = box->size[1];
-            prim.dimensions[2] = box->size[2];
-            obj_msg.primitives.push_back(prim);
-
-            geometry_msgs::Pose pose;
-            tf::poseEigenToMsg(shape_transform, pose);
-            obj_msg.primitive_poses.push_back(pose);
-        }   break;
-        case shapes::PLANE:
-        {
-            ROS_ERROR_NAMED(CWP_LOGGER, "Unsupported object type: Plane");
-        }   break;
-        case shapes::MESH:
-        {
-            const shapes::Mesh* mesh =
-                    dynamic_cast<const shapes::Mesh*>(shape.get());
-
-            obj_msg.meshes.push_back(shape_msgs::Mesh());
-            shape_msgs::Mesh& mesh_msg = obj_msg.meshes.back();
-
-            // convert shapes::Mesh to shape_msgs::Mesh
-            mesh_msg.vertices.resize(mesh->vertex_count);
-            for (int i = 0; i < mesh->vertex_count; ++i) {
-                mesh_msg.vertices[i].x = mesh->vertices[3 * i + 0];
-                mesh_msg.vertices[i].y = mesh->vertices[3 * i + 1];
-                mesh_msg.vertices[i].z = mesh->vertices[3 * i + 2];
-            }
-
-            mesh_msg.triangles.resize(mesh->triangle_count);
-            for (int i = 0; i < mesh->triangle_count; ++i) {
-                mesh_msg.triangles[i].vertex_indices[0] = mesh->triangles[3 * i + 0];
-                mesh_msg.triangles[i].vertex_indices[1] = mesh->triangles[3 * i + 1];
-                mesh_msg.triangles[i].vertex_indices[2] = mesh->triangles[3 * i + 2];
-            }
-
-            geometry_msgs::Pose pose;
-            tf::poseEigenToMsg(shape_transform, pose);
-            obj_msg.mesh_poses.push_back(pose);
-        }   break;
-        case shapes::OCTREE:
-        {
-            ROS_ERROR_NAMED(CWP_LOGGER, "Unsupported object type: OcTree");
-        }   break;
-        }
-    }
-
-    collision_object = std::move(obj_msg);
-    return true;
-}
-
-bool CollisionWorldSBPL::worldObjectToCollisionObjectMsgName(
-    const World::Object& object,
-    moveit_msgs::CollisionObject& collision_object) const
-{
-    moveit_msgs::CollisionObject obj_msg;
-    obj_msg.header.stamp = ros::Time(0);
-//    obj_msg.header.frame_id = m_wcm_config.world_frame;
-    obj_msg.id = object.id_;
-    collision_object = std::move(obj_msg);
-    return true;
 }
 
 visualization_msgs::MarkerArray

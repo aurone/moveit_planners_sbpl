@@ -90,21 +90,11 @@ CollisionRobotSBPL::CollisionRobotSBPL(
 
     LoadJointCollisionGroupMap(ph, m_jcgm_map);
 
-    ExtractRobotVariables(
-            *model,
-            m_variable_names,
-            m_variable_indices,
-            m_are_variables_contiguous,
-            m_variables_offset);
-
-    GetRobotCollisionModelJointIndices(
-            m_variable_names, *rcm, m_rcm_joint_indices);
-
-    m_rcs = std::make_shared<sbpl::collision::RobotCollisionState>(rcm.get());
-
-    m_joint_vars.assign(
-            m_rcs->getJointVarPositions(),
-            m_rcs->getJointVarPositions() + m_rcm->jointVarCount());
+    if (!m_updater.init(*model, rcm)) {
+        const char* msg = "Failed to initialize Collision State Updater";
+        ROS_ERROR_NAMED(CRP_LOGGER, "%s", msg);
+        throw std::runtime_error(msg);
+    }
 
     // ok! store the robot collision model
     m_rcm = rcm;
@@ -136,7 +126,6 @@ void CollisionRobotSBPL::checkOtherCollision(
     const robot_state::RobotState& other_state) const
 {
     // TODO: implement
-    clearAllCollisions(res);
     setVacuousCollision(res);
 }
 
@@ -149,7 +138,6 @@ void CollisionRobotSBPL::checkOtherCollision(
     const AllowedCollisionMatrix& acm) const
 {
     // TODO: implement
-    clearAllCollisions(res);
     setVacuousCollision(res);
 }
 
@@ -163,7 +151,6 @@ void CollisionRobotSBPL::checkOtherCollision(
     const robot_state::RobotState& other_state2) const
 {
     // TODO: implement
-    clearAllCollisions(res);
     setVacuousCollision(res);
 }
 
@@ -178,7 +165,6 @@ void CollisionRobotSBPL::checkOtherCollision(
     const AllowedCollisionMatrix& acm) const
 {
     // TODO: implement
-    clearAllCollisions(res);
     setVacuousCollision(res);
 }
 
@@ -188,7 +174,6 @@ void CollisionRobotSBPL::checkSelfCollision(
     const robot_state::RobotState& state) const
 {
     // TODO: implement
-    clearAllCollisions(res);
     setVacuousCollision(res);
 }
 
@@ -198,9 +183,6 @@ void CollisionRobotSBPL::checkSelfCollision(
     const robot_state::RobotState& state,
     const AllowedCollisionMatrix& acm) const
 {
-    // TODO: implement
-    clearAllCollisions(res);
-
     const_cast<CollisionRobotSBPL*>(this)->checkSelfCollisionMutable(
             req, res, state, acm);
 }
@@ -212,7 +194,6 @@ void CollisionRobotSBPL::checkSelfCollision(
     const robot_state::RobotState& state2) const
 {
     // TODO: implement
-    clearAllCollisions(res);
     setVacuousCollision(res);
 }
 
@@ -224,7 +205,6 @@ void CollisionRobotSBPL::checkSelfCollision(
     const AllowedCollisionMatrix& acm) const
 {
     // TODO: implement
-    clearAllCollisions(res);
     setVacuousCollision(res);
 }
 
@@ -266,15 +246,6 @@ void CollisionRobotSBPL::updatedPaddingOrScaling(
     const std::vector<std::string>& links)
 {
     CollisionRobot::updatedPaddingOrScaling(links);
-}
-
-void CollisionRobotSBPL::clearAllCollisions(CollisionResult& res) const
-{
-    res.collision = false;
-    res.contact_count = 0;
-    res.contacts.clear();
-    res.cost_sources.clear();
-    res.distance = 100.0;
 }
 
 void CollisionRobotSBPL::setVacuousCollision(CollisionResult& res) const
@@ -324,14 +295,13 @@ void CollisionRobotSBPL::checkSelfCollisionMutable(
 
     int gidx = m_rcm->groupIndex(collision_group_name);
 
-    getCheckedVariables(state, m_joint_vars);
-    m_rcs->setJointVarPositions(m_joint_vars.data());
+    m_updater.updateInternal(state);
 
     double dist;
     const bool verbose = req.verbose;
     const bool visualize = req.verbose;
     bool valid = m_scm->checkCollision(
-            *m_rcs,
+            *m_updater.collisionState(),
             AllowedCollisionMatrixInterface(acm),
             gidx,
             dist);
@@ -339,9 +309,11 @@ void CollisionRobotSBPL::checkSelfCollisionMutable(
         // TODO: visualizations
     }
 
-    res.collision = !valid;
+    if (!valid) {
+        res.collision = true;
+    }
     if (req.distance) {
-        res.distance = dist;
+        res.distance = std::min(res.distance, dist);
     }
     if (req.cost) {
         ROS_WARN_ONCE("Cost sources not computed by sbpl collision checker");
@@ -396,30 +368,6 @@ sbpl::OccupancyGridPtr CollisionRobotSBPL::createGridFor(
             config.max_distance_m,
             propagate_negative_distances,
             ref_counted);
-}
-
-void CollisionRobotSBPL::getCheckedVariables(
-    const moveit::core::RobotState& state,
-    std::vector<double>& vars) const
-{
-    std::vector<double> state_vars;
-    if (m_are_variables_contiguous) {
-        state_vars.assign(
-                state.getVariablePositions() + m_variables_offset,
-                state.getVariablePositions() + m_variables_offset + m_variable_names.size());
-    } else {
-        state_vars.clear();
-        for (size_t i = 0; i < m_variable_indices.size(); ++i) {
-            state_vars.push_back(state.getVariablePosition(m_variable_indices[i]));
-        }
-    }
-
-    // TODO:: check whether they order of joints is identical...maybe it's
-    // worthwhile to make them such if not already?
-    for (size_t i = 0; i < state_vars.size(); ++i) {
-        int jidx = m_rcm_joint_indices[i];
-        vars[jidx] = state_vars[i];
-    }
 }
 
 } // namespace collision_detection
