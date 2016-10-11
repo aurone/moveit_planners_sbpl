@@ -59,7 +59,7 @@ CollisionWorldSBPL::CollisionWorldSBPL() : CollisionWorld()
 CollisionWorldSBPL::CollisionWorldSBPL(const WorldPtr& world) :
     CollisionWorld(world)
 {
-    ROS_INFO_NAMED(CWP_LOGGER, "CollisionWorldSBPL(const WorldPtr&)");
+    ROS_INFO_NAMED(CWP_LOGGER, "CollisionWorldSBPL(world = %p)", world.get());
     construct();
     registerWorldCallback();
 }
@@ -70,7 +70,7 @@ CollisionWorldSBPL::CollisionWorldSBPL(
 :
     CollisionWorld(other, world) // copies over the world
 {
-    ROS_DEBUG_NAMED(CWP_LOGGER, "CollisionWorldSBPL(CollisionWorldSBPL&, const WorldPtr&)");
+    ROS_DEBUG_NAMED(CWP_LOGGER, "CollisionWorldSBPL(other = %p, world = %p)", &other, world.get());
 
     m_wcm_config = other.m_wcm_config;
     m_jcgm_map = other.m_jcgm_map;
@@ -234,7 +234,6 @@ void CollisionWorldSBPL::construct()
             "visualization_markers", 100);
 
     // publish collision world visualizations
-    ROS_DEBUG_NAMED(CWP_LOGGER, "Publishing visualization of bounding box");
     auto markers = m_grid->getBoundingBoxVisualization();
     m_cspace_pub.publish(markers);
 }
@@ -242,12 +241,10 @@ void CollisionWorldSBPL::construct()
 void CollisionWorldSBPL::copyOnWrite()
 {
     if (!m_wcm) {
-        ROS_DEBUG_NAMED(CWP_LOGGER, "Spawning derivative world collision model");
+        ROS_DEBUG_NAMED(CWP_LOGGER, "Spawn derivative world collision model");
         assert(!m_grid);
 
         // create our own grid
-        const bool propagate_negative_distances = false;
-        const bool ref_counted = true;
         m_grid = createGridFor(m_wcm_config);
 
         // copy over state from parent world collision model
