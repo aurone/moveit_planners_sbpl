@@ -307,6 +307,12 @@ void LoadCollisionGridConfig(
         throw std::runtime_error(ss.str());
     }
 
+    if (cm_config.hasMember("frame_id")) {
+        config.frame_id = (std::string)cm_config["frame_id"];
+    } else {
+        config.frame_id = "map";
+    }
+
     // TODO: more sophisticated parameter checking
     config.size_x = cm_config["size_x"];
     config.size_y = cm_config["size_y"];

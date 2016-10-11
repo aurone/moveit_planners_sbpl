@@ -56,6 +56,7 @@ bool LoadJointCollisionGroupMap(
 
 struct CollisionGridConfig
 {
+    std::string frame_id;
     double size_x;
     double size_y;
     double size_z;

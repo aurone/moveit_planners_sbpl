@@ -51,10 +51,6 @@
 #include <moveit_planners_sbpl/moveit_robot_model.h>
 #include <moveit_planners_sbpl/collision_robot_sbpl.h>
 
-namespace sbpl_interface {
-class MoveItRobotModel;
-} // namespace sbpl_interface
-
 namespace collision_detection {
 
 class CollisionWorldSBPL : public CollisionWorld
