@@ -501,7 +501,7 @@ void CollisionWorldSBPL::checkRobotCollisionMutable(
     double dist;
     bool valid = ewcm->checkCollision(*gm->collisionState(), gidx, dist);
 
-    const bool verbose = true; //req.verbose;
+    const bool verbose = req.verbose;
     const bool visualize = req.verbose;
     if (verbose) {
         ROS_DEBUG_STREAM_NAMED(CWP_LOGGER, "valid: " << std::boolalpha << valid << ", dist: " << dist);
