@@ -499,4 +499,15 @@ bool WorldObjectToCollisionObjectMsgName(
     return true;
 }
 
+visualization_msgs::MarkerArray
+GetCollisionMarkers(sbpl::collision::RobotCollisionState& rcs, int gidx)
+{
+    // update the spheres within the group
+    for (int ssidx : rcs.groupSpheresStateIndices(gidx)) {
+        rcs.updateSphereStates(ssidx);
+    }
+    auto ma = rcs.getVisualization(gidx);
+    return ma;
+}
+
 } // namespace collision_detection

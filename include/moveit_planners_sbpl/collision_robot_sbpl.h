@@ -159,6 +159,8 @@ private:
 
     CollisionStateUpdater m_updater;
 
+    ros::Publisher m_collision_pub;
+
     // self colllision models
     sbpl::OccupancyGridPtr m_grid;
     sbpl::collision::AttachedBodiesCollisionModelPtr m_ab_model;
@@ -177,6 +179,11 @@ private:
 
     sbpl::OccupancyGridPtr createGridFor(
         const CollisionGridConfig& config) const;
+
+    visualization_msgs::MarkerArray
+    getCollisionRobotVisualization(
+        sbpl::collision::RobotCollisionState& rcs,
+        int gidx) const;
 };
 
 } // namespace collision_detection

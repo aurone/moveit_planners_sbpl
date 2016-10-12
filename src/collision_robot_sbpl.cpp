@@ -98,13 +98,20 @@ CollisionRobotSBPL::CollisionRobotSBPL(
 
     // ok! store the robot collision model
     m_rcm = rcm;
+
+    ros::NodeHandle nh;
+    m_collision_pub = nh.advertise<visualization_msgs::MarkerArray>("visualization_markers", 10);
 }
 
 CollisionRobotSBPL::CollisionRobotSBPL(const CollisionRobotSBPL& other) :
     CollisionRobot(other)
 {
     ROS_INFO_NAMED(CRP_LOGGER, "CollisionRobotSBPL(other)");
+    m_scm_config = other.m_scm_config;
+    m_jcgm_map = other.m_jcgm_map;
     m_rcm = other.m_rcm;
+    m_updater = other.m_updater;
+    m_collision_pub = other.m_collision_pub;
 }
 
 CollisionRobotSBPL::~CollisionRobotSBPL()
@@ -285,9 +292,18 @@ void CollisionRobotSBPL::checkSelfCollisionMutable(
     }
 
     if (!m_grid) {
+        ROS_DEBUG_NAMED(CRP_LOGGER, "Initialize self collision model");
+
         // lazily initialize self collision model
         m_grid = createGridFor(m_scm_config);
         m_grid->setReferenceFrame(m_rcm->modelFrame());
+
+        auto bbma = m_grid->getOccupiedVoxelsVisualization();
+        for (auto& m : bbma.markers) {
+            m.ns = "self_collision_model_bounds";
+        }
+        m_collision_pub.publish(bbma);
+
         m_ab_model = std::make_shared<AttachedBodiesCollisionModel>(m_rcm.get());
         m_scm = std::make_shared<SelfCollisionModel>(
                 m_grid.get(), m_rcm.get(), m_ab_model.get());
@@ -298,15 +314,28 @@ void CollisionRobotSBPL::checkSelfCollisionMutable(
     m_updater.updateInternal(state);
 
     double dist;
-    const bool verbose = req.verbose;
-    const bool visualize = req.verbose;
     bool valid = m_scm->checkCollision(
             *m_updater.collisionState(),
             AllowedCollisionMatrixInterface(acm),
             gidx,
             dist);
+
+    const bool verbose = req.verbose;
+    if (verbose) {
+        ROS_DEBUG_STREAM_NAMED(CRP_LOGGER, "valid: " << std::boolalpha << valid << ", dist: " << dist);
+    }
+
+    const bool visualize = req.verbose;
     if (visualize) {
-        // TODO: visualizations
+        auto ma = getCollisionRobotVisualization(*m_updater.collisionState(), gidx);
+        if (!valid) {
+            for (auto& m : ma.markers) {
+                m.color.r = 1.0;
+                m.color.g = m.color.b = 0.0;
+            }
+        }
+        m_collision_pub.publish(m_grid->getOccupiedVoxelsVisualization());
+        m_collision_pub.publish(ma);
     }
 
     if (!valid) {
@@ -353,6 +382,12 @@ double CollisionRobotSBPL::getSelfCollisionPropagationDistance() const
 sbpl::OccupancyGridPtr CollisionRobotSBPL::createGridFor(
     const CollisionGridConfig& config) const
 {
+    ROS_DEBUG_NAMED(CRP_LOGGER, "  Creating Distance Field");
+    ROS_DEBUG_NAMED(CRP_LOGGER, "    size: (%0.3f, %0.3f, %0.3f)", config.size_x, config.size_y, config.size_z);
+    ROS_DEBUG_NAMED(CRP_LOGGER, "    origin: (%0.3f, %0.3f, %0.3f)", config.origin_x, config.origin_y, config.origin_z);
+    ROS_DEBUG_NAMED(CRP_LOGGER, "    resolution: %0.3f", config.res_m);
+    ROS_DEBUG_NAMED(CRP_LOGGER, "    max_distance: %0.3f", config.max_distance_m);
+
     // TODO: this can be substantially smaller since it only has to encompass
     // the range of motion of the robot
     const bool propagate_negative_distances = false;
@@ -368,6 +403,19 @@ sbpl::OccupancyGridPtr CollisionRobotSBPL::createGridFor(
             config.max_distance_m,
             propagate_negative_distances,
             ref_counted);
+}
+
+visualization_msgs::MarkerArray
+CollisionRobotSBPL::getCollisionRobotVisualization(
+    sbpl::collision::RobotCollisionState& rcs,
+    int gidx) const
+{
+    auto ma = GetCollisionMarkers(rcs, gidx);
+    for (auto& m : ma.markers) {
+        m.ns = "self_collision";
+        m.header.frame_id = m_rcm->modelFrame();
+    }
+    return ma;
 }
 
 } // namespace collision_detection

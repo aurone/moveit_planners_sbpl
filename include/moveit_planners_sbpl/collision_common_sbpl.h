@@ -169,6 +169,9 @@ bool WorldObjectToCollisionObjectMsgName(
     const World::Object& object,
     moveit_msgs::CollisionObject& collision_object);
 
+visualization_msgs::MarkerArray
+GetCollisionMarkers(sbpl::collision::RobotCollisionState& rcs, int gidx);
+
 } // namespace collision_detection
 
 #endif

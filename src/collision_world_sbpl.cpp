@@ -231,7 +231,7 @@ void CollisionWorldSBPL::construct()
 
     ros::NodeHandle nh;
     m_cspace_pub = nh.advertise<visualization_msgs::MarkerArray>(
-            "visualization_markers", 100);
+            "visualization_markers", 10);
 
     ROS_INFO("Sleep to allow publish to set up");
     ros::Duration(0.5).sleep();
@@ -502,11 +502,11 @@ void CollisionWorldSBPL::checkRobotCollisionMutable(
     bool valid = ewcm->checkCollision(*gm->collisionState(), gidx, dist);
 
     const bool verbose = req.verbose;
-    const bool visualize = req.verbose;
     if (verbose) {
         ROS_DEBUG_STREAM_NAMED(CWP_LOGGER, "valid: " << std::boolalpha << valid << ", dist: " << dist);
     }
 
+    const bool visualize = req.verbose;
     if (visualize) {
         auto ma = getCollisionRobotVisualization(*gm->collisionState(), gidx);
         if (!valid) {
@@ -603,12 +603,9 @@ CollisionWorldSBPL::getCollisionRobotVisualization(
     sbpl::collision::RobotCollisionState& rcs,
     int gidx) const
 {
-    // update the spheres within the group
-    for (int ssidx : rcs.groupSpheresStateIndices(gidx)) {
-        rcs.updateSphereStates(ssidx);
-    }
-    auto ma = rcs.getVisualization(gidx);
+    auto ma = GetCollisionMarkers(rcs, gidx);
     for (auto& m : ma.markers) {
+        m.ns = "world_collision";
         if (m_grid) {
             m.header.frame_id = m_grid->getReferenceFrame();
         } else if (m_parent_grid) {
