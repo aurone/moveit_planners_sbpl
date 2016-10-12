@@ -87,9 +87,17 @@ std::string SBPLPlannerManager::getDescription() const
 void SBPLPlannerManager::getPlanningAlgorithms(
     std::vector<std::string>& algs) const
 {
-    algs.push_back("ARA*");
-    algs.push_back("MHA*");
-    algs.push_back("LARA*");
+    const std::vector<std::string> search_names = { "arastar", "mhastar", "larastar" };
+    const std::vector<std::string> heuristic_names = { "euclid", "bfs", "mfbfs" };
+    const std::vector<std::string> space_names = { "manip", "workspace" };
+
+    // TODO: concise way to enumerate all useful combinations of
+    // search/heuristic/graph
+    for (const std::string& search_name : search_names) {
+        algs.push_back(search_name);
+    }
+
+    algs.push_back("arastar.bfs.workspace");
 }
 
 planning_interface::PlanningContextPtr SBPLPlannerManager::getPlanningContext(
