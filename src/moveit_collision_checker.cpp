@@ -38,6 +38,7 @@
 
 // system includes
 #include <leatherman/print.h>
+#include <leatherman/viz.h>
 #include <ros/console.h>
 #include <ros/ros.h>
 #include <sbpl_geometry_utils/utils.h>
@@ -118,6 +119,8 @@ bool MoveItCollisionChecker::init(
         const std::string& var_name = planning_var_names[vind];
     }
 
+    m_zero_state.resize(m_robot_model->activeVariableCount(), 0.0);
+
     return true;
 }
 
@@ -173,8 +176,8 @@ bool MoveItCollisionChecker::isStateValid(
 }
 
 bool MoveItCollisionChecker::isStateToStateValid(
-    const std::vector<double>& angles0,
-    const std::vector<double>& angles1,
+    const std::vector<double>& start,
+    const std::vector<double>& finish,
     int& path_length,
     int& num_checks,
     double& dist)
@@ -183,12 +186,13 @@ bool MoveItCollisionChecker::isStateToStateValid(
     num_checks = 0;
     dist = std::numeric_limits<double>::max();
 
-    std::vector<std::vector<double>> path;
-    if (!interpolatePath(angles0, angles1, path)) {
+    int waypoint_count = interpolatePathFast(start, finish, m_waypoint_path);
+    if (waypoint_count < 0) {
         return false;
     }
 
-    for (const std::vector<double>& p : path) {
+    for (int widx = 0; widx < waypoint_count; ++widx) {
+        const std::vector<double>& p = m_waypoint_path[widx];
         double d;
         bool res = isStateValid(p, false, false, d);
         if (d < dist) {
@@ -208,6 +212,20 @@ bool MoveItCollisionChecker::interpolatePath(
     const std::vector<double>& finish,
     std::vector<std::vector<double>>& opath)
 {
+    opath.clear();
+    if (interpolatePathFast(start, finish, opath) < 0) {
+        return false;
+    }
+    else {
+        return true;
+    }
+}
+
+int MoveItCollisionChecker::interpolatePathFast(
+    const std::vector<double>& start,
+    const std::vector<double>& finish,
+    std::vector<std::vector<double>>& opath)
+{
     assert(start.size() == m_robot_model->activeVariableCount() &&
             finish.size() == m_robot_model->activeVariableCount());
 
@@ -216,51 +234,51 @@ bool MoveItCollisionChecker::interpolatePath(
             m_robot_model->checkJointLimits(finish)))
     {
         ROS_ERROR("Joint limits violated");
-        return false;
+        return -1;
     }
 
     // compute distance traveled by each joint
-    std::vector<double> diffs(m_robot_model->activeVariableCount(), 0.0);
+    m_diffs.resize(m_robot_model->activeVariableCount(), 0.0);
     for (size_t vidx = 0; vidx < m_robot_model->activeVariableCount(); ++vidx) {
         if (m_robot_model->variableContinuous()[vidx]) {
-            diffs[vidx] = sbpl::angles::ShortestAngleDiff(finish[vidx], start[vidx]);
+            m_diffs[vidx] = sbpl::angles::ShortestAngleDiff(finish[vidx], start[vidx]);
         }
         else {
-            diffs[vidx] = finish[vidx] - start[vidx];
+            m_diffs[vidx] = finish[vidx] - start[vidx];
         }
     }
 
     // compute the number of intermediate waypoints including start and end
     int waypoint_count = 0;
     for (size_t vidx = 0; vidx < m_robot_model->activeVariableCount(); vidx++) {
-        int angle_waypoints = (int)(std::fabs(diffs[vidx]) / m_var_incs[vidx]) + 1;
+        int angle_waypoints = (int)(std::fabs(m_diffs[vidx]) / m_var_incs[vidx]) + 1;
         waypoint_count = std::max(waypoint_count, angle_waypoints);
     }
     waypoint_count = std::max(waypoint_count, 2);
 
     // fill intermediate waypoints
-    std::vector<std::vector<double>> path(
-            waypoint_count,
-            std::vector<double>(m_robot_model->activeVariableCount(), 0.0));
-    for (size_t vidx = 0; vidx < m_robot_model->activeVariableCount(); ++vidx) {
-        for (size_t widx = 0; widx < waypoint_count; ++widx) {
+    const int prev_size = (int)opath.size();
+    if (waypoint_count > prev_size) {
+        opath.resize(waypoint_count, m_zero_state);
+    }
+    for (size_t widx = 0; widx < waypoint_count; ++widx) {
+        for (size_t vidx = 0; vidx < m_robot_model->activeVariableCount(); ++vidx) {
             double alpha = (double)widx / (double)(waypoint_count - 1);
-            double pos = start[vidx] + alpha * diffs[vidx];
-            path[widx][vidx] = pos;
+            double pos = start[vidx] + alpha * m_diffs[vidx];
+            opath[widx][vidx] = pos;
         }
     }
 
-    // normalize output angles
+    // normalize output continuous variables
     for (size_t vidx = 0; vidx < m_robot_model->activeVariableCount(); ++vidx) {
         if (m_robot_model->variableContinuous()[vidx]) {
             for (size_t widx = 0; widx < waypoint_count; ++widx) {
-                path[widx][vidx] = sbpl::angles::NormalizeAngle(path[widx][vidx]);
+                opath[widx][vidx] = sbpl::angles::NormalizeAngle(opath[widx][vidx]);
             }
         }
     }
 
-    opath = std::move(path);
-    return true;
+    return waypoint_count;
 }
 
 visualization_msgs::MarkerArray
@@ -274,12 +292,6 @@ MoveItCollisionChecker::getCollisionModelVisualization(
         robot_state.setVariablePosition(avind, angles[vind]);
     }
 
-    // TODO: get all links that are descendants of this joint group
-//    const moveit::core::JointModelGroup* joint_group =
-//            m_robot_model->planningJointGroup();
-//    const std::vector<std::string>& link_names =
-//            joint_group->getLinkModelNames();
-
     visualization_msgs::MarkerArray marker_arr;
     std_msgs::ColorRGBA color;
     color.r = 0.0;
@@ -292,6 +304,16 @@ MoveItCollisionChecker::getCollisionModelVisualization(
             color,
             "",
             ros::Duration(0));
+
+    const moveit::core::LinkModel* tip_link = m_robot_model->planningTipLink();
+    if (tip_link) {
+        const Eigen::Affine3d& T_model_tip =
+                robot_state.getGlobalLinkTransform(tip_link->getName());
+        auto frame_markers = viz::getFrameMarkerArray(
+                T_model_tip, m_robot_model->moveitRobotModel()->getModelFrame(), "", marker_arr.markers.size());
+        marker_arr.markers.insert(marker_arr.markers.end(), frame_markers.markers.begin(), frame_markers.markers.end());
+    }
+
     return marker_arr;
 }
 

@@ -92,6 +92,18 @@ private:
 
     moveit::core::RobotStatePtr m_ref_state;
 
+    std::vector<double> m_zero_state;
+    std::vector<double> m_diffs;
+    std::vector<std::vector<double>> m_waypoint_path;
+
+    // interpolate the path between start and finish, storing intermediate
+    // waypoints within opath. previous entries in opath are overwritten and
+    // never cleared. the number of relevant waypoints is returned
+    int interpolatePathFast(
+        const std::vector<double>& start,
+        const std::vector<double>& finish,
+        std::vector<std::vector<double>>& opath);
+
     ros::Publisher m_vpub;
 };
 
