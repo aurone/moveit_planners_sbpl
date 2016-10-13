@@ -150,7 +150,7 @@ void JointVariableCommandWidget::syncSpinBoxes()
         return;
     }
 
-    ROS_INFO("sync spinboxes");
+    ROS_DEBUG("sync spinboxes");
     if (!m_model->isRobotLoaded()) {
         ROS_WARN("Robot not yet loaded");
         return;
@@ -633,7 +633,7 @@ void JointVariableCommandWidget::setJointVariableFromSpinBox(double value)
 
     const std::vector<int>& variables = m_spinbox_to_vind[spinbox];
 
-    ROS_INFO("Update joint variables %s from spinbox %p with value %0.3f", to_string(variables).c_str(), spinbox, value);
+    ROS_DEBUG("Update joint variables %s from spinbox %p with value %0.3f", to_string(variables).c_str(), spinbox, value);
 
     if (variables.size() == 4) {
         // so much hackery here for quaternion controls
