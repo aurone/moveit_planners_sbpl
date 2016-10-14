@@ -645,11 +645,40 @@ bool MoveItRobotModel::computeUnrestrictedIK(
         return false;
     }
 
+    // for all revolute joint variables...find the closest 2*pi equivalent that
+    // is within bounds
+    for (size_t vind = 0; vind < start.size(); ++vind) {
+        if (m_var_continuous[vind]) {
+            continue;
+        }
+
+        int avind = m_active_var_indices[vind];
+        double spos = m_robot_state->getVariablePosition(avind);
+        double vdiff = start[vind] - spos;
+        int twopi_hops = (int)std::fabs(vdiff / (2.0 * M_PI));
+
+        // equivalent within 2*pi of the seed state
+        double npos = spos + 2.0 * M_PI * twopi_hops * std::copysign(1.0, vdiff);
+        if (fabs(npos - start[vind]) > M_PI) {
+            npos += 2.0 * M_PI * std::copysign(1.0, vdiff); // one hop this time
+        }
+
+        // set it as the solution
+        m_robot_state->setVariablePosition(avind, npos);
+        const moveit::core::JointModel* j = m_robot_model->getJointOfVariable(avind);
+        if (!m_robot_state->satisfiesBounds(j)) {
+            // revert to solution
+            m_robot_state->setVariablePosition(avind, spos);
+        }
+
+        // TODO: roll extraction into this loop
+    }
+
     if (!m_robot_state->satisfiesBounds(m_joint_group)) {
         ROS_ERROR("KDL Returned invalid joint angles?");
     }
 
-    // fill in the solution
+    // extract solution from robot state
     solution.resize(m_active_var_names.size());
     for (size_t avind = 0; avind < m_active_var_names.size(); ++avind) {
         int vind = m_active_var_indices[avind];
