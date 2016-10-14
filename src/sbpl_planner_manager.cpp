@@ -98,6 +98,7 @@ void SBPLPlannerManager::getPlanningAlgorithms(
     }
 
     algs.push_back("arastar.bfs.workspace");
+    algs.push_back("arastar.joint_distance");
 }
 
 planning_interface::PlanningContextPtr SBPLPlannerManager::getPlanningContext(
