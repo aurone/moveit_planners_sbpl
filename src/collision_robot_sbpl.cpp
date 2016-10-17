@@ -320,10 +320,8 @@ void CollisionRobotSBPL::checkSelfCollisionMutable(
             gidx,
             dist);
 
-    const bool verbose = req.verbose;
-    if (verbose) {
-        ROS_DEBUG_STREAM_NAMED(CRP_LOGGER, "valid: " << std::boolalpha << valid << ", dist: " << dist);
-    }
+    ROS_INFO_STREAM_COND_NAMED(req.verbose, CRP_LOGGER, "valid: " << std::boolalpha << valid << ", dist: " << dist);
+    ROS_DEBUG_STREAM_COND_NAMED(!req.verbose, CRP_LOGGER, "valid: " << std::boolalpha << valid << ", dist: " << dist);
 
     const bool visualize = req.verbose;
     if (visualize) {

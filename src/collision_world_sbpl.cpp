@@ -70,7 +70,7 @@ CollisionWorldSBPL::CollisionWorldSBPL(
 :
     CollisionWorld(other, world) // copies over the world
 {
-    ROS_DEBUG_NAMED(CWP_LOGGER, "CollisionWorldSBPL(other = %p, world = %p)", &other, world.get());
+//    ROS_DEBUG_NAMED(CWP_LOGGER, "CollisionWorldSBPL(other = %p, world = %p)", &other, world.get());
 
     m_wcm_config = other.m_wcm_config;
     m_jcgm_map = other.m_jcgm_map;
@@ -87,7 +87,7 @@ CollisionWorldSBPL::CollisionWorldSBPL(
 
 CollisionWorldSBPL::~CollisionWorldSBPL()
 {
-    ROS_DEBUG_NAMED(CWP_LOGGER, "~CollisionWorldSBPL()");
+//    ROS_DEBUG_NAMED(CWP_LOGGER, "~CollisionWorldSBPL()");
     const WorldPtr& curr_world = getWorld();
     if (curr_world) {
         curr_world->removeObserver(m_observer_handle);
@@ -326,7 +326,7 @@ CollisionWorldSBPL::distanceField(
 
 void CollisionWorldSBPL::registerWorldCallback()
 {
-    ROS_DEBUG_NAMED(CWP_LOGGER, "Registering world observer callback");
+//    ROS_DEBUG_NAMED(CWP_LOGGER, "Registering world observer callback");
     auto ocfn = boost::bind(&CollisionWorldSBPL::worldUpdate, this, _1, _2);
     m_observer_handle = getWorld()->addObserver(ocfn);
 }
@@ -501,10 +501,8 @@ void CollisionWorldSBPL::checkRobotCollisionMutable(
     double dist;
     bool valid = ewcm->checkCollision(*gm->collisionState(), gidx, dist);
 
-    const bool verbose = req.verbose;
-    if (verbose) {
-        ROS_DEBUG_STREAM_NAMED(CWP_LOGGER, "valid: " << std::boolalpha << valid << ", dist: " << dist);
-    }
+    ROS_INFO_STREAM_COND_NAMED(req.verbose, CWP_LOGGER, "valid: " << std::boolalpha << valid << ", dist: " << dist);
+    ROS_DEBUG_STREAM_COND_NAMED(!req.verbose, CWP_LOGGER, "valid: " << std::boolalpha << valid << ", dist: " << dist);
 
     const bool visualize = req.verbose;
     if (visualize) {
