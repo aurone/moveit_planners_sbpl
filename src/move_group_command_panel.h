@@ -144,7 +144,8 @@ private:
     void syncWorkspaceWidgets();
 
     visualization_msgs::MarkerArray getWorkspaceVisualization() const;
-    visualization_msgs::MarkerArray getRobotCollisionMarkers(
+    void getRobotCollisionMarkers(
+        visualization_msgs::MarkerArray& ma,
         const moveit::core::RobotState& state,
         const std::vector<std::string>& link_names,
         bool include_attached = false) const;

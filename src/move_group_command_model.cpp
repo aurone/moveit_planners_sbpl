@@ -123,8 +123,7 @@ MoveGroupCommandModel::MoveGroupCommandModel(QObject* parent) :
         moveit_msgs::QueryPlannerInterfaces::Response res;
         if (!m_query_planner_interface_client->call(req, res)) {
             ROS_ERROR("Failed to call service '%s'", m_query_planner_interface_client->getService().c_str());
-        }
-        else {
+        } else {
             m_planner_interfaces = res.planner_interfaces;
             if (!m_planner_interfaces.empty()) {
                 m_curr_planner_idx = 0;
@@ -226,8 +225,7 @@ moveit::core::RobotModelConstPtr MoveGroupCommandModel::robotModel() const
 {
     if (m_scene_monitor) {
         return m_scene_monitor->getRobotModel();
-    }
-    else {
+    } else {
         return moveit::core::RobotModelConstPtr();
     }
 }
@@ -338,8 +336,7 @@ const std::string MoveGroupCommandModel::robotDescription() const
 {
     if (m_scene_monitor) {
         return m_scene_monitor->getRobotDescription();
-    }
-    else {
+    } else {
         return std::string();
     }
 }
@@ -353,8 +350,7 @@ const std::string MoveGroupCommandModel::plannerName() const
                 true);
     if (m_curr_planner_idx == -1) {
         return "UNKNOWN";
-    }
-    else {
+    } else {
         return m_planner_interfaces[m_curr_planner_idx].name;
     }
 }
@@ -371,8 +367,7 @@ const std::string MoveGroupCommandModel::plannerID() const
             true);
     if (m_curr_planner_id_idx == -1) {
         return "UNKNOWN";
-    }
-    else {
+    } else {
         return m_planner_interfaces[m_curr_planner_idx]
                 .planner_ids[m_curr_planner_id_idx];
     }
@@ -518,8 +513,7 @@ void MoveGroupCommandModel::load(const rviz::Config& config)
             ws_frame.toStdString());
     if (it != m_available_frames.end()) {
         ws.header.frame_id = ws_frame.toStdString();
-    }
-    else {
+    } else {
         ws.header.frame_id = "";
     }
     ws.min_corner.x = ws_min_x;
@@ -1080,12 +1074,10 @@ void MoveGroupCommandModel::updateRobotStateValidity()
         if (!m_check_state_validity_client->call(req, res)) {
             ROS_WARN("Failed to call service '%s'", m_check_state_validity_client->getService().c_str());
             m_validity = boost::indeterminate;
-        }
-        else {
+        } else {
             if (res.valid) {
                 m_validity = true;
-            }
-            else {
+            } else {
                 m_validity = false;
                 for (const auto& contact : res.contacts) {
                     ROS_INFO("Links '%s' and '%s' are in collision", contact.contact_body_1.c_str(), contact.contact_body_2.c_str());
@@ -1093,8 +1085,7 @@ void MoveGroupCommandModel::updateRobotStateValidity()
                 m_contacts = res.contacts;
             }
         }
-    }
-    else {
+    } else {
         m_validity = boost::indeterminate;
     }
 }
@@ -1702,13 +1693,11 @@ bool MoveGroupCommandModel::updateAvailableFrames()
     if (!transformer) {
         if (m_available_frames.empty()) {
             return false;
-        }
-        else {
+        } else {
             m_available_frames.clear();
             return true;
         }
-    }
-    else {
+    } else {
         std::vector<std::string> frames;
         transformer->getFrameStrings(frames);
 
@@ -1725,8 +1714,7 @@ bool MoveGroupCommandModel::updateAvailableFrames()
             m_available_frames = std::move(frames);
             Q_EMIT availableFramesUpdated();
             return true;
-        }
-        else {
+        } else {
             return false;
         }
     }
@@ -1801,8 +1789,7 @@ bool MoveGroupCommandModel::computeAxisAlignedBoundingBox(
             if (sidx == 0 && i == 0) {
                 bb_min = corner;
                 bb_max = corner;
-            }
-            else {
+            } else {
                 bb_min.x() = std::min(bb_min.x(), corner.x());
                 bb_min.y() = std::min(bb_min.y(), corner.y());
                 bb_min.z() = std::min(bb_min.z(), corner.z());
@@ -1910,8 +1897,7 @@ bool MoveGroupCommandModel::computeAxisAlignedBoundingBox(
             bb_min.x() = bb_max.x() = vx1;
             bb_min.y() = bb_max.y() = vy1;
             bb_min.z() = bb_max.z() = vz1;
-        }
-        else {
+        } else {
             bb_min.x() = std::min(bb_min.x(), vx1);
             bb_min.y() = std::min(bb_min.y(), vy1);
             bb_min.z() = std::min(bb_min.z(), vz1);
