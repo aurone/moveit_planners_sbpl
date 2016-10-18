@@ -175,6 +175,8 @@ private:
         const robot_state::RobotState& state,
         const AllowedCollisionMatrix& acm);
 
+    void updateAttachedBodies(const moveit::core::RobotState& state);
+
     double getSelfCollisionPropagationDistance() const;
 
     sbpl::OccupancyGridPtr createGridFor(

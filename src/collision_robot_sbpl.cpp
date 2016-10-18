@@ -271,6 +271,7 @@ void CollisionRobotSBPL::checkSelfCollisionMutable(
     const AllowedCollisionMatrix& acm)
 {
     using sbpl::collision::AttachedBodiesCollisionModel;
+    using sbpl::collision::AttachedBodiesCollisionState;
     using sbpl::collision::RobotCollisionState;
     using sbpl::collision::SelfCollisionModel;
 
@@ -304,10 +305,15 @@ void CollisionRobotSBPL::checkSelfCollisionMutable(
         }
         m_collision_pub.publish(bbma);
 
-        m_ab_model = std::make_shared<AttachedBodiesCollisionModel>(m_rcm.get());
+        m_ab_model = std::make_shared<AttachedBodiesCollisionModel>(
+                m_rcm.get());
+        m_ab_state = std::make_shared<AttachedBodiesCollisionState>(
+                m_ab_model.get(), m_updater.collisionState().get());
         m_scm = std::make_shared<SelfCollisionModel>(
                 m_grid.get(), m_rcm.get(), m_ab_model.get());
     }
+
+    updateAttachedBodies(state);
 
     int gidx = m_rcm->groupIndex(collision_group_name);
 
@@ -316,6 +322,7 @@ void CollisionRobotSBPL::checkSelfCollisionMutable(
     double dist;
     bool valid = m_scm->checkCollision(
             *m_updater.collisionState(),
+            *m_ab_state,
             AllowedCollisionMatrixInterface(acm),
             gidx,
             dist);
@@ -349,6 +356,42 @@ void CollisionRobotSBPL::checkSelfCollisionMutable(
     }
     if (req.contacts) {
         ROS_WARN_ONCE("Contacts not computed by sbpl collision checker");
+    }
+}
+
+void CollisionRobotSBPL::updateAttachedBodies(
+    const moveit::core::RobotState& state)
+{
+    std::vector<const moveit::core::AttachedBody*> attached_bodies;
+    state.getAttachedBodies(attached_bodies);
+
+    // add bodies not in the attached body model
+    for (const moveit::core::AttachedBody* ab : attached_bodies) {
+        bool abm_updated = false;
+        if (!m_ab_model->hasAttachedBody(ab->getName())) {
+            abm_updated = true;
+            ROS_INFO("Attach body '%s' from Robot Collision Model", ab->getName().c_str());
+            m_ab_model->attachBody(ab->getName(), ab->getShapes(), ab->getFixedTransforms(), ab->getAttachedLinkName());
+        }
+    }
+
+    // remove bodies not in the list of attached bodies
+    if (m_ab_model->attachedBodyCount() > attached_bodies.size()) {
+        std::vector<int> abindices;
+        m_ab_model->attachedBodyIndices(abindices);
+        for (int abidx : abindices) {
+            const std::string& ab_name = m_ab_model->attachedBodyName(abidx);
+            auto it = std::find_if(
+                    attached_bodies.begin(), attached_bodies.end(),
+                    [&ab_name](const moveit::core::AttachedBody* ab)
+                    {
+                        return ab->getName() == ab_name;
+                    });
+            if (it == attached_bodies.end()) {
+                ROS_INFO("Detach body '%s' from Robot Collision Model", ab_name.c_str());
+                m_ab_model->detachBody(ab_name);
+            }
+        }
     }
 }
 
