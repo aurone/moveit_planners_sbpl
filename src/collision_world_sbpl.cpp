@@ -499,7 +499,11 @@ void CollisionWorldSBPL::checkRobotCollisionMutable(
     }
 
     double dist;
-    bool valid = ewcm->checkCollision(*gm->collisionState(), gidx, dist);
+    bool valid = ewcm->checkCollision(
+            *gm->collisionState(),
+            *gm->attachedBodiesCollisionState(),
+            gidx,
+            dist);
 
     const bool verbose = req.verbose;
     if (verbose) {
@@ -508,7 +512,10 @@ void CollisionWorldSBPL::checkRobotCollisionMutable(
 
     const bool visualize = req.verbose;
     if (visualize) {
-        auto ma = getCollisionRobotVisualization(*gm->collisionState(), gidx);
+        auto ma = getCollisionRobotVisualization(
+                *gm->collisionState(),
+                *gm->attachedBodiesCollisionState(),
+                gidx);
         if (!valid) {
             for (auto& m : ma.markers) {
                 m.color.r = 1.0;
@@ -601,9 +608,10 @@ void CollisionWorldSBPL::processWorldUpdateRemoveShape(
 visualization_msgs::MarkerArray
 CollisionWorldSBPL::getCollisionRobotVisualization(
     sbpl::collision::RobotCollisionState& rcs,
+    sbpl::collision::AttachedBodiesCollisionState& abcs,
     int gidx) const
 {
-    auto ma = GetCollisionMarkers(rcs, gidx);
+    auto ma = GetCollisionMarkers(rcs, abcs, gidx);
     for (auto& m : ma.markers) {
         m.ns = "world_collision";
         if (m_grid) {

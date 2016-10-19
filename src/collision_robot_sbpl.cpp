@@ -305,15 +305,9 @@ void CollisionRobotSBPL::checkSelfCollisionMutable(
         }
         m_collision_pub.publish(bbma);
 
-        m_ab_model = std::make_shared<AttachedBodiesCollisionModel>(
-                m_rcm.get());
-        m_ab_state = std::make_shared<AttachedBodiesCollisionState>(
-                m_ab_model.get(), m_updater.collisionState().get());
         m_scm = std::make_shared<SelfCollisionModel>(
-                m_grid.get(), m_rcm.get(), m_ab_model.get());
+                m_grid.get(), m_rcm.get(), m_updater.attachedBodiesCollisionModel().get());
     }
-
-    updateAttachedBodies(state);
 
     int gidx = m_rcm->groupIndex(collision_group_name);
 
@@ -322,8 +316,9 @@ void CollisionRobotSBPL::checkSelfCollisionMutable(
     double dist;
     bool valid = m_scm->checkCollision(
             *m_updater.collisionState(),
-            *m_ab_state,
-            AllowedCollisionMatrixAndTouchLinksInterface(acm, m_touch_link_map),
+            *m_updater.attachedBodiesCollisionState(),
+            AllowedCollisionMatrixAndTouchLinksInterface(
+                    acm, m_updater.touchLinkSet()),
             gidx,
             dist);
 
@@ -334,7 +329,10 @@ void CollisionRobotSBPL::checkSelfCollisionMutable(
 
     const bool visualize = req.verbose;
     if (visualize) {
-        auto ma = getCollisionRobotVisualization(*m_updater.collisionState(), gidx);
+        auto ma = getCollisionRobotVisualization(
+                *m_updater.collisionState(),
+                *m_updater.attachedBodiesCollisionState(),
+                gidx);
         if (!valid) {
             for (auto& m : ma.markers) {
                 m.color.r = 1.0;
@@ -357,58 +355,6 @@ void CollisionRobotSBPL::checkSelfCollisionMutable(
     if (req.contacts) {
         ROS_WARN_ONCE("Contacts not computed by sbpl collision checker");
     }
-}
-
-bool CollisionRobotSBPL::updateAttachedBodies(
-    const moveit::core::RobotState& state)
-{
-    std::vector<const moveit::core::AttachedBody*> attached_bodies;
-    state.getAttachedBodies(attached_bodies);
-
-    bool updated = false;
-
-    // add bodies not in the attached body model
-    for (const moveit::core::AttachedBody* ab : attached_bodies) {
-        if (!m_ab_model->hasAttachedBody(ab->getName())) {
-            updated = true;
-            ROS_INFO("Attach body '%s' from Robot Collision Model", ab->getName().c_str());
-            m_ab_model->attachBody(ab->getName(), ab->getShapes(), ab->getFixedTransforms(), ab->getAttachedLinkName());
-            for (const auto& touch_link : ab->getTouchLinks()) {
-                m_touch_link_map.insert(std::make_pair(ab->getName(), touch_link));
-                m_touch_link_map.insert(std::make_pair(touch_link, ab->getName()));
-            }
-        }
-    }
-
-    // remove bodies not in the list of attached bodies
-    if (m_ab_model->attachedBodyCount() > attached_bodies.size()) {
-        updated = true;
-        std::vector<int> abindices;
-        m_ab_model->attachedBodyIndices(abindices);
-        for (int abidx : abindices) {
-            const std::string& ab_name = m_ab_model->attachedBodyName(abidx);
-            auto it = std::find_if(
-                    attached_bodies.begin(), attached_bodies.end(),
-                    [&ab_name](const moveit::core::AttachedBody* ab)
-                    {
-                        return ab->getName() == ab_name;
-                    });
-            if (it == attached_bodies.end()) {
-                ROS_INFO("Detach body '%s' from Robot Collision Model", ab_name.c_str());
-                m_ab_model->detachBody(ab_name);
-                auto it = m_touch_link_map.begin();
-                while (it != m_touch_link_map.end()) {
-                    if (it->first == ab_name || it->second == ab_name) {
-                        it = m_touch_link_map.erase(it);
-                    } else {
-                        ++it;
-                    }
-                }
-            }
-        }
-    }
-
-    return updated;
 }
 
 double CollisionRobotSBPL::getSelfCollisionPropagationDistance() const
@@ -467,18 +413,11 @@ sbpl::OccupancyGridPtr CollisionRobotSBPL::createGridFor(
 visualization_msgs::MarkerArray
 CollisionRobotSBPL::getCollisionRobotVisualization(
     sbpl::collision::RobotCollisionState& rcs,
+    sbpl::collision::AttachedBodiesCollisionState& abcs,
     int gidx) const
 {
-    auto ma = GetCollisionMarkers(rcs, gidx);
-    for (int ssidx : m_ab_state->groupSpheresStateIndices(gidx)) {
-        m_ab_state->updateSphereStates(ssidx);
-    }
-    auto abma = m_ab_state->getVisualization(gidx);
-    ma.markers.insert(ma.markers.end(), abma.markers.begin(), abma.markers.end());
-
-    int id = 0;
+    auto ma = GetCollisionMarkers(rcs, abcs, gidx);
     for (auto& m : ma.markers) {
-        m.id = id++;
         m.ns = "self_collision";
         m.header.frame_id = m_rcm->modelFrame();
     }

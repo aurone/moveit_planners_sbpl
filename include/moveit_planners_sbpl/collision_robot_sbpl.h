@@ -163,11 +163,7 @@ private:
 
     // self colllision models
     sbpl::OccupancyGridPtr m_grid;
-    sbpl::collision::AttachedBodiesCollisionModelPtr m_ab_model;
-    sbpl::collision::AttachedBodiesCollisionStatePtr m_ab_state;
     sbpl::collision::SelfCollisionModelPtr m_scm;
-
-    TouchLinkSet m_touch_link_map;
 
     void setVacuousCollision(CollisionResult& res) const;
 
@@ -187,6 +183,7 @@ private:
     visualization_msgs::MarkerArray
     getCollisionRobotVisualization(
         sbpl::collision::RobotCollisionState& rcs,
+        sbpl::collision::AttachedBodiesCollisionState& abcs,
         int gidx) const;
 };
 
