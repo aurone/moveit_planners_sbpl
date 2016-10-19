@@ -425,7 +425,7 @@ double CollisionRobotSBPL::getSelfCollisionPropagationDistance() const
 sbpl::OccupancyGridPtr CollisionRobotSBPL::createGridFor(
     const CollisionGridConfig& config) const
 {
-    ROS_DEBUG_NAMED(CRP_LOGGER, "  Creating Distance Field");
+    ROS_DEBUG_NAMED(CRP_LOGGER, "  Create Distance Field");
     ROS_DEBUG_NAMED(CRP_LOGGER, "    size: (%0.3f, %0.3f, %0.3f)", config.size_x, config.size_y, config.size_z);
     ROS_DEBUG_NAMED(CRP_LOGGER, "    origin: (%0.3f, %0.3f, %0.3f)", config.origin_x, config.origin_y, config.origin_z);
     ROS_DEBUG_NAMED(CRP_LOGGER, "    resolution: %0.3f", config.res_m);
@@ -454,7 +454,15 @@ CollisionRobotSBPL::getCollisionRobotVisualization(
     int gidx) const
 {
     auto ma = GetCollisionMarkers(rcs, gidx);
+    for (int ssidx : m_ab_state->groupSpheresStateIndices(gidx)) {
+        m_ab_state->updateSphereStates(ssidx);
+    }
+    auto abma = m_ab_state->getVisualization(gidx);
+    ma.markers.insert(ma.markers.end(), abma.markers.begin(), abma.markers.end());
+
+    int id = 0;
     for (auto& m : ma.markers) {
+        m.id = id++;
         m.ns = "self_collision";
         m.header.frame_id = m_rcm->modelFrame();
     }
