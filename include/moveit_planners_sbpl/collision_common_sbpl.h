@@ -36,6 +36,8 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
+#include <utility>
 #include <vector>
 
 // system includes
@@ -44,6 +46,8 @@
 #include <moveit/robot_model/robot_model.h>
 #include <moveit/robot_state/robot_state.h>
 #include <moveit_msgs/CollisionObject.h>
+#include <sbpl_collision_checking/attached_bodies_collision_model.h>
+#include <sbpl_collision_checking/attached_bodies_collision_state.h>
 #include <sbpl_collision_checking/robot_collision_model.h>
 #include <sbpl_collision_checking/robot_collision_state.h>
 #include <sbpl_collision_checking/allowed_collisions_interface.h>
@@ -72,6 +76,19 @@ void LoadCollisionGridConfig(
     const std::string& param_name,
     CollisionGridConfig& config);
 
+struct StringPairHash
+{
+    typedef std::pair<std::string, std::string> argument_type;
+    typedef std::size_t result_type;
+    result_type operator()(const argument_type& s) const {
+        const result_type h1 = std::hash<std::string>()(s.first);
+        const result_type h2 = std::hash<std::string>()(s.second);
+        return h1 ^ (h2 << 1);
+    }
+};
+
+typedef std::unordered_set<std::pair<std::string, std::string>, StringPairHash> TouchLinkSet;
+
 // Represents an efficient pipeline for converting RobotStates into
 // RobotCollisionStates for collision checking routines
 class CollisionStateUpdater
@@ -87,8 +104,25 @@ public:
     void update(const moveit::core::RobotState& state);
     void updateInternal(const moveit::core::RobotState& state);
 
-    const sbpl::collision::RobotCollisionStatePtr& collisionState() { return m_rcs; }
-    sbpl::collision::RobotCollisionStateConstPtr collisionState() const { return m_rcs; }
+    const sbpl::collision::RobotCollisionStatePtr&
+    collisionState() { return m_rcs; }
+
+    sbpl::collision::RobotCollisionStateConstPtr
+    collisionState() const { return m_rcs; }
+
+    const sbpl::collision::AttachedBodiesCollisionModelPtr&
+    attachedBodiesCollisionModel() { return m_ab_model; }
+
+    sbpl::collision::AttachedBodiesCollisionModelConstPtr
+    attachedBodiesCollisionModel() const { return m_ab_model; }
+
+    const sbpl::collision::AttachedBodiesCollisionStatePtr&
+    attachedBodiesCollisionState() { return m_ab_state; }
+
+    sbpl::collision::AttachedBodiesCollisionStateConstPtr
+    attachedBodiesCollisionState() const { return m_ab_state; }
+
+    const TouchLinkSet& touchLinkSet() const { return m_touch_link_map; }
 
 private:
 
@@ -116,6 +150,10 @@ private:
     // the final RobotCollisionState
     sbpl::collision::RobotCollisionStatePtr m_rcs;
 
+    sbpl::collision::AttachedBodiesCollisionModelPtr m_ab_model;
+    sbpl::collision::AttachedBodiesCollisionStatePtr m_ab_state;
+    TouchLinkSet m_touch_link_map;
+
     bool extractRobotVariables(
         const moveit::core::RobotModel& model,
         std::vector<std::string>& variable_names,
@@ -132,6 +170,8 @@ private:
         const moveit::core::RobotModel& robot_model,
         std::vector<std::string>& var_names,
         std::vector<int>& var_indices);
+
+    bool updateAttachedBodies(const moveit::core::RobotState& state);
 };
 
 typedef std::shared_ptr<CollisionStateUpdater> CollisionStateUpdaterPtr;
@@ -161,6 +201,41 @@ private:
     const AllowedCollisionMatrix& m_acm;
 };
 
+class AllowedCollisionMatrixAndTouchLinksInterface :
+    public AllowedCollisionMatrixInterface
+{
+public:
+
+    AllowedCollisionMatrixAndTouchLinksInterface(
+        const AllowedCollisionMatrix& acm,
+        const TouchLinkSet& touch_link_map)
+    :
+        AllowedCollisionMatrixInterface(acm),
+        m_touch_link_map(touch_link_map)
+    { }
+
+    virtual bool getEntry(
+        const std::string& name1,
+        const std::string& name2,
+        sbpl::collision::AllowedCollision::Type& type) const override
+    {
+        if (AllowedCollisionMatrixInterface::getEntry(name1, name2, type)) {
+            return true;
+        } else if (m_touch_link_map.find(std::make_pair(name1, name2)) !=
+                m_touch_link_map.end())
+        {
+            type = sbpl::collision::AllowedCollision::Type::ALWAYS;
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+private:
+
+    const TouchLinkSet& m_touch_link_map;
+};
+
 bool WorldObjectToCollisionObjectMsgFull(
     const World::Object& object,
     moveit_msgs::CollisionObject& collision_object);
@@ -171,6 +246,17 @@ bool WorldObjectToCollisionObjectMsgName(
 
 visualization_msgs::MarkerArray
 GetCollisionMarkers(sbpl::collision::RobotCollisionState& rcs, int gidx);
+
+visualization_msgs::MarkerArray
+GetCollisionMarkers(
+    sbpl::collision::AttachedBodiesCollisionState& abcs,
+    int gidx);
+
+visualization_msgs::MarkerArray
+GetCollisionMarkers(
+    sbpl::collision::RobotCollisionState& rcs,
+    sbpl::collision::AttachedBodiesCollisionState& abcs,
+    int gidx);
 
 } // namespace collision_detection
 

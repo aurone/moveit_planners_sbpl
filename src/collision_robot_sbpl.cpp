@@ -271,6 +271,7 @@ void CollisionRobotSBPL::checkSelfCollisionMutable(
     const AllowedCollisionMatrix& acm)
 {
     using sbpl::collision::AttachedBodiesCollisionModel;
+    using sbpl::collision::AttachedBodiesCollisionState;
     using sbpl::collision::RobotCollisionState;
     using sbpl::collision::SelfCollisionModel;
 
@@ -304,9 +305,8 @@ void CollisionRobotSBPL::checkSelfCollisionMutable(
         }
         m_collision_pub.publish(bbma);
 
-        m_ab_model = std::make_shared<AttachedBodiesCollisionModel>(m_rcm.get());
         m_scm = std::make_shared<SelfCollisionModel>(
-                m_grid.get(), m_rcm.get(), m_ab_model.get());
+                m_grid.get(), m_rcm.get(), m_updater.attachedBodiesCollisionModel().get());
     }
 
     int gidx = m_rcm->groupIndex(collision_group_name);
@@ -316,7 +316,9 @@ void CollisionRobotSBPL::checkSelfCollisionMutable(
     double dist;
     bool valid = m_scm->checkCollision(
             *m_updater.collisionState(),
-            AllowedCollisionMatrixInterface(acm),
+            *m_updater.attachedBodiesCollisionState(),
+            AllowedCollisionMatrixAndTouchLinksInterface(
+                    acm, m_updater.touchLinkSet()),
             gidx,
             dist);
 
@@ -325,7 +327,10 @@ void CollisionRobotSBPL::checkSelfCollisionMutable(
 
     const bool visualize = req.verbose;
     if (visualize) {
-        auto ma = getCollisionRobotVisualization(*m_updater.collisionState(), gidx);
+        auto ma = getCollisionRobotVisualization(
+                *m_updater.collisionState(),
+                *m_updater.attachedBodiesCollisionState(),
+                gidx);
         if (!valid) {
             for (auto& m : ma.markers) {
                 m.color.r = 1.0;
@@ -380,7 +385,7 @@ double CollisionRobotSBPL::getSelfCollisionPropagationDistance() const
 sbpl::OccupancyGridPtr CollisionRobotSBPL::createGridFor(
     const CollisionGridConfig& config) const
 {
-    ROS_DEBUG_NAMED(CRP_LOGGER, "  Creating Distance Field");
+    ROS_DEBUG_NAMED(CRP_LOGGER, "  Create Distance Field");
     ROS_DEBUG_NAMED(CRP_LOGGER, "    size: (%0.3f, %0.3f, %0.3f)", config.size_x, config.size_y, config.size_z);
     ROS_DEBUG_NAMED(CRP_LOGGER, "    origin: (%0.3f, %0.3f, %0.3f)", config.origin_x, config.origin_y, config.origin_z);
     ROS_DEBUG_NAMED(CRP_LOGGER, "    resolution: %0.3f", config.res_m);
@@ -406,9 +411,10 @@ sbpl::OccupancyGridPtr CollisionRobotSBPL::createGridFor(
 visualization_msgs::MarkerArray
 CollisionRobotSBPL::getCollisionRobotVisualization(
     sbpl::collision::RobotCollisionState& rcs,
+    sbpl::collision::AttachedBodiesCollisionState& abcs,
     int gidx) const
 {
-    auto ma = GetCollisionMarkers(rcs, gidx);
+    auto ma = GetCollisionMarkers(rcs, abcs, gidx);
     for (auto& m : ma.markers) {
         m.ns = "self_collision";
         m.header.frame_id = m_rcm->modelFrame();

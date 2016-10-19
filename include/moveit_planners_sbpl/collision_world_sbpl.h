@@ -203,6 +203,7 @@ private:
     visualization_msgs::MarkerArray
     getCollisionRobotVisualization(
         sbpl::collision::RobotCollisionState& rcs,
+        sbpl::collision::AttachedBodiesCollisionState& abcs,
         int gidx) const;
 };
 

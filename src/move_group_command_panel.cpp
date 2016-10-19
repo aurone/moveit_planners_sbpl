@@ -568,17 +568,20 @@ void MoveGroupCommandPanel::updateRobotVisualization()
     moveit::core::RobotStateConstPtr robot_state = m_model->robotState();
 
     const bool collision_markers = true;
-    visualization_msgs::MarkerArray marr;
+    const bool include_attached = true;
+    visualization_msgs::MarkerArray ma;
     if (collision_markers) {
-         marr = getRobotCollisionMarkers(*robot_state, robot_model->getLinkModelNames());
+         getRobotCollisionMarkers(
+                 ma, *robot_state, robot_model->getLinkModelNames(), include_attached);
     }
     else {
-        robot_state->getRobotMarkers(marr, robot_model->getLinkModelNames());
+        robot_state->getRobotMarkers(
+                ma, robot_model->getLinkModelNames(), include_attached);
     }
 
     const std::string ns = robot_model->getName() + std::string("_command");
     int id = 0;
-    for (auto& marker : marr.markers) {
+    for (auto& marker : ma.markers) {
         marker.mesh_use_embedded_materials = true; //false;
 
         float r_base = 0.4f; // (float)100 / (float)255;
@@ -631,10 +634,10 @@ void MoveGroupCommandPanel::updateRobotVisualization()
         m.color.b = 0.0f;
         m.color.a = 1.0f;
         m.lifetime = ros::Duration(0);
-        marr.markers.push_back(m);
+        ma.markers.push_back(m);
     }
 
-    m_marker_pub.publish(marr);
+    m_marker_pub.publish(ma);
 }
 
 void MoveGroupCommandPanel::planToGoalPose()
@@ -795,14 +798,12 @@ MoveGroupCommandPanel::getWorkspaceVisualization() const
     return ma;
 }
 
-visualization_msgs::MarkerArray
-MoveGroupCommandPanel::getRobotCollisionMarkers(
+void MoveGroupCommandPanel::getRobotCollisionMarkers(
+    visualization_msgs::MarkerArray& ma,
     const moveit::core::RobotState& state,
     const std::vector<std::string>& link_names,
     bool include_attached) const
 {
-    visualization_msgs::MarkerArray ma;
-
     auto urdf = state.getRobotModel()->getURDF();
 
     ros::Time tm = ros::Time::now();
@@ -815,27 +816,29 @@ MoveGroupCommandPanel::getRobotCollisionMarkers(
             continue;
         }
 
-//        if (include_attached) {
-//            for (auto it = attached_body_map_.begin() ; it != attached_body_map_.end() ; ++it) {
-//                if (it->second->getAttachedLink() == lm) {
-//                    for (std::size_t j = 0 ; j < it->second->getShapes().size() ; ++j) {
-//                        visualization_msgs::Marker att_mark;
-//                        att_mark.header.frame_id = state.getRobotModel()->getModelFrame();
-//                        att_mark.header.stamp = tm;
-//                        if (shapes::constructMarkerFromShape(it->second->getShapes()[j].get(), att_mark)) {
-//                            // if the object is invisible (0 volume) we skip it
-//                            if (fabs(att_mark.scale.x * att_mark.scale.y * att_mark.scale.z) <
-//                                    std::numeric_limits<float>::epsilon())
-//                            {
-//                                continue;
-//                            }
-//                            tf::poseEigenToMsg(it->second->getGlobalCollisionBodyTransforms()[j], att_mark.pose);
-//                            ma.markers.push_back(att_mark);
-//                        }
-//                    }
-//                }
-//            }
-//        }
+        if (include_attached) {
+            std::vector<const moveit::core::AttachedBody*> attached_bodies;
+            state.getAttachedBodies(attached_bodies);
+            for (const moveit::core::AttachedBody* ab : attached_bodies) {
+                if (ab->getAttachedLink() == lm) {
+                    for (std::size_t j = 0 ; j < ab->getShapes().size() ; ++j) {
+                        visualization_msgs::Marker att_mark;
+                        att_mark.header.frame_id = state.getRobotModel()->getModelFrame();
+                        att_mark.header.stamp = tm;
+                        if (shapes::constructMarkerFromShape(ab->getShapes()[j].get(), att_mark)) {
+                            // if the object is invisible (0 volume) we skip it
+                            if (fabs(att_mark.scale.x * att_mark.scale.y * att_mark.scale.z) <
+                                    std::numeric_limits<float>::epsilon())
+                            {
+                                continue;
+                            }
+                            tf::poseEigenToMsg(ab->getGlobalCollisionBodyTransforms()[j], att_mark.pose);
+                            ma.markers.push_back(att_mark);
+                        }
+                    }
+                }
+            }
+        }
 
         if (lm->getShapes().empty()) {
             continue;
@@ -904,8 +907,6 @@ MoveGroupCommandPanel::getRobotCollisionMarkers(
             ++cidx;
         }
     }
-
-    return ma;
 }
 
 QVBoxLayout* MoveGroupCommandPanel::mainLayout()

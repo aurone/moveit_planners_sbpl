@@ -56,6 +56,10 @@ bool CollisionStateUpdater::init(
     const moveit::core::RobotModel& robot,
     const sbpl::collision::RobotCollisionModelConstPtr& rcm)
 {
+    using sbpl::collision::RobotCollisionState;
+    using sbpl::collision::AttachedBodiesCollisionModel;
+    using sbpl::collision::AttachedBodiesCollisionState;
+
     extractRobotVariables(
             robot,
             m_var_names,
@@ -64,7 +68,10 @@ bool CollisionStateUpdater::init(
             m_vars_offset);
     getRobotCollisionModelJointIndices(m_var_names, *rcm, m_rcm_var_indices);
 
-    m_rcs = std::make_shared<sbpl::collision::RobotCollisionState>(rcm.get());
+    m_rcs = std::make_shared<RobotCollisionState>(rcm.get());
+    m_ab_model = std::make_shared<AttachedBodiesCollisionModel>(rcm.get());
+    m_ab_state = std::make_shared<AttachedBodiesCollisionState>(
+            m_ab_model.get(), m_rcs.get());
 
     m_rm_vars.resize(m_var_names.size(), 0.0);
 
@@ -112,6 +119,8 @@ void CollisionStateUpdater::updateInternal(
     }
 
     m_rcs->setJointVarPositions(m_rcm_vars.data());
+
+    updateAttachedBodies(state);
 }
 
 bool CollisionStateUpdater::extractRobotVariables(
@@ -253,6 +262,58 @@ bool CollisionStateUpdater::getRobotVariableNames(
     var_names = std::move(variable_names);
     var_indices = std::move(variable_indices);
     return true;
+}
+
+bool CollisionStateUpdater::updateAttachedBodies(
+    const moveit::core::RobotState& state)
+{
+    std::vector<const moveit::core::AttachedBody*> attached_bodies;
+    state.getAttachedBodies(attached_bodies);
+
+    bool updated = false;
+
+    // add bodies not in the attached body model
+    for (const moveit::core::AttachedBody* ab : attached_bodies) {
+        if (!m_ab_model->hasAttachedBody(ab->getName())) {
+            updated = true;
+            ROS_DEBUG("Attach body '%s' from Robot Collision Model", ab->getName().c_str());
+            m_ab_model->attachBody(ab->getName(), ab->getShapes(), ab->getFixedTransforms(), ab->getAttachedLinkName());
+            for (const auto& touch_link : ab->getTouchLinks()) {
+                m_touch_link_map.insert(std::make_pair(ab->getName(), touch_link));
+                m_touch_link_map.insert(std::make_pair(touch_link, ab->getName()));
+            }
+        }
+    }
+
+    // remove bodies not in the list of attached bodies
+    if (m_ab_model->attachedBodyCount() > attached_bodies.size()) {
+        updated = true;
+        std::vector<int> abindices;
+        m_ab_model->attachedBodyIndices(abindices);
+        for (int abidx : abindices) {
+            const std::string& ab_name = m_ab_model->attachedBodyName(abidx);
+            auto it = std::find_if(
+                    attached_bodies.begin(), attached_bodies.end(),
+                    [&ab_name](const moveit::core::AttachedBody* ab)
+                    {
+                        return ab->getName() == ab_name;
+                    });
+            if (it == attached_bodies.end()) {
+                ROS_DEBUG("Detach body '%s' from Robot Collision Model", ab_name.c_str());
+                m_ab_model->detachBody(ab_name);
+                auto it = m_touch_link_map.begin();
+                while (it != m_touch_link_map.end()) {
+                    if (it->first == ab_name || it->second == ab_name) {
+                        it = m_touch_link_map.erase(it);
+                    } else {
+                        ++it;
+                    }
+                }
+            }
+        }
+    }
+
+    return updated;
 }
 
 void LoadCollisionGridConfig(
@@ -507,6 +568,34 @@ GetCollisionMarkers(sbpl::collision::RobotCollisionState& rcs, int gidx)
         rcs.updateSphereStates(ssidx);
     }
     auto ma = rcs.getVisualization(gidx);
+    return ma;
+}
+
+visualization_msgs::MarkerArray
+GetCollisionMarkers(
+    sbpl::collision::AttachedBodiesCollisionState& abcs,
+    int gidx)
+{
+    for (int ssidx : abcs.groupSpheresStateIndices(gidx)) {
+        abcs.updateSphereStates(ssidx);
+    }
+    return abcs.getVisualization(gidx);
+}
+
+visualization_msgs::MarkerArray
+GetCollisionMarkers(
+    sbpl::collision::RobotCollisionState& rcs,
+    sbpl::collision::AttachedBodiesCollisionState& abcs,
+    int gidx)
+{
+    auto ma = GetCollisionMarkers(rcs, gidx);
+    auto abma = GetCollisionMarkers(abcs, gidx);
+    ma.markers.insert(ma.markers.end(), abma.markers.begin(), abma.markers.end());
+
+    int id = 0;
+    for (auto& m : ma.markers) {
+        m.id = id++;
+    }
     return ma;
 }
 

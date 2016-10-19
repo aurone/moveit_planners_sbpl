@@ -303,7 +303,8 @@ MoveItCollisionChecker::getCollisionModelVisualization(
             m_robot_model->moveitRobotModel()->getLinkModelNames(),
             color,
             "",
-            ros::Duration(0));
+            ros::Duration(0),
+            true);
 
     const moveit::core::LinkModel* tip_link = m_robot_model->planningTipLink();
     if (tip_link) {

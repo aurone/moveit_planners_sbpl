@@ -163,8 +163,6 @@ private:
 
     // self colllision models
     sbpl::OccupancyGridPtr m_grid;
-    sbpl::collision::AttachedBodiesCollisionModelPtr m_ab_model;
-    sbpl::collision::AttachedBodiesCollisionStatePtr m_ab_state;
     sbpl::collision::SelfCollisionModelPtr m_scm;
 
     void setVacuousCollision(CollisionResult& res) const;
@@ -175,6 +173,8 @@ private:
         const robot_state::RobotState& state,
         const AllowedCollisionMatrix& acm);
 
+    bool updateAttachedBodies(const moveit::core::RobotState& state);
+
     double getSelfCollisionPropagationDistance() const;
 
     sbpl::OccupancyGridPtr createGridFor(
@@ -183,6 +183,7 @@ private:
     visualization_msgs::MarkerArray
     getCollisionRobotVisualization(
         sbpl::collision::RobotCollisionState& rcs,
+        sbpl::collision::AttachedBodiesCollisionState& abcs,
         int gidx) const;
 };
 
