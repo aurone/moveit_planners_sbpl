@@ -323,7 +323,7 @@ void CollisionRobotSBPL::checkSelfCollisionMutable(
     bool valid = m_scm->checkCollision(
             *m_updater.collisionState(),
             *m_ab_state,
-            AllowedCollisionMatrixInterface(acm),
+            AllowedCollisionMatrixAndTouchLinksInterface(acm, m_touch_link_map),
             gidx,
             dist);
 
@@ -359,24 +359,30 @@ void CollisionRobotSBPL::checkSelfCollisionMutable(
     }
 }
 
-void CollisionRobotSBPL::updateAttachedBodies(
+bool CollisionRobotSBPL::updateAttachedBodies(
     const moveit::core::RobotState& state)
 {
     std::vector<const moveit::core::AttachedBody*> attached_bodies;
     state.getAttachedBodies(attached_bodies);
 
+    bool updated = false;
+
     // add bodies not in the attached body model
     for (const moveit::core::AttachedBody* ab : attached_bodies) {
-        bool abm_updated = false;
         if (!m_ab_model->hasAttachedBody(ab->getName())) {
-            abm_updated = true;
+            updated = true;
             ROS_INFO("Attach body '%s' from Robot Collision Model", ab->getName().c_str());
             m_ab_model->attachBody(ab->getName(), ab->getShapes(), ab->getFixedTransforms(), ab->getAttachedLinkName());
+            for (const auto& touch_link : ab->getTouchLinks()) {
+                m_touch_link_map.insert(std::make_pair(ab->getName(), touch_link));
+                m_touch_link_map.insert(std::make_pair(touch_link, ab->getName()));
+            }
         }
     }
 
     // remove bodies not in the list of attached bodies
     if (m_ab_model->attachedBodyCount() > attached_bodies.size()) {
+        updated = true;
         std::vector<int> abindices;
         m_ab_model->attachedBodyIndices(abindices);
         for (int abidx : abindices) {
@@ -390,9 +396,19 @@ void CollisionRobotSBPL::updateAttachedBodies(
             if (it == attached_bodies.end()) {
                 ROS_INFO("Detach body '%s' from Robot Collision Model", ab_name.c_str());
                 m_ab_model->detachBody(ab_name);
+                auto it = m_touch_link_map.begin();
+                while (it != m_touch_link_map.end()) {
+                    if (it->first == ab_name || it->second == ab_name) {
+                        it = m_touch_link_map.erase(it);
+                    } else {
+                        ++it;
+                    }
+                }
             }
         }
     }
+
+    return updated;
 }
 
 double CollisionRobotSBPL::getSelfCollisionPropagationDistance() const

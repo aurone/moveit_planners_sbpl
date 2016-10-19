@@ -36,6 +36,8 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
+#include <utility>
 #include <vector>
 
 // system includes
@@ -159,6 +161,53 @@ public:
 private:
 
     const AllowedCollisionMatrix& m_acm;
+};
+
+struct StringPairHash
+{
+    typedef std::pair<std::string, std::string> argument_type;
+    typedef std::size_t result_type;
+    result_type operator()(const argument_type& s) const {
+        const result_type h1 = std::hash<std::string>()(s.first);
+        const result_type h2 = std::hash<std::string>()(s.second);
+        return h1 ^ (h2 << 1);
+    }
+};
+
+typedef std::unordered_set<std::pair<std::string, std::string>, StringPairHash> TouchLinkSet;
+class AllowedCollisionMatrixAndTouchLinksInterface :
+    public AllowedCollisionMatrixInterface
+{
+public:
+
+    AllowedCollisionMatrixAndTouchLinksInterface(
+        const AllowedCollisionMatrix& acm,
+        const TouchLinkSet& touch_link_map)
+    :
+        AllowedCollisionMatrixInterface(acm),
+        m_touch_link_map(touch_link_map)
+    { }
+
+    virtual bool getEntry(
+        const std::string& name1,
+        const std::string& name2,
+        sbpl::collision::AllowedCollision::Type& type) const override
+    {
+        if (AllowedCollisionMatrixInterface::getEntry(name1, name2, type)) {
+            return true;
+        } else if (m_touch_link_map.find(std::make_pair(name1, name2)) !=
+                m_touch_link_map.end())
+        {
+            type = sbpl::collision::AllowedCollision::Type::ALWAYS;
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+private:
+
+    const TouchLinkSet& m_touch_link_map;
 };
 
 bool WorldObjectToCollisionObjectMsgFull(

@@ -167,6 +167,8 @@ private:
     sbpl::collision::AttachedBodiesCollisionStatePtr m_ab_state;
     sbpl::collision::SelfCollisionModelPtr m_scm;
 
+    TouchLinkSet m_touch_link_map;
+
     void setVacuousCollision(CollisionResult& res) const;
 
     void checkSelfCollisionMutable(
@@ -175,7 +177,7 @@ private:
         const robot_state::RobotState& state,
         const AllowedCollisionMatrix& acm);
 
-    void updateAttachedBodies(const moveit::core::RobotState& state);
+    bool updateAttachedBodies(const moveit::core::RobotState& state);
 
     double getSelfCollisionPropagationDistance() const;
 
