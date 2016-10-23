@@ -62,10 +62,10 @@ private:
 
     sbpl::OccupancyGridPtr m_grid;
 
-    sbpl::manip::PlannerInterfacePtr m_planner;
+    sbpl::motion::PlannerInterfacePtr m_planner;
 
     std::map<std::string, std::string> m_config;
-    sbpl::manip::PlanningParams m_pp;
+    sbpl::motion::PlanningParams m_pp;
 
     double m_bfs_res_x;
     double m_bfs_res_y;

@@ -272,7 +272,7 @@ bool SBPLPlanningContext::init(const std::map<std::string, std::string>& config)
 
     ROS_DEBUG_NAMED(PP_LOGGER, " -> Required Parameters Found");
 
-    sbpl::manip::PlanningParams pp;
+    sbpl::motion::PlanningParams pp;
 
     //////////////////////////////////
     // parse state space parameters //
@@ -382,12 +382,12 @@ bool SBPLPlanningContext::init(const std::map<std::string, std::string>& config)
     // parse post-processing parameters //
     //////////////////////////////////////
 
-    typedef std::unordered_map<std::string, sbpl::manip::ShortcutType> ShortcutTypeNameToValueMap;
+    typedef std::unordered_map<std::string, sbpl::motion::ShortcutType> ShortcutTypeNameToValueMap;
     const ShortcutTypeNameToValueMap shortcut_name_to_value =
     {
-        { "joint_space", sbpl::manip::ShortcutType::JOINT_SPACE },
-        { "joint_position_velocity_space", sbpl::manip::ShortcutType::JOINT_POSITION_VELOCITY_SPACE },
-        { "workspace", sbpl::manip::ShortcutType::EUCLID_SPACE },
+        { "joint_space", sbpl::motion::ShortcutType::JOINT_SPACE },
+        { "joint_position_velocity_space", sbpl::motion::ShortcutType::JOINT_POSITION_VELOCITY_SPACE },
+        { "workspace", sbpl::motion::ShortcutType::EUCLID_SPACE },
     };
     const std::string default_shortcut_type = "joint_space";
 
@@ -470,7 +470,7 @@ bool SBPLPlanningContext::initSBPL(std::string& why)
         return false;
     }
 
-    m_planner = std::make_shared<sbpl::manip::PlannerInterface>(
+    m_planner = std::make_shared<sbpl::motion::PlannerInterface>(
             m_robot_model,
             &m_collision_checker,
             m_grid.get());

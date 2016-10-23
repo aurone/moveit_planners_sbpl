@@ -44,10 +44,10 @@
 namespace sbpl_interface {
 
 class MoveItRobotModel :
-    public virtual sbpl::manip::RobotModel,
-    public virtual sbpl::manip::ForwardKinematicsInterface,
-    public virtual sbpl::manip::InverseKinematicsInterface,
-    public virtual sbpl::manip::RedundantManipulatorInterface
+    public virtual sbpl::motion::RobotModel,
+    public virtual sbpl::motion::ForwardKinematicsInterface,
+    public virtual sbpl::motion::InverseKinematicsInterface,
+    public virtual sbpl::motion::RedundantManipulatorInterface
 {
 public:
 
@@ -92,10 +92,10 @@ public:
 
     /// \namem Reimplemented Public Functions from Extension
     ///@{
-    virtual sbpl::manip::Extension* getExtension(size_t class_code);
+    virtual sbpl::motion::Extension* getExtension(size_t class_code);
     ///@}
 
-    /// \name Reimplemented Public Functions from sbpl::manip::RobotModel
+    /// \name Reimplemented Public Functions from sbpl::motion::RobotModel
     ///@{
     double minPosLimit(int jidx) const override;
     double maxPosLimit(int jidx) const override;
@@ -108,7 +108,7 @@ public:
         bool verbose = false) override;
     ///@}
 
-    /// \name Reimplemented Public Functions from sbpl::manip::ForwardKinematicsInterface
+    /// \name Reimplemented Public Functions from sbpl::motion::ForwardKinematicsInterface
     ///@{
     bool computeFK(
         const std::vector<double>& angles,
@@ -120,22 +120,22 @@ public:
         std::vector<double>& pose);
     ///@}
 
-    /// \name Reimplemented Public Functions from sbpl::manip::InverseKinematicsInterface
+    /// \name Reimplemented Public Functions from sbpl::motion::InverseKinematicsInterface
     ///@{
     bool computeIK(
         const std::vector<double>& pose,
         const std::vector<double>& start,
         std::vector<double>& solution,
-        sbpl::manip::ik_option::IkOption option = sbpl::manip::ik_option::UNRESTRICTED) override;
+        sbpl::motion::ik_option::IkOption option = sbpl::motion::ik_option::UNRESTRICTED) override;
 
     bool computeIK(
         const std::vector<double>& pose,
         const std::vector<double>& start,
         std::vector<std::vector<double> >& solutions,
-        sbpl::manip::ik_option::IkOption option = sbpl::manip::ik_option::UNRESTRICTED) override;
+        sbpl::motion::ik_option::IkOption option = sbpl::motion::ik_option::UNRESTRICTED) override;
     ///@}
 
-    /// \name Reimplemented Public Functions from sbpl::manip::RedundantManipulatorInterface
+    /// \name Reimplemented Public Functions from sbpl::motion::RedundantManipulatorInterface
     ///@{
     const int redundantVariableCount() const override;
 
@@ -174,7 +174,7 @@ private:
     int m_redundant_var_count;
     std::vector<int> m_redundant_var_indices;
 
-    std::shared_ptr<sbpl::manip::RPYSolver> m_rpy_solver;
+    std::shared_ptr<sbpl::motion::RPYSolver> m_rpy_solver;
     std::string m_forearm_roll_link;
     std::string m_wrist_flex_link;
     std::string m_wrist_roll_link;

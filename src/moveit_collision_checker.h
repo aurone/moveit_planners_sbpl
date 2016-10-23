@@ -44,11 +44,11 @@ namespace sbpl_interface {
 
 class MoveItRobotModel;
 
-class MoveItCollisionChecker : public sbpl::manip::CollisionChecker
+class MoveItCollisionChecker : public sbpl::motion::CollisionChecker
 {
 public:
 
-    typedef sbpl::manip::CollisionChecker Base;
+    typedef sbpl::motion::CollisionChecker Base;
 
     MoveItCollisionChecker();
     ~MoveItCollisionChecker();

@@ -226,7 +226,7 @@ bool SBPLPlannerManager::canServiceRequest(
 
     // guard against unsupported constraints in the underlying interface
     std::string why;
-    if (!sbpl::manip::PlannerInterface::SupportsGoalConstraints(
+    if (!sbpl::motion::PlannerInterface::SupportsGoalConstraints(
             req.goal_constraints, why))
     {
         ROS_ERROR_NAMED(PP_LOGGER, "goal constraints not supported (%s)", why.c_str());

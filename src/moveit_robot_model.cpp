@@ -238,7 +238,7 @@ bool MoveItRobotModel::init(
         double wrist_pitch_min = var_bounds.min_position_;
         double wrist_pitch_max = var_bounds.max_position_;
         ROS_INFO("Instantiating orientation solver with limits [%0.3f, %0.3f]", wrist_pitch_min, wrist_pitch_max);
-        m_rpy_solver.reset(new sbpl::manip::RPYSolver(wrist_pitch_min, wrist_pitch_max));
+        m_rpy_solver.reset(new sbpl::motion::RPYSolver(wrist_pitch_min, wrist_pitch_max));
     }
 
     return true;
@@ -280,12 +280,12 @@ bool MoveItRobotModel::setPlanningFrame(const std::string& planning_frame)
     return true;
 }
 
-sbpl::manip::Extension* MoveItRobotModel::getExtension(size_t class_code)
+sbpl::motion::Extension* MoveItRobotModel::getExtension(size_t class_code)
 {
-    if (class_code == sbpl::manip::GetClassCode<sbpl::manip::RobotModel>() ||
-        class_code == sbpl::manip::GetClassCode<sbpl::manip::ForwardKinematicsInterface>() ||
-        class_code == sbpl::manip::GetClassCode<sbpl::manip::InverseKinematicsInterface>() ||
-        class_code == sbpl::manip::GetClassCode<sbpl::manip::RedundantManipulatorInterface>())
+    if (class_code == sbpl::motion::GetClassCode<sbpl::motion::RobotModel>() ||
+        class_code == sbpl::motion::GetClassCode<sbpl::motion::ForwardKinematicsInterface>() ||
+        class_code == sbpl::motion::GetClassCode<sbpl::motion::InverseKinematicsInterface>() ||
+        class_code == sbpl::motion::GetClassCode<sbpl::motion::RedundantManipulatorInterface>())
     {
         return this;
     }
@@ -456,7 +456,7 @@ bool MoveItRobotModel::computeIK(
     const std::vector<double>& pose,
     const std::vector<double>& start,
     std::vector<double>& solution,
-    sbpl::manip::ik_option::IkOption option)
+    sbpl::motion::ik_option::IkOption option)
 {
     if (!initialized()) {
         ROS_ERROR("MoveIt! Robot Model is uninitialized");
@@ -469,9 +469,9 @@ bool MoveItRobotModel::computeIK(
     }
 
     switch (option) {
-    case sbpl::manip::ik_option::UNRESTRICTED:
+    case sbpl::motion::ik_option::UNRESTRICTED:
         return computeUnrestrictedIK(pose, start, solution);
-    case sbpl::manip::ik_option::RESTRICT_XYZ:
+    case sbpl::motion::ik_option::RESTRICT_XYZ:
         return computeWristIK(pose, start, solution);
     }
 
@@ -554,7 +554,7 @@ bool MoveItRobotModel::computeIK(
     const std::vector<double>& pose,
     const std::vector<double>& start,
     std::vector<std::vector<double>>& solutions,
-    sbpl::manip::ik_option::IkOption option)
+    sbpl::motion::ik_option::IkOption option)
 {
     // TODO: the indigo version of moveit currently does not support returning
     // multiple ik solutions, so instead we just return the only solution moveit
