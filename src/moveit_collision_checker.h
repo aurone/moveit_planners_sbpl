@@ -61,27 +61,28 @@ public:
     bool initialized() const;
 
     bool isStateValid(
-        const std::vector<double>& angles,
+        const sbpl::motion::RobotState& angles,
         bool verbose,
         bool visualize,
         double& dist);
 
     bool isStateToStateValid(
-        const std::vector<double>& angles0,
-        const std::vector<double>& angles1,
+        const sbpl::motion::RobotState& angles0,
+        const sbpl::motion::RobotState& angles1,
         int& path_length,
         int& num_checks,
         double& dist);
 
     bool interpolatePath(
-        const std::vector<double>& start,
-        const std::vector<double>& finish,
-        std::vector<std::vector<double>>& opath);
+        const sbpl::motion::RobotState& start,
+        const sbpl::motion::RobotState& finish,
+        std::vector<sbpl::motion::RobotState>& opath);
 
-    visualization_msgs::MarkerArray getCollisionModelVisualization(
-        const std::vector<double>& angles);
+    visualization_msgs::MarkerArray
+    getCollisionModelVisualization(const sbpl::motion::RobotState& angles);
 
-    visualization_msgs::MarkerArray getVisualization(const std::string& type);
+    visualization_msgs::MarkerArray
+    getVisualization(const std::string& type);
 
 private:
 
@@ -92,17 +93,17 @@ private:
 
     moveit::core::RobotStatePtr m_ref_state;
 
-    std::vector<double> m_zero_state;
+    sbpl::motion::RobotState m_zero_state;
     std::vector<double> m_diffs;
-    std::vector<std::vector<double>> m_waypoint_path;
+    std::vector<sbpl::motion::RobotState> m_waypoint_path;
 
     // interpolate the path between start and finish, storing intermediate
     // waypoints within opath. previous entries in opath are overwritten and
     // never cleared. the number of relevant waypoints is returned
     int interpolatePathFast(
-        const std::vector<double>& start,
-        const std::vector<double>& finish,
-        std::vector<std::vector<double>>& opath);
+        const sbpl::motion::RobotState& start,
+        const sbpl::motion::RobotState& finish,
+        std::vector<sbpl::motion::RobotState>& opath);
 
     ros::Publisher m_vpub;
 };

@@ -130,7 +130,7 @@ bool MoveItCollisionChecker::initialized() const
 }
 
 bool MoveItCollisionChecker::isStateValid(
-    const std::vector<double>& angles,
+    const sbpl::motion::RobotState& state,
     bool verbose,
     bool visualize,
     double& dist)
@@ -141,9 +141,9 @@ bool MoveItCollisionChecker::isStateValid(
     }
 
     // fill in variable values
-    for (size_t vind = 0; vind < angles.size(); ++vind) {
+    for (size_t vind = 0; vind < state.size(); ++vind) {
         m_ref_state->setVariablePosition(
-                m_robot_model->activeVariableIndices()[vind], angles[vind]);
+                m_robot_model->activeVariableIndices()[vind], state[vind]);
     }
 
     // TODO: need to propagate path_constraints and trajectory_constraints down
@@ -161,13 +161,12 @@ bool MoveItCollisionChecker::isStateValid(
     {
         dist = 0.0;
         if (visualize) {
-            visualization_msgs::MarkerArray marr =
-                    getCollisionModelVisualization(angles);
-            for (auto& marker : marr.markers) {
+            auto ma = getCollisionModelVisualization(state);
+            for (auto& marker : ma.markers) {
                 marker.color.r = 0.8;
                 marker.ns = "collision";
             }
-            m_vpub.publish(marr);
+            m_vpub.publish(ma);
         }
         return false;
     }
@@ -176,8 +175,8 @@ bool MoveItCollisionChecker::isStateValid(
 }
 
 bool MoveItCollisionChecker::isStateToStateValid(
-    const std::vector<double>& start,
-    const std::vector<double>& finish,
+    const sbpl::motion::RobotState& start,
+    const sbpl::motion::RobotState& finish,
     int& path_length,
     int& num_checks,
     double& dist)
@@ -192,7 +191,7 @@ bool MoveItCollisionChecker::isStateToStateValid(
     }
 
     for (int widx = 0; widx < waypoint_count; ++widx) {
-        const std::vector<double>& p = m_waypoint_path[widx];
+        const sbpl::motion::RobotState& p = m_waypoint_path[widx];
         double d;
         bool res = isStateValid(p, false, false, d);
         if (d < dist) {
@@ -208,23 +207,18 @@ bool MoveItCollisionChecker::isStateToStateValid(
 }
 
 bool MoveItCollisionChecker::interpolatePath(
-    const std::vector<double>& start,
-    const std::vector<double>& finish,
-    std::vector<std::vector<double>>& opath)
+    const sbpl::motion::RobotState& start,
+    const sbpl::motion::RobotState& finish,
+    std::vector<sbpl::motion::RobotState>& opath)
 {
     opath.clear();
-    if (interpolatePathFast(start, finish, opath) < 0) {
-        return false;
-    }
-    else {
-        return true;
-    }
+    return interpolatePathFast(start, finish, opath) >= 0;
 }
 
 int MoveItCollisionChecker::interpolatePathFast(
-    const std::vector<double>& start,
-    const std::vector<double>& finish,
-    std::vector<std::vector<double>>& opath)
+    const sbpl::motion::RobotState& start,
+    const sbpl::motion::RobotState& finish,
+    std::vector<sbpl::motion::RobotState>& opath)
 {
     assert(start.size() == m_robot_model->activeVariableCount() &&
             finish.size() == m_robot_model->activeVariableCount());
@@ -283,13 +277,13 @@ int MoveItCollisionChecker::interpolatePathFast(
 
 visualization_msgs::MarkerArray
 MoveItCollisionChecker::getCollisionModelVisualization(
-    const std::vector<double>& angles)
+    const sbpl::motion::RobotState& state)
 {
     moveit::core::RobotState robot_state(*m_ref_state);
 
-    for (size_t vind = 0; vind < angles.size(); ++vind) {
+    for (size_t vind = 0; vind < state.size(); ++vind) {
         int avind = m_robot_model->activeVariableIndices()[vind];
-        robot_state.setVariablePosition(avind, angles[vind]);
+        robot_state.setVariablePosition(avind, state[vind]);
     }
 
     visualization_msgs::MarkerArray marker_arr;
