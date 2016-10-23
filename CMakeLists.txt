@@ -22,7 +22,7 @@ find_package(catkin REQUIRED
     moveit_ros_planning
     roscpp
     rviz
-    sbpl_arm_planner
+    smpl
     sbpl_collision_checking
     sbpl_geometry_utils
     sbpl_pr2_robot_model
@@ -37,7 +37,7 @@ catkin_package(
         eigen_conversions
         geometric_shapes
         leatherman
-        sbpl_arm_planner
+        smpl
         sbpl_collision_checking
         sbpl_pr2_robot_model
         roscpp

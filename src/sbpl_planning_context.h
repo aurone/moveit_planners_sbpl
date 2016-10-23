@@ -9,7 +9,7 @@
 #include <moveit/planning_interface/planning_interface.h>
 #include <moveit_msgs/OrientedBoundingBox.h>
 #include <moveit_msgs/MotionPlanRequest.h>
-#include <sbpl_arm_planner/planner_interface.h>
+#include <smpl/planner_interface.h>
 
 #include <moveit_planners_sbpl/moveit_robot_model.h>
 

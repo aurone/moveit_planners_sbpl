@@ -38,7 +38,7 @@
 #include <moveit/robot_model/robot_model.h>
 #include <moveit/robot_state/robot_state.h>
 #include <moveit/planning_scene/planning_scene.h>
-#include <sbpl_arm_planner/robot_model.h>
+#include <smpl/robot_model.h>
 #include <sbpl_pr2_robot_model/orientation_solver.h>
 
 namespace sbpl_interface {

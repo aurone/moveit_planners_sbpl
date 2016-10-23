@@ -20,7 +20,7 @@
     <depend>moveit_ros_planning</depend>
     <depend>roscpp</depend>
     <depend>rviz</depend>
-    <depend>sbpl_arm_planner</depend>
+    <depend>smpl</depend>
     <depend>sbpl_collision_checking</depend>
     <depend>sbpl_geometry_utils</depend>
     <depend>sbpl_pr2_robot_model</depend>

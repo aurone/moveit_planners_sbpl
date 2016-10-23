@@ -45,7 +45,7 @@
 #include <ros/ros.h>
 #include <sbpl_collision_checking/collision_space.h>
 #include <sbpl_collision_checking/collision_model_config.h>
-#include <sbpl_arm_planner/occupancy_grid.h>
+#include <smpl/occupancy_grid.h>
 
 // project includes
 #include <moveit_planners_sbpl/moveit_robot_model.h>

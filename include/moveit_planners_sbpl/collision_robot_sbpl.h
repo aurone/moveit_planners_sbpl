@@ -34,7 +34,7 @@
 
 // system includes
 #include <moveit/collision_detection/collision_robot.h>
-#include <sbpl_arm_planner/occupancy_grid.h>
+#include <smpl/occupancy_grid.h>
 #include <sbpl_collision_checking/attached_bodies_collision_model.h>
 #include <sbpl_collision_checking/robot_collision_model.h>
 #include <sbpl_collision_checking/self_collision_model.h>
