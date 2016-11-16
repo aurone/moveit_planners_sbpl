@@ -3,7 +3,7 @@
 // system includes
 #include <Eigen/Dense>
 #include <ros/console.h>
-#include <sbpl_geometry_utils/utils.h>
+#include <smpl/angles.h>
 #include <leatherman/print.h>
 
 // module includes
@@ -200,7 +200,8 @@ void JointVariableCommandWidget::syncSpinBoxes()
             // simultaneously set the values for the rpy spinboxes
             Eigen::Affine3d rot(Eigen::Quaterniond(
                     qvars[0], qvars[1], qvars[2], qvars[3]));
-            Eigen::Vector3d ypr = rot.rotation().eulerAngles(2, 1, 0);
+            Eigen::Vector3d ypr;
+            sbpl::angles::get_euler_zyx(rot.rotation(), ypr[0], ypr[1], ypr[2]);
 
             Eigen::Affine3d A(
                 Eigen::AngleAxisd(ypr[0], Eigen::Vector3d::UnitZ()) *
@@ -210,9 +211,9 @@ void JointVariableCommandWidget::syncSpinBoxes()
             double are_diff = A.isApprox(rot, 0.001);
 
             // round to the nearest degree to try and get more stable results
-            double vY = std::round(sbpl::utils::ToDegrees(ypr[0]));
-            double vP = std::round(sbpl::utils::ToDegrees(ypr[1]));
-            double vR = std::round(sbpl::utils::ToDegrees(ypr[2]));
+            double vY = std::round(sbpl::angles::to_degrees(ypr[0]));
+            double vP = std::round(sbpl::angles::to_degrees(ypr[1]));
+            double vR = std::round(sbpl::angles::to_degrees(ypr[2]));
             // break the cycle
             if ((qspinboxes[0]->value() != vR ||
                 qspinboxes[1]->value() != vP ||
@@ -242,7 +243,7 @@ void JointVariableCommandWidget::syncSpinBoxes()
                 assert(m_vind_to_spinbox[vi].size() == 1);
                 QDoubleSpinBox* spinbox = m_vind_to_spinbox[vi][0];
                 if (isVariableAngle(vi)) {
-                    double value = sbpl::utils::ToDegrees(
+                    double value = sbpl::angles::to_degrees(
                             robot_state->getVariablePosition(vi));
                     if (value != spinbox->value()) {
                         spinbox->setValue(value);
@@ -536,7 +537,7 @@ QDoubleSpinBox* JointVariableCommandWidget::createPitchVariableSpinBox()
     ROS_INFO("create pitch variable spinbox");
     // TODO: limit bounds
     QDoubleSpinBox* spinbox = new QDoubleSpinBox;
-    spinbox->setMinimum(-180.0);
+    spinbox->setMinimum(0.0);
     spinbox->setMaximum(180.0);
     spinbox->setSingleStep(1.0);
     spinbox->setWrapping(true);
@@ -548,7 +549,7 @@ QDoubleSpinBox* JointVariableCommandWidget::createYawVariableSpinBox()
     ROS_INFO("create yaw variable spinbox");
     // TODO: limit bounds
     QDoubleSpinBox* spinbox = new QDoubleSpinBox;
-    spinbox->setMinimum(0.0);
+    spinbox->setMinimum(-180.0);
     spinbox->setMaximum(180.0);
     spinbox->setSingleStep(1.0);
     spinbox->setWrapping(true);
@@ -572,9 +573,9 @@ QDoubleSpinBox* JointVariableCommandWidget::createRevoluteVariableSpinBox(
     if (bounds.position_bounded_) {
         QDoubleSpinBox* spinbox = new QDoubleSpinBox;
         spinbox->setMinimum(
-                sbpl::utils::ToDegrees(bounds.min_position_));
+                sbpl::angles::to_degrees(bounds.min_position_));
         spinbox->setMaximum(
-                sbpl::utils::ToDegrees(bounds.max_position_));
+                sbpl::angles::to_degrees(bounds.max_position_));
         spinbox->setSingleStep(1.0);
         spinbox->setWrapping(false);
         return spinbox;
@@ -649,9 +650,9 @@ void JointVariableCommandWidget::setJointVariableFromSpinBox(double value)
         double y = std::round(rpy_controls[2]->value());
         ROS_INFO("set rpy values from spinbox values (%0.3f, %0.3f, %0.3f)", r, p, y);
         Eigen::Quaterniond rot(
-                Eigen::AngleAxisd(sbpl::utils::ToRadians(y), Eigen::Vector3d::UnitZ()) *
-                Eigen::AngleAxisd(sbpl::utils::ToRadians(p), Eigen::Vector3d::UnitY()) *
-                Eigen::AngleAxisd(sbpl::utils::ToRadians(r), Eigen::Vector3d::UnitX()));
+                Eigen::AngleAxisd(sbpl::angles::to_radians(y), Eigen::Vector3d::UnitZ()) *
+                Eigen::AngleAxisd(sbpl::angles::to_radians(p), Eigen::Vector3d::UnitY()) *
+                Eigen::AngleAxisd(sbpl::angles::to_radians(r), Eigen::Vector3d::UnitX()));
         ROS_INFO("  set quaternion (%0.3f, %0.3f, %0.3f, %0.3f)", rot.w(), rot.x(), rot.y(), rot.z());
         m_ignore_sync = true;
         m_model->setJointVariable(variables[0], rot.w());
@@ -663,7 +664,7 @@ void JointVariableCommandWidget::setJointVariableFromSpinBox(double value)
         // everything else
         if (isVariableAngle(variables[0])) {
             // convert to radians and assign
-            m_model->setJointVariable(variables[0], sbpl::utils::ToRadians(value));
+            m_model->setJointVariable(variables[0], sbpl::angles::to_radians(value));
         } else {
             // assign without conversion
             m_model->setJointVariable(variables[0], value);
