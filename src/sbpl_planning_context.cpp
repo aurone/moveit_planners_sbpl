@@ -14,6 +14,8 @@
 
 static const char* PP_LOGGER = "planning";
 
+namespace smpl = sbpl::motion;
+
 namespace moveit_msgs {
 
 static std::string to_string(moveit_msgs::MoveItErrorCodes code)
@@ -110,8 +112,6 @@ bool SBPLPlanningContext::solve(planning_interface::MotionPlanResponse& res)
     assert(robot);
     const planning_interface::MotionPlanRequest& req = getMotionPlanRequest();
 
-    // pretend that planning_interface::MotionPlanRequest and
-    // moveit_msgs::MotionPlanRequest are not the same
     moveit_msgs::MotionPlanRequest req_msg;
     if (!translateRequest(req_msg)) {
         ROS_WARN_NAMED(PP_LOGGER, "Unable to translate Motion Plan Request to SBPL Motion Plan Request");
@@ -125,6 +125,7 @@ bool SBPLPlanningContext::solve(planning_interface::MotionPlanResponse& res)
         ROS_WARN_NAMED(PP_LOGGER, "Unable to update start state with requested start state overrides");
         return false;
     }
+    moveit::core::robotStateToRobotStateMsg(*start_state, req_msg.start_state);
 
     if (req_msg.goal_constraints.empty()) {
         // :3
@@ -150,39 +151,36 @@ bool SBPLPlanningContext::solve(planning_interface::MotionPlanResponse& res)
     moveit_msgs::PlanningScene scene_msg;
     scene->getPlanningSceneMsg(scene_msg);
 
-    moveit::core::robotStateToRobotStateMsg(*start_state, req_msg.start_state);
-
     moveit_msgs::MotionPlanResponse res_msg;
-    bool result = m_planner->solve(scene_msg, req_msg, res_msg);
-    if (result) {
-        ROS_DEBUG_NAMED(PP_LOGGER, "Call to solve() succeeded");
-
-        ROS_DEBUG_NAMED(PP_LOGGER, "Creating RobotTrajectory from path with %zu joint trajectory points and %zu multi-dof joint trajectory points",
-                    res_msg.trajectory.joint_trajectory.points.size(),
-                    res_msg.trajectory.multi_dof_joint_trajectory.points.size());
-        robot_trajectory::RobotTrajectoryPtr traj(
-                new robot_trajectory::RobotTrajectory(robot, getGroupName()));
-        traj->setRobotTrajectoryMsg(*start_state, res_msg.trajectory);
-
-        // TODO: Is there any reason to use res_msg.trajectory_start as the
-        // reference state or res_msg.group_name in the above RobotTrajectory
-        // constructor?
-
-        ROS_INFO_NAMED(PP_LOGGER, "Motion Plan Response:");
-        ROS_INFO_NAMED(PP_LOGGER, "  Trajectory: %zu points", traj->getWayPointCount());
-        ROS_INFO_NAMED(PP_LOGGER, "  Planning Time: %0.3f seconds", res_msg.planning_time);
-        ROS_INFO_NAMED(PP_LOGGER, "  Error Code: %d (%s)", res_msg.error_code.val, to_string(res_msg.error_code).c_str());
-
-        res.trajectory_ = traj;
-        res.planning_time_ = res_msg.planning_time;
-        res.error_code_ = res_msg.error_code;
-    }
-    else {
+    if (!m_planner->solve(scene_msg, req_msg, res_msg)) {
         res.trajectory_.reset();
         res.planning_time_ = res_msg.planning_time;
         res.error_code_ = res_msg.error_code;
+        return false;
     }
-    return result;
+
+    ROS_DEBUG_NAMED(PP_LOGGER, "Call to solve() succeeded");
+
+    ROS_DEBUG_NAMED(PP_LOGGER, "Create RobotTrajectory from path with %zu joint trajectory points and %zu multi-dof joint trajectory points",
+            res_msg.trajectory.joint_trajectory.points.size(),
+            res_msg.trajectory.multi_dof_joint_trajectory.points.size());
+    robot_trajectory::RobotTrajectoryPtr traj(
+            new robot_trajectory::RobotTrajectory(robot, getGroupName()));
+    traj->setRobotTrajectoryMsg(*start_state, res_msg.trajectory);
+
+    // TODO: Is there any reason to use res_msg.trajectory_start as the
+    // reference state or res_msg.group_name in the above RobotTrajectory
+    // constructor?
+
+    ROS_INFO_NAMED(PP_LOGGER, "Motion Plan Response:");
+    ROS_INFO_NAMED(PP_LOGGER, "  Trajectory: %zu points", traj->getWayPointCount());
+    ROS_INFO_NAMED(PP_LOGGER, "  Planning Time: %0.3f seconds", res_msg.planning_time);
+    ROS_INFO_NAMED(PP_LOGGER, "  Error Code: %d (%s)", res_msg.error_code.val, to_string(res_msg.error_code).c_str());
+
+    res.trajectory_ = traj;
+    res.planning_time_ = res_msg.planning_time;
+    res.error_code_ = res_msg.error_code;
+    return true;
 }
 
 bool SBPLPlanningContext::solve(
@@ -205,7 +203,7 @@ void SBPLPlanningContext::clear()
 
 bool SBPLPlanningContext::init(const std::map<std::string, std::string>& config)
 {
-    ROS_DEBUG_NAMED(PP_LOGGER, "Initializing SBPL Planning Context");
+    ROS_DEBUG_NAMED(PP_LOGGER, "Initialize SBPL Planning Context");
 
     // TODO: implement a way to pass down planner-specific parameters to the
     // Planner Interface from above and to query the interface for
@@ -218,6 +216,11 @@ bool SBPLPlanningContext::init(const std::map<std::string, std::string>& config)
 
     const std::vector<std::string>& required_params =
     {
+        "search",
+        "heuristic",
+        "graph",
+        "shortcut_type",
+
         // environment
         "discretization",
 
@@ -231,8 +234,6 @@ bool SBPLPlanningContext::init(const std::map<std::string, std::string>& config)
         "rpy_snap_dist_thresh",
         "xyzrpy_snap_dist_thresh",
         "short_dist_mprims_thresh",
-
-        "use_bfs_heuristic",
 
         // planner
         "type",
@@ -251,17 +252,24 @@ bool SBPLPlanningContext::init(const std::map<std::string, std::string>& config)
         }
     }
 
-    // define conditionally-required parameters
-    const std::vector<std::string>& bfs_required_params =
-    {
-        "bfs_res_x",
-        "bfs_res_y",
-        "bfs_res_z",
-        "bfs_sphere_radius"
-    };
+    const std::string& search_name = config.at("search");
+    const std::string& heuristic_name = config.at("heuristic");
+    const std::string& graph_name = config.at("graph");
+    m_planner_id = search_name + "." + heuristic_name + "." + graph_name;
+    ROS_INFO("  Request planner '%s'", m_planner_id.c_str());
 
-    // check for all required parameters
-    if (config.at("use_bfs_heuristic") == "true") {
+    m_use_bfs = (heuristic_name == "bfs" || heuristic_name == "mfbfs");
+
+    // check for all parameters required for bfs heuristic
+    if (m_use_bfs) {
+        const std::vector<std::string>& bfs_required_params =
+        {
+            "bfs_res_x",
+            "bfs_res_y",
+            "bfs_res_z",
+            "bfs_sphere_radius"
+        };
+
         for (const std::string& req_param : bfs_required_params) {
             if (config.find(req_param) == config.end()) {
                 ROS_ERROR_NAMED(PP_LOGGER, "Missing parameter '%s'", req_param.c_str());
@@ -272,7 +280,7 @@ bool SBPLPlanningContext::init(const std::map<std::string, std::string>& config)
 
     ROS_DEBUG_NAMED(PP_LOGGER, " -> Required Parameters Found");
 
-    sbpl::motion::PlanningParams pp;
+    smpl::PlanningParams pp;
 
     //////////////////////////////////
     // parse state space parameters //
@@ -343,12 +351,11 @@ bool SBPLPlanningContext::init(const std::map<std::string, std::string>& config)
     // parse heuristic parameters //
     ////////////////////////////////
 
-    pp.use_bfs_heuristic = config.at("use_bfs_heuristic") == "true";
     double bfs_res_x = 0.0;
     double bfs_res_y = 0.0;
     double bfs_res_z = 0.0;
     pp.planning_link_sphere_radius = 0.0;
-    if (pp.use_bfs_heuristic) {
+    if (m_use_bfs) {
         try {
             bfs_res_x = std::stod(config.at("bfs_res_x"));
             bfs_res_y = std::stod(config.at("bfs_res_y"));
@@ -382,12 +389,12 @@ bool SBPLPlanningContext::init(const std::map<std::string, std::string>& config)
     // parse post-processing parameters //
     //////////////////////////////////////
 
-    typedef std::unordered_map<std::string, sbpl::motion::ShortcutType> ShortcutTypeNameToValueMap;
+    typedef std::unordered_map<std::string, smpl::ShortcutType> ShortcutTypeNameToValueMap;
     const ShortcutTypeNameToValueMap shortcut_name_to_value =
     {
-        { "joint_space", sbpl::motion::ShortcutType::JOINT_SPACE },
-        { "joint_position_velocity_space", sbpl::motion::ShortcutType::JOINT_POSITION_VELOCITY_SPACE },
-        { "workspace", sbpl::motion::ShortcutType::EUCLID_SPACE },
+        { "joint_space", smpl::ShortcutType::JOINT_SPACE },
+        { "joint_position_velocity_space", smpl::ShortcutType::JOINT_POSITION_VELOCITY_SPACE },
+        { "workspace", smpl::ShortcutType::EUCLID_SPACE },
     };
     const std::string default_shortcut_type = "joint_space";
 
@@ -470,10 +477,8 @@ bool SBPLPlanningContext::initSBPL(std::string& why)
         return false;
     }
 
-    m_planner = std::make_shared<sbpl::motion::PlannerInterface>(
-            m_robot_model,
-            &m_collision_checker,
-            m_grid.get());
+    m_planner = std::make_shared<smpl::PlannerInterface>(
+            m_robot_model, &m_collision_checker, m_grid.get());
 
     if (!m_planner->init(m_pp)) {
         why = "Failed to initialize Planner Interface";
@@ -483,13 +488,15 @@ bool SBPLPlanningContext::initSBPL(std::string& why)
     return true;
 }
 
+// Make any necessary corrections to the motion plan request to conform to
+// smpl::PlannerInterface conventions
 bool SBPLPlanningContext::translateRequest(
     moveit_msgs::MotionPlanRequest& req)
 {
     // TODO: translate goal position constraints into planning frame
     // TODO: translate goal orientation constraints into planning frame
-
     req = getMotionPlanRequest();
+    req.planner_id = m_planner_id;
     return true;
 }
 
@@ -602,13 +609,12 @@ bool SBPLPlanningContext::initHeuristicGrid(
     const double size_z = workspace_aabb.extents.z;
 
     const double default_bfs_res = 0.02;
-    const double res_x_m = m_pp.use_bfs_heuristic ? m_bfs_res_x : default_bfs_res;
-    const double res_y_m = m_pp.use_bfs_heuristic ? m_bfs_res_y : default_bfs_res;
-    const double res_z_m = m_pp.use_bfs_heuristic ? m_bfs_res_z : default_bfs_res;
+    const double res_x_m = m_use_bfs ? m_bfs_res_x : default_bfs_res;
+    const double res_y_m = m_use_bfs ? m_bfs_res_y : default_bfs_res;
+    const double res_z_m = m_use_bfs ? m_bfs_res_z : default_bfs_res;
 
-    const double max_distance = m_pp.use_bfs_heuristic ?
-            m_pp.planning_link_sphere_radius + res_x_m :
-            res_x_m;
+    const double max_distance = m_use_bfs ?
+            m_pp.planning_link_sphere_radius + res_x_m : res_x_m;
     const bool propagate_negative_distances = false;
 
     Eigen::Affine3d T_planning_workspace;
@@ -619,7 +625,7 @@ bool SBPLPlanningContext::initHeuristicGrid(
 
     Eigen::Vector3d workspace_pos_in_planning(T_planning_workspace.translation());
 
-    ROS_DEBUG_NAMED(PP_LOGGER, "Initializing workspace distance field:");
+    ROS_DEBUG_NAMED(PP_LOGGER, "Initialize workspace distance field:");
     ROS_DEBUG_NAMED(PP_LOGGER, "  size_x: %0.3f", size_x);
     ROS_DEBUG_NAMED(PP_LOGGER, "  size_y: %0.3f", size_y);
     ROS_DEBUG_NAMED(PP_LOGGER, "  size_z: %0.3f", size_z);
@@ -638,8 +644,9 @@ bool SBPLPlanningContext::initHeuristicGrid(
             max_distance,
             propagate_negative_distances);
 
-    if (!m_pp.use_bfs_heuristic) {
+    if (!m_use_bfs) {
         ROS_DEBUG_NAMED(PP_LOGGER, "Not using BFS heuristic (Skipping occupancy grid filling)");
+        m_grid = std::make_shared<sbpl::OccupancyGrid>(hdf);
         return true;
     }
 
@@ -655,7 +662,7 @@ bool SBPLPlanningContext::initHeuristicGrid(
     const CollisionWorldSBPL* sbpl_cworld =
             dynamic_cast<const CollisionWorldSBPL*>(cworld.get());
     if (sbpl_cworld) {
-        ROS_DEBUG_NAMED(PP_LOGGER, "Using collision information from Collision World SBPL for heuristic!!!");
+        ROS_DEBUG_NAMED(PP_LOGGER, "Use collision information from Collision World SBPL for heuristic!!!");
 
         const distance_field::PropagationDistanceField* df =
                 sbpl_cworld->distanceField(
@@ -668,7 +675,7 @@ bool SBPLPlanningContext::initHeuristicGrid(
             // voxel information from voxels states...should probably add a
             // force update function on collisionspace and collisionworldsbpl
             // to set up the voxel grid for a given robot state here
-            ROS_DEBUG_NAMED(PP_LOGGER, "Copying collision information");
+            ROS_DEBUG_NAMED(PP_LOGGER, "Copy collision information");
             copyDistanceField(*df, *hdf);
 
             m_grid = std::make_shared<sbpl::OccupancyGrid>(hdf);

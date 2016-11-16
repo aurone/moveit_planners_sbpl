@@ -56,12 +56,13 @@ public:
 private:
 
     moveit::core::RobotModelConstPtr m_robot_model;
-    std::string m_ns;
 
     // per-group sbpl robot model
     std::map<std::string, std::shared_ptr<MoveItRobotModel>> m_sbpl_models;
 
     sbpl::VisualizerROS m_viz;
+
+    planning_interface::PlannerConfigurationMap map;
 
     void logPlanningScene(const planning_scene::PlanningScene& scene) const;
     void logMotionPlanRequest(
@@ -70,16 +71,20 @@ private:
     /// \name Parameter Loading
     ///@{
 
-    bool loadPlannerConfigurationMapping(const moveit::core::RobotModel& model);
+    bool loadPlannerConfigurationMapping(
+        const ros::NodeHandle& nh,
+        const moveit::core::RobotModel& model);
 
-    // map from planner configuration name to planner settings
-    // (set of (name, value)) pairs
+    // key/value pairs for parameters to pass down to planner
     typedef std::map<std::string, std::string> PlannerSettings;
+
+    // config name -> (string -> string)
     typedef std::map<std::string, PlannerSettings> PlannerSettingsMap;
-    bool loadPlannerSettings(PlannerSettingsMap& planner_settings);
 
-    bool xmlToString(XmlRpc::XmlRpcValue& value, std::string& str) const;
-
+    bool loadSettingsMap(
+        const ros::NodeHandle& nh,
+        const std::string& param_name,
+        PlannerSettingsMap& settings);
     ///@}
 
     // retrive an already-initialized model for a given group
@@ -87,6 +92,8 @@ private:
 
     std::string selectPlanningLink(
         const planning_interface::MotionPlanRequest& req) const;
+
+    bool xmlToString(XmlRpc::XmlRpcValue& value, std::string& out) const;
 };
 
 MOVEIT_CLASS_FORWARD(SBPLPlannerManager);

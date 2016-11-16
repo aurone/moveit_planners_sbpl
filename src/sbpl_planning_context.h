@@ -67,6 +67,9 @@ private:
     std::map<std::string, std::string> m_config;
     sbpl::motion::PlanningParams m_pp;
 
+    std::string m_planner_id;
+
+    bool m_use_bfs;
     double m_bfs_res_x;
     double m_bfs_res_y;
     double m_bfs_res_z;
