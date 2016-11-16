@@ -61,11 +61,6 @@ private:
     // per-group sbpl robot model
     std::map<std::string, std::shared_ptr<MoveItRobotModel>> m_sbpl_models;
 
-    // per-group sbpl collision allocators
-    typedef collision_detection::CollisionDetectorAllocatorPtr
-    CollisionCheckerAllocatorPtr;
-    std::map<std::string, CollisionCheckerAllocatorPtr> m_cc_allocators;
-
     sbpl::VisualizerROS m_viz;
 
     void logPlanningScene(const planning_scene::PlanningScene& scene) const;
