@@ -214,12 +214,16 @@ bool SBPLPlanningContext::init(const std::map<std::string, std::string>& config)
         return false;
     }
 
+    // TODO: the only required parameters here should be "search", "heuristic",
+    // "graph", and "shortcutter"...reframe PlanningParams to take the
+    // key/value parameter mapping and determine whether it contains sufficient
+    // parameters for initialization
     const std::vector<std::string>& required_params =
     {
         "search",
         "heuristic",
         "graph",
-        "shortcut_type",
+        "shortcutter",
 
         // environment
         "discretization",
@@ -236,7 +240,6 @@ bool SBPLPlanningContext::init(const std::map<std::string, std::string>& config)
         "short_dist_mprims_thresh",
 
         // planner
-        "type",
         "epsilon",
 
         // post-processing
@@ -401,11 +404,11 @@ bool SBPLPlanningContext::init(const std::map<std::string, std::string>& config)
     pp.shortcut_path = config.at("shortcut_path") == "true";
     pp.shortcut_type = shortcut_name_to_value.at(default_shortcut_type);
     if (pp.shortcut_path) {
-        auto it = config.find("shortcut_type");
+        auto it = config.find("shortcutter");
         if (it != config.end()) {
             auto svit = shortcut_name_to_value.find(it->second);
             if (svit == shortcut_name_to_value.end()) {
-                ROS_WARN_NAMED(PP_LOGGER, "parameter 'shortcut_type' has unrecognized value. recognized values are:");
+                ROS_WARN_NAMED(PP_LOGGER, "parameter 'shortcutter' has unrecognized value. recognized values are:");
                 for (const auto& entry : shortcut_name_to_value) {
                     ROS_WARN_NAMED(PP_LOGGER, "  %s", entry.first.c_str());
                 }
@@ -416,7 +419,7 @@ bool SBPLPlanningContext::init(const std::map<std::string, std::string>& config)
             }
         }
         else {
-            ROS_WARN_NAMED(PP_LOGGER, "parameter 'shortcut_type' not found. defaulting to '%s'", default_shortcut_type.c_str());
+            ROS_WARN_NAMED(PP_LOGGER, "parameter 'shortcutter' not found. defaulting to '%s'", default_shortcut_type.c_str());
         }
     }
     pp.interpolate_path = config.at("interpolate_path") == "true";

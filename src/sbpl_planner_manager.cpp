@@ -39,8 +39,6 @@ namespace sbpl_interface {
 // pp = planning plugin
 static const char* PP_LOGGER = "planning";
 
-const std::string DefaultPlanningAlgorithm = "arastar";
-
 SBPLPlannerManager::SBPLPlannerManager() :
     Base(),
     m_robot_model(),
@@ -86,7 +84,7 @@ std::string SBPLPlannerManager::getDescription() const
 void SBPLPlannerManager::getPlanningAlgorithms(
     std::vector<std::string>& algs) const
 {
-    const planning_interface::PlannerConfigurationMap& pcm = getPlannerConfigurations();
+    const auto& pcm = getPlannerConfigurations();
     for (const auto& entry : pcm) {
         algs.push_back(entry.first);
     }
@@ -273,7 +271,7 @@ void SBPLPlannerManager::setPlannerConfigurations(
 
     ROS_INFO_NAMED(PP_LOGGER, "Planner Configurations");
     for (const auto& entry : pcs) {
-        ROS_INFO_NAMED(PP_LOGGER, "  %s: { name: %s, group: %s }", entry.first.c_str(), entry.second.group.c_str(), entry.second.name.c_str());
+        ROS_INFO_NAMED(PP_LOGGER, "  %s: { name: %s, group: %s }", entry.first.c_str(), entry.second.name.c_str(), entry.second.group.c_str());
         for (const auto& e : entry.second.config) {
             ROS_INFO_NAMED(PP_LOGGER, "    %s: %s", e.first.c_str(), e.second.c_str());
         }
