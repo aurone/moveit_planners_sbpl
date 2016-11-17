@@ -1485,8 +1485,7 @@ std::vector<std::string> MoveGroupCommandModel::getTipLinkNames(
     const moveit::core::JointModelGroup& jmg) const
 {
     std::vector<std::string> tips;
-    std::vector<const moveit::core::LinkModel*> link_tips =
-            getTipLinks(jmg);
+    std::vector<const moveit::core::LinkModel*> link_tips = getTipLinks(jmg);
     for (const moveit::core::LinkModel* link : link_tips) {
         tips.push_back(link->getName());
     }
@@ -1561,7 +1560,7 @@ void MoveGroupCommandModel::processInteractiveMarkerFeedback(
         if (m_robot_state->setFromIK(jg, wrist_pose)) {
             // for each variable corresponding to a revolute joint
             for (size_t gvidx = 0; gvidx < seed.size(); ++gvidx) {
-                ROS_INFO("Check variable '%s' for bounded revoluteness", jg->getVariableNames()[gvidx].c_str());
+                ROS_DEBUG("Check variable '%s' for bounded revoluteness", jg->getVariableNames()[gvidx].c_str());
 
                 int vidx = jg->getVariableIndexList()[gvidx];
                 const moveit::core::JointModel* j = rm->getJointOfVariable(vidx);
@@ -1571,28 +1570,28 @@ void MoveGroupCommandModel::processInteractiveMarkerFeedback(
                     continue;
                 }
 
-                ROS_INFO("  Normalize variable '%s'", jg->getVariableNames()[gvidx].c_str());
+                ROS_DEBUG("  Normalize variable '%s'", jg->getVariableNames()[gvidx].c_str());
 
                 double spos = m_robot_state->getVariablePosition(vidx);
                 double vdiff = seed[gvidx] - spos;
                 int twopi_hops = (int)std::fabs(vdiff / (2.0 * M_PI));
 
-                ROS_INFO(" -> seed pos: %0.3f", seed[gvidx]);
-                ROS_INFO(" ->  sol pos: %0.3f", spos);
-                ROS_INFO(" ->    vdiff: %0.3f", vdiff);
-                ROS_INFO(" -> num hops: %d", twopi_hops);
+                ROS_DEBUG(" -> seed pos: %0.3f", seed[gvidx]);
+                ROS_DEBUG(" ->  sol pos: %0.3f", spos);
+                ROS_DEBUG(" ->    vdiff: %0.3f", vdiff);
+                ROS_DEBUG(" -> num hops: %d", twopi_hops);
 
                 double npos = spos + (2.0 * M_PI) * twopi_hops * std::copysign(1.0, vdiff);
                 if (fabs(npos - seed[gvidx]) > M_PI) {
                     npos += 2.0 * M_PI * std::copysign(1.0, vdiff);
                 }
 
-                ROS_INFO(" ->     npos: %0.3f", npos);
+                ROS_DEBUG(" ->     npos: %0.3f", npos);
 
                 if (twopi_hops) {
-                    ROS_INFO(" -> Attempt to normalize variable '%s' to %0.3f from %0.3f", jg->getVariableNames()[gvidx].c_str(), npos, spos);
+                    ROS_DEBUG(" -> Attempt to normalize variable '%s' to %0.3f from %0.3f", jg->getVariableNames()[gvidx].c_str(), npos, spos);
                 } else {
-                    ROS_INFO("No hops necessary");
+                    ROS_DEBUG("No hops necessary");
                 }
 
                 m_robot_state->setVariablePosition(vidx, npos);
