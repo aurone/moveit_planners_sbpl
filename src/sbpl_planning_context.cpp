@@ -261,7 +261,7 @@ bool SBPLPlanningContext::init(const std::map<std::string, std::string>& config)
     m_planner_id = search_name + "." + heuristic_name + "." + graph_name;
     ROS_INFO("  Request planner '%s'", m_planner_id.c_str());
 
-    m_use_bfs = (heuristic_name == "bfs" || heuristic_name == "mfbfs");
+    m_use_bfs = (heuristic_name == "bfs" || heuristic_name == "mfbfs" || heuristic_name == "bfs_egraph");
 
     // check for all parameters required for bfs heuristic
     if (m_use_bfs) {
