@@ -811,12 +811,18 @@ void MoveGroupCommandModel::logRobotModelInfo(
         joints.pop();
 
         std::string pad(depth, ' ');
-        ROS_INFO("%s%s", pad.c_str(), jm->getName().c_str());
+        ROS_INFO("%s%s (%s)", pad.c_str(), jm->getName().c_str(), jm->getTypeName().c_str());
 
         const moveit::core::LinkModel* lm = jm->getChildLinkModel();
         for (const moveit::core::JointModel* j : lm->getChildJointModels()) {
             joints.push(std::make_pair(depth + 1, j));
         }
+    }
+
+    ROS_INFO("--- Virtual Joints ---");
+    auto srdf = rm.getSRDF();
+    for (const auto& vj : srdf->getVirtualJoints()) {
+        ROS_INFO("  name: %s, parent_frame: %s, child_link: %s, type: %s", vj.name_.c_str(), vj.parent_frame_.c_str(), vj.child_link_.c_str(), vj.type_.c_str());
     }
 
     ROS_INFO("--- Robot Joint Groups ---");
