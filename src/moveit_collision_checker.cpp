@@ -41,7 +41,7 @@
 #include <leatherman/viz.h>
 #include <ros/console.h>
 #include <ros/ros.h>
-#include <sbpl_geometry_utils/utils.h>
+#include <smpl/angles.h>
 
 #include <moveit_planners_sbpl/moveit_robot_model.h>
 
@@ -100,7 +100,7 @@ bool MoveItCollisionChecker::init(
 
     m_var_incs.reserve(m_robot_model->getPlanningJoints().size());
     for (const std::string& joint_name : m_robot_model->getPlanningJoints()) {
-        m_var_incs.push_back(sbpl::utils::ToRadians(2.0));
+        m_var_incs.push_back(sbpl::angles::to_radians(2.0));
     }
     ROS_INFO("Increments: %s", to_string(m_var_incs).c_str());
 
@@ -235,7 +235,7 @@ int MoveItCollisionChecker::interpolatePathFast(
     m_diffs.resize(m_robot_model->activeVariableCount(), 0.0);
     for (size_t vidx = 0; vidx < m_robot_model->activeVariableCount(); ++vidx) {
         if (m_robot_model->variableContinuous()[vidx]) {
-            m_diffs[vidx] = sbpl::angles::ShortestAngleDiff(finish[vidx], start[vidx]);
+            m_diffs[vidx] = sbpl::angles::shortest_angle_diff(finish[vidx], start[vidx]);
         }
         else {
             m_diffs[vidx] = finish[vidx] - start[vidx];
@@ -267,7 +267,7 @@ int MoveItCollisionChecker::interpolatePathFast(
     for (size_t vidx = 0; vidx < m_robot_model->activeVariableCount(); ++vidx) {
         if (m_robot_model->variableContinuous()[vidx]) {
             for (size_t widx = 0; widx < waypoint_count; ++widx) {
-                opath[widx][vidx] = sbpl::angles::NormalizeAngle(opath[widx][vidx]);
+                opath[widx][vidx] = sbpl::angles::normalize_angle(opath[widx][vidx]);
             }
         }
     }

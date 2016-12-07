@@ -14,7 +14,7 @@
 #include <moveit_msgs/PlanningSceneWorld.h>
 #include <moveit_msgs/QueryPlannerInterfaces.h>
 #include <ros/console.h>
-#include <sbpl_geometry_utils/utils.h>
+#include <smpl/angles.h>
 
 namespace sbpl_interface {
 
@@ -95,9 +95,9 @@ MoveGroupCommandModel::MoveGroupCommandModel(QObject* parent) :
     m_curr_planner_idx(-1),
     m_curr_planner_id_idx(-1),
     m_available_frames(),
-    m_joint_tol_rad(sbpl::utils::ToRadians(DefaultGoalJointTolerance_deg)),
+    m_joint_tol_rad(sbpl::angles::to_radians(DefaultGoalJointTolerance_deg)),
     m_pos_tol_m(DefaultGoalPositionTolerance_m),
-    m_rot_tol_rad(sbpl::utils::ToRadians(DefaultGoalOrientationTolerance_deg)),
+    m_rot_tol_rad(sbpl::angles::to_radians(DefaultGoalOrientationTolerance_deg)),
     m_workspace(),
     m_num_planning_attempts(DefaultNumPlanningAttempts),
     m_allowed_planning_time_s(DefaultAllowedPlanningTime_s),
@@ -390,7 +390,7 @@ const std::string& MoveGroupCommandModel::planningJointGroupName() const
 
 double MoveGroupCommandModel::goalJointTolerance() const
 {
-    return sbpl::utils::ToDegrees(m_joint_tol_rad);
+    return sbpl::angles::to_degrees(m_joint_tol_rad);
 }
 
 double MoveGroupCommandModel::goalPositionTolerance() const
@@ -400,7 +400,7 @@ double MoveGroupCommandModel::goalPositionTolerance() const
 
 double MoveGroupCommandModel::goalOrientationTolerance() const
 {
-    return sbpl::utils::ToDegrees(m_rot_tol_rad);
+    return sbpl::angles::to_degrees(m_rot_tol_rad);
 }
 
 const moveit_msgs::WorkspaceParameters& MoveGroupCommandModel::workspace() const
@@ -427,9 +427,9 @@ void MoveGroupCommandModel::load(const rviz::Config& config)
     // parse goal request settings
     QString active_joint_group_name;
     std::vector<std::pair<std::string, double>> joint_variables;
-    float joint_tol_rad = sbpl::utils::ToRadians(DefaultGoalJointTolerance_deg);
+    float joint_tol_rad = sbpl::angles::to_radians(DefaultGoalJointTolerance_deg);
     float pos_tol_m = DefaultGoalPositionTolerance_m;
-    float rot_tol_rad = sbpl::utils::ToRadians(DefaultGoalOrientationTolerance_deg);
+    float rot_tol_rad = sbpl::angles::to_radians(DefaultGoalOrientationTolerance_deg);
     QString ws_frame;
     float ws_min_x = DefaultWorkspaceMinX;
     float ws_min_y = DefaultWorkspaceMinY;
@@ -468,7 +468,7 @@ void MoveGroupCommandModel::load(const rviz::Config& config)
     for (const auto& entry : joint_variables) {
         ROS_INFO("    %s: %0.3f", entry.first.c_str(), entry.second);
     }
-    ROS_INFO("  Joint Tolerance (deg): %0.3f", sbpl::utils::ToDegrees(joint_tol_rad));
+    ROS_INFO("  Joint Tolerance (deg): %0.3f", sbpl::angles::to_degrees(joint_tol_rad));
     ROS_INFO("  Position Tolerance (m): %0.3f", pos_tol_m);
     ROS_INFO("  Orientation Tolerance (deg): %0.3f", rot_tol_rad);
 
@@ -503,9 +503,9 @@ void MoveGroupCommandModel::load(const rviz::Config& config)
             }
         }
     }
-    setGoalJointTolerance(sbpl::utils::ToDegrees(joint_tol_rad));
+    setGoalJointTolerance(sbpl::angles::to_degrees(joint_tol_rad));
     setGoalPositionTolerance(pos_tol_m);
-    setGoalOrientationTolerance(sbpl::utils::ToDegrees(rot_tol_rad));
+    setGoalOrientationTolerance(sbpl::angles::to_degrees(rot_tol_rad));
 
     moveit_msgs::WorkspaceParameters ws;
     auto it = std::find(
@@ -699,8 +699,8 @@ void MoveGroupCommandModel::setJointVariable(
 
 void MoveGroupCommandModel::setGoalJointTolerance(double tol_deg)
 {
-    if (tol_deg != sbpl::utils::ToDegrees(m_joint_tol_rad)) {
-        m_joint_tol_rad = sbpl::utils::ToRadians(tol_deg);
+    if (tol_deg != sbpl::angles::to_degrees(m_joint_tol_rad)) {
+        m_joint_tol_rad = sbpl::angles::to_radians(tol_deg);
         Q_EMIT configChanged();
     }
 }
@@ -715,8 +715,8 @@ void MoveGroupCommandModel::setGoalPositionTolerance(double tol_m)
 
 void MoveGroupCommandModel::setGoalOrientationTolerance(double tol_deg)
 {
-    if (tol_deg != sbpl::utils::ToDegrees(m_rot_tol_rad)) {
-        m_rot_tol_rad = sbpl::utils::ToRadians(tol_deg);
+    if (tol_deg != sbpl::angles::to_degrees(m_rot_tol_rad)) {
+        m_rot_tol_rad = sbpl::angles::to_radians(tol_deg);
         Q_EMIT configChanged();
     }
 }
