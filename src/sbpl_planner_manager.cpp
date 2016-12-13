@@ -488,73 +488,89 @@ bool SBPLPlannerManager::loadPlannerConfigurationMapping(
         }
 
         XmlRpc::XmlRpcValue& planner_configs_cfg = joint_group_cfg["planner_configs"];
-        if (planner_configs_cfg.getType() != XmlRpc::XmlRpcValue::TypeArray) {
-            ROS_ERROR_NAMED(PP_LOGGER, "'planner_configs' should be an array of planner configurations (actual: %s)", xmlTypeToString(planner_configs_cfg.getType()));
+        if (planner_configs_cfg.getType() != XmlRpc::XmlRpcValue::TypeStruct) {
+            ROS_ERROR_NAMED(PP_LOGGER, "'planner_configs' should be a map of names to planner configurations (actual: %s)", xmlTypeToString(planner_configs_cfg.getType()));
             return false;
         }
 
-        for (int pcind = 0; pcind < planner_configs_cfg.size(); ++pcind) {
-            XmlRpc::XmlRpcValue& planner_config = planner_configs_cfg[pcind];
+        for (auto pcit = planner_configs_cfg.begin(); pcit != planner_configs_cfg.end(); ++pcit) {
+            const std::string& pc_name = pcit->first;
+            XmlRpc::XmlRpcValue& planner_config = pcit->second;
             if (planner_config.getType() != XmlRpc::XmlRpcValue::TypeStruct) {
                 ROS_ERROR_NAMED(PP_LOGGER, "planner config should be a map from config type to config");
                 return false;
             }
 
-            if (!planner_config.hasMember("name") ||
-                !planner_config.hasMember("search_config") ||
-                !planner_config.hasMember("heuristic_config") ||
-                !planner_config.hasMember("graph_config") ||
-                !planner_config.hasMember("shortcut_config"))
+            const char *required_keys[] =
             {
-                ROS_ERROR("planner config is malformed. expected keys 'name', 'search_config', 'heuristic_config', and 'graph_config', and 'shortcut_config'");
-                ROS_ERROR("Has 'name': %s", planner_config.hasMember("name") ? "true" : "false");
-                ROS_ERROR("Has 'name': %s", planner_config.hasMember("search_config") ? "true" : "false");
-                ROS_ERROR("Has 'name': %s", planner_config.hasMember("heuristic_config") ? "true" : "false");
-                ROS_ERROR("Has 'name': %s", planner_config.hasMember("graph_config") ? "true" : "false");
-                ROS_ERROR("Has 'name': %s", planner_config.hasMember("shortcut_config") ? "true" : "false");
+                "search_config",
+                "heuristic_config",
+                "graph_config",
+                "shortcut_config"
+            };
+
+            if (std::any_of(
+                    required_keys,
+                    required_keys + sizeof(required_keys) / sizeof(const char*),
+                    [&](const char *key)
+                    {
+                        return !planner_config.hasMember(key);
+                    }))
+            {
+                ROS_ERROR("planner config lacks required keys");
+                for (int i = 0; i < sizeof(required_keys) / sizeof(const char*); ++i) {
+                    const char* key = required_keys[i];
+                    ROS_ERROR("Has '%s': %s", key, planner_config.hasMember(key) ? "true" : "false");
+                }
                 return false;
             }
 
-            std::string config_name = planner_config["name"];
-            std::string search_config_name = planner_config["search_config"];
-            std::string heuristic_config_name = planner_config["heuristic_config"];
-            std::string graph_config_name = planner_config["graph_config"];
-            std::string shortcut_config_name = planner_config["shortcut_config"];
-
             planning_interface::PlannerConfigurationSettings pcs;
-            pcs.name = group_name + "[" + config_name + "]";
+            pcs.name = group_name + "[" + pc_name + "]";
             pcs.group = group_name;
 
-            // squash search, heuristic, graph, and shortcut configurations
-            // into combined config
-
-            auto it = search_settings.find(search_config_name);
-            if (it == search_settings.end()) {
-                ROS_WARN_NAMED(PP_LOGGER, "No search settings exist for configuration '%s'", search_config_name.c_str());
-                continue;
+            for (auto mit = planner_config.begin(); mit != planner_config.end(); ++mit) {
+                if (mit->second.getType() != XmlRpc::XmlRpcValue::TypeString) {
+                    ROS_WARN_NAMED(PP_LOGGER, "planner configuration value is not a string");
+                    continue;
+                }
+                const std::string &cfgkey(mit->first);
+                const std::string &cfgval(mit->second);
+                // squash search, heuristic, graph, and shortcut configurations
+                // into combined config
+                if (cfgkey == "graph_config") {
+                    auto it = graph_settings.find(cfgval);
+                    if (it == graph_settings.end()) {
+                        ROS_WARN_NAMED(PP_LOGGER, "No graph settings exist for configuration '%s'", cfgval.c_str());
+                        continue;
+                    }
+                    pcs.config.insert(it->second.begin(), it->second.end());
+                } else if (cfgkey == "heuristic_config") {
+                    auto it = heuristic_settings.find(cfgval);
+                    if (it == heuristic_settings.end()) {
+                        ROS_WARN_NAMED(PP_LOGGER, "No heuristic settings exist for configuration '%s'", cfgval.c_str());
+                        continue;
+                    }
+                    pcs.config.insert(it->second.begin(), it->second.end());
+                } else if (cfgkey == "search_config") {
+                    auto it = search_settings.find(cfgval);
+                    if (it == search_settings.end()) {
+                        ROS_WARN_NAMED(PP_LOGGER, "No search settings exist for configuration '%s'", cfgval.c_str());
+                        continue;
+                    }
+                    pcs.config.insert(it->second.begin(), it->second.end());
+                } else if (cfgkey == "shortcut_config") {
+                    auto it = shortcut_settings.find(cfgval);
+                    if (it == shortcut_settings.end()) {
+                        ROS_WARN_NAMED(PP_LOGGER, "No shortcut settings exist for configuration '%s'", cfgval.c_str());
+                        continue;
+                    }
+                    pcs.config.insert(it->second.begin(), it->second.end());
+                } else {
+                    // anything else goes straight into the configuration map
+                    pcs.config.insert({ cfgkey, cfgval });
+                }
             }
-            pcs.config.insert(it->second.begin(), it->second.end());
-
-            it = heuristic_settings.find(heuristic_config_name);
-            if (it == heuristic_settings.end()) {
-                ROS_WARN_NAMED(PP_LOGGER, "No heuristic settings exist for configuration '%s'", heuristic_config_name.c_str());
-                continue;
-            }
-            pcs.config.insert(it->second.begin(), it->second.end());
-
-            it = graph_settings.find(graph_config_name);
-            if (it == graph_settings.end()) {
-                ROS_WARN_NAMED(PP_LOGGER, "No graph settings exist for configuration '%s'", graph_config_name.c_str());
-                continue;
-            }
-            pcs.config.insert(it->second.begin(), it->second.end());
-
-            it = shortcut_settings.find(shortcut_config_name);
-            if (it == shortcut_settings.end()) {
-                ROS_WARN_NAMED(PP_LOGGER, "No shortcut settings exist for configuration '%s'", shortcut_config_name.c_str());
-                continue;
-            }
-            pcs.config.insert(it->second.begin(), it->second.end());
 
             pcm[pcs.name] = pcs;
         }
