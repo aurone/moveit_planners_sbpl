@@ -428,6 +428,15 @@ bool SBPLPlanningContext::init(const std::map<std::string, std::string>& config)
     // parse logging parameters //
     //////////////////////////////
 
+    {
+        auto it = config.find("plan_output_dir");
+        if (it != config.end()) {
+            pp.plan_output_dir = it->second;
+        } else {
+            pp.plan_output_dir.clear();
+        }
+    }
+
     pp.print_path = false;
 
     //////////////////////////////////////////////
