@@ -309,6 +309,11 @@ bool MoveItRobotModel::hasPosLimit(int jidx) const
     return !m_var_continuous[jidx];
 }
 
+bool MoveItRobotModel::isContinuous(int jidx) const
+{
+    return m_var_continuous[jidx];
+}
+
 double MoveItRobotModel::velLimit(int jidx) const
 {
     return m_var_vel_limits[jidx];

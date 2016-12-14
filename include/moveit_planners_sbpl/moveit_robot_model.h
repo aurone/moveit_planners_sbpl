@@ -100,6 +100,7 @@ public:
     double minPosLimit(int jidx) const override;
     double maxPosLimit(int jidx) const override;
     bool hasPosLimit(int jidx) const override;
+    bool isContinuous(int jidx) const override;
     double velLimit(int jidx) const override;
     double accLimit(int jidx) const override;
 
