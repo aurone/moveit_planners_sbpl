@@ -291,63 +291,6 @@ bool SBPLPlanningContext::init(const std::map<std::string, std::string>& config)
 
     pp.planning_frame = m_robot_model->planningFrame();
 
-    // check that we have discretization
-    std::map<std::string, double> disc;
-    std::stringstream ss(config.at("discretization"));
-    std::string joint;
-    double jres;
-    while (ss >> joint >> jres) {
-        disc.insert(std::make_pair(joint, jres));
-    }
-
-    ROS_DEBUG_NAMED(PP_LOGGER, "Parsed discretization for %zu joints", disc.size());
-
-    std::vector<int> discretization(m_robot_model->activeVariableCount());
-    for (size_t vind = 0; vind < discretization.size(); ++vind) {
-        const std::string& vname = m_robot_model->planningVariableNames()[vind];
-        auto dit = disc.find(vname);
-        if (dit == disc.end()) {
-            ROS_ERROR_NAMED(PP_LOGGER, "Discretization for variable '%s' not available in config", vname.c_str());
-            return false;
-        }
-        // number of discretizations in a circle
-        discretization[vind] = (int)round((2.0 * M_PI) / dit->second);
-    }
-
-    std::vector<double> deltas(m_robot_model->activeVariableCount());
-    for (size_t vind = 0; vind < deltas.size(); ++vind) {
-        deltas[vind] = (2.0 * M_PI) / (double)discretization[vind];
-    }
-
-    pp.coord_vals = discretization;
-    pp.coord_delta = deltas;
-
-    ///////////////////////////////////
-    // parse action space parameters //
-    ///////////////////////////////////
-
-    pp.action_filename = config.at("mprim_filename");
-    pp.use_xyz_snap_mprim = config.at("use_xyz_snap_mprim") == "true";
-    pp.use_rpy_snap_mprim = config.at("use_rpy_snap_mprim") == "true";
-    pp.use_xyzrpy_snap_mprim = config.at("use_xyzrpy_snap_mprim") == "true";
-    pp.use_short_dist_mprims = config.at("use_short_dist_mprims") == "true";
-    pp.xyz_snap_thresh = 0.0;
-    pp.rpy_snap_thresh = 0.0;
-    pp.xyzrpy_snap_thresh = 0.0;
-    pp.short_dist_mprims_thresh = 0.0;
-    try {
-        pp.xyz_snap_thresh = std::stod(config.at("xyz_snap_dist_thresh"));
-        pp.rpy_snap_thresh = std::stod(config.at("rpy_snap_dist_thresh"));
-        pp.xyzrpy_snap_thresh = std::stod(config.at("xyzrpy_snap_dist_thresh"));
-        pp.short_dist_mprims_thresh = std::stod(config.at("short_dist_mprims_thresh"));
-    }
-    catch (const std::logic_error& ex) {
-        ROS_ERROR_NAMED(PP_LOGGER, "Failed to convert amp distance thresholds to floating-point values");
-        return false;
-    }
-
-    pp.use_multiple_ik_solutions = false; // TODO: config parameter for this
-
     // NOTE: default cost function parameters
 
     ////////////////////////////////
