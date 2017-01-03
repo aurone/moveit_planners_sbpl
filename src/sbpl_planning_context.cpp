@@ -225,21 +225,6 @@ bool SBPLPlanningContext::init(const std::map<std::string, std::string>& config)
         "graph",
         "shortcutter",
 
-        // environment
-        "discretization",
-
-        // action set
-        "mprim_filename",
-        "use_rpy_snap_mprim",
-        "use_xyz_snap_mprim",
-        "use_xyzrpy_snap_mprim",
-        "use_short_dist_mprims",
-        "xyz_snap_dist_thresh",
-        "rpy_snap_dist_thresh",
-        "xyzrpy_snap_dist_thresh",
-        "short_dist_mprims_thresh",
-
-        // planner
         "epsilon",
 
         // post-processing
