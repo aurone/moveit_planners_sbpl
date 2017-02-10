@@ -199,6 +199,11 @@ bool SBPLPlannerManager::canServiceRequest(
 
     std::vector<std::string> available_algs;
     getPlanningAlgorithms(available_algs);
+    std::cout << "Available algorithms\n";
+    for(auto it = available_algs.begin(); it != available_algs.end(); it++)
+    {
+        std::cout << *it << "\n";
+    }
     if (std::find(
             available_algs.begin(), available_algs.end(), req.planner_id) ==
                     available_algs.end())
