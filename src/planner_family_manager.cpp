@@ -58,7 +58,7 @@ bool PlannerFamilyManager::initialize(
             planning_interface::PlannerManagerPtr planner_plugin;
             planner_plugin.reset(m_planner_plugin_loader->createUnmanagedInstance(ent.second));
 
-            if (!planner_plugin->initialize(model, ns)) {
+            if (!planner_plugin->initialize(model, ns + "/" + ent.first)) {
                 ROS_WARN("Failed to initialize planner plugin '%s'", ent.second.c_str());
             }
             else {
