@@ -605,8 +605,7 @@ bool SBPLPlanningContext::initHeuristicGrid(
     if (sbpl_cworld) {
         ROS_DEBUG_NAMED(PP_LOGGER, "Use collision information from Collision World SBPL for heuristic!!!");
 
-        const distance_field::PropagationDistanceField* df =
-                sbpl_cworld->distanceField(
+        const distance_field::DistanceField* df = sbpl_cworld->distanceField(
                     scene.getRobotModel()->getName(),
                     m_robot_model->planningGroupName());
         if (df) {
@@ -665,7 +664,7 @@ bool SBPLPlanningContext::initHeuristicGrid(
 }
 
 void SBPLPlanningContext::copyDistanceField(
-    const distance_field::PropagationDistanceField& dfin,
+    const distance_field::DistanceField& dfin,
     distance_field::PropagationDistanceField& dfout) const
 {
     EigenSTL::vector_Vector3d points;

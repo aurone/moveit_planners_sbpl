@@ -90,7 +90,7 @@ private:
         const planning_scene::PlanningScene& scene,
         const moveit_msgs::WorkspaceParameters& workspace);
     void copyDistanceField(
-        const distance_field::PropagationDistanceField& dfin,
+        const distance_field::DistanceField& dfin,
         distance_field::PropagationDistanceField& dfout) const;
 };
 
