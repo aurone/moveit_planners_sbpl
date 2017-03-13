@@ -269,11 +269,11 @@ void SBPLPlannerManager::setPlannerConfigurations(
 {
     Base::setPlannerConfigurations(pcs);
 
-    ROS_INFO_NAMED(PP_LOGGER, "Planner Configurations");
+    ROS_DEBUG_NAMED(PP_LOGGER, "Planner Configurations");
     for (const auto& entry : pcs) {
-        ROS_INFO_NAMED(PP_LOGGER, "  %s: { name: %s, group: %s }", entry.first.c_str(), entry.second.name.c_str(), entry.second.group.c_str());
+        ROS_DEBUG_NAMED(PP_LOGGER, "  %s: { name: %s, group: %s }", entry.first.c_str(), entry.second.name.c_str(), entry.second.group.c_str());
         for (const auto& e : entry.second.config) {
-            ROS_INFO_NAMED(PP_LOGGER, "    %s: %s", e.first.c_str(), e.second.c_str());
+            ROS_DEBUG_NAMED(PP_LOGGER, "    %s: %s", e.first.c_str(), e.second.c_str());
         }
     }
 }
