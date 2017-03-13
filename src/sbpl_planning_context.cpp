@@ -455,9 +455,12 @@ bool SBPLPlanningContext::getPlanningFrameWorkspaceAABB(
     const planning_scene::PlanningScene& scene,
     moveit_msgs::OrientedBoundingBox& aabb)
 {
-    if (!scene.knowsFrameTransform(workspace.header.frame_id) ||
-        !scene.knowsFrameTransform(scene.getPlanningFrame()))
-    {
+    if (!scene.knowsFrameTransform(workspace.header.frame_id)) {
+        ROS_ERROR("Frame '%s' is not known to the Planning Scene", workspace.header.frame_id.c_str());
+        return false;
+    }
+    if (!scene.knowsFrameTransform(scene.getPlanningFrame())) {
+        ROS_ERROR("Frame '%s' is not known to the Planning Scene", scene.getPlanningFrame().c_str());
         return false;
     }
 
