@@ -187,7 +187,16 @@ bool SBPLPlanningContext::solve(
     planning_interface::MotionPlanDetailedResponse& res)
 {
     ROS_INFO_NAMED(PP_LOGGER, "SBPLPlanningContext::solve(planning_interface::MotionPlanDetailedResponse&)");
-    return false;
+    planning_interface::MotionPlanResponse simple_res;
+    if (!solve(simple_res)) {
+        return false;
+    }
+
+    res.trajectory_.push_back(simple_res.trajectory_);
+    res.description_.push_back("sbpl_result");
+    res.processing_time_.push_back(simple_res.planning_time_);
+    res.error_code_ = simple_res.error_code_;
+    return true;
 }
 
 bool SBPLPlanningContext::terminate()
