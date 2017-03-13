@@ -203,8 +203,7 @@ bool SBPLPlannerManager::canServiceRequest(
             available_algs.begin(), available_algs.end(), req.planner_id) ==
                     available_algs.end())
     {
-        ROS_WARN_NAMED(PP_LOGGER, "SBPL planner does not support the '%s' algorithm", req.planner_id.c_str());
-        return false;
+        ROS_WARN_NAMED(PP_LOGGER, "No configuration found for the '%s' algorithm", req.planner_id.c_str());
     }
 
     // guard against unsupported constraints in the underlying interface
