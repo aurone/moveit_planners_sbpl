@@ -334,32 +334,32 @@ void CollisionWorldSBPL::worldUpdate(
     const World::ObjectConstPtr& object,
     World::Action action)
 {
-    ROS_INFO_NAMED(CWP_LOGGER, "CollisionWorldSBPL::worldUpdate()");
-    ROS_INFO_NAMED(CWP_LOGGER, "  id: %s", object->id_.c_str());
-    ROS_INFO_NAMED(CWP_LOGGER, "  shapes: %zu", object->shapes_.size());
-    ROS_INFO_NAMED(CWP_LOGGER, "  shape_poses: %zu", object->shape_poses_.size());
+    ROS_DEBUG_NAMED(CWP_LOGGER, "CollisionWorldSBPL::worldUpdate()");
+    ROS_DEBUG_NAMED(CWP_LOGGER, "  id: %s", object->id_.c_str());
+    ROS_DEBUG_NAMED(CWP_LOGGER, "  shapes: %zu", object->shapes_.size());
+    ROS_DEBUG_NAMED(CWP_LOGGER, "  shape_poses: %zu", object->shape_poses_.size());
     if (action & World::ActionBits::UNINITIALIZED) {
-        ROS_INFO_NAMED(CWP_LOGGER, "  action: UNINITIALIZED");
+        ROS_DEBUG_NAMED(CWP_LOGGER, "  action: UNINITIALIZED");
         processWorldUpdateUninitialized(object);
     }
     else if (action & World::ActionBits::CREATE) {
-        ROS_INFO_NAMED(CWP_LOGGER, "  action: CREATE");
+        ROS_DEBUG_NAMED(CWP_LOGGER, "  action: CREATE");
         processWorldUpdateCreate(object);
     }
     else if (action & World::ActionBits::DESTROY) {
-        ROS_INFO_NAMED(CWP_LOGGER, "  action: DESTROY");
+        ROS_DEBUG_NAMED(CWP_LOGGER, "  action: DESTROY");
         processWorldUpdateDestroy(object);
     }
     else if (action & World::ActionBits::MOVE_SHAPE) {
-        ROS_INFO_NAMED(CWP_LOGGER, "  action: MOVE_SHAPE");
+        ROS_DEBUG_NAMED(CWP_LOGGER, "  action: MOVE_SHAPE");
         processWorldUpdateMoveShape(object);
     }
     else if (action & World::ActionBits::ADD_SHAPE) {
-        ROS_INFO_NAMED(CWP_LOGGER, "  action: ADD_SHAPE");
+        ROS_DEBUG_NAMED(CWP_LOGGER, "  action: ADD_SHAPE");
         processWorldUpdateAddShape(object);
     }
     else if (action & World::ActionBits::REMOVE_SHAPE)  {
-        ROS_INFO_NAMED(CWP_LOGGER, "  action: REMOVE_SHAPE");
+        ROS_DEBUG_NAMED(CWP_LOGGER, "  action: REMOVE_SHAPE");
         processWorldUpdateRemoveShape(object);
     }
 }
