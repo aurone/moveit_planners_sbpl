@@ -381,7 +381,9 @@ bool SBPLPlanningContext::init(const std::map<std::string, std::string>& config)
     //////////////////////////////////////////////
 
     m_config = config; // save config, for science
-    pp.params = config;
+    for (const auto& entry : config) {
+        pp.addParam(entry.first, entry.second);
+    }
     m_pp = pp; // save fully-initialized config
 
     // these parameters are for us
