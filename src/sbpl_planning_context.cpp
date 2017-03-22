@@ -312,19 +312,6 @@ bool SBPLPlanningContext::init(const std::map<std::string, std::string>& config)
         }
     }
 
-    /////////////////////////////
-    // parse search parameters //
-    /////////////////////////////
-
-    pp.epsilon = 1.0;
-    try {
-        pp.epsilon = std::stod(config.at("epsilon"));
-    }
-    catch (const std::logic_error& ex) {
-        ROS_ERROR_NAMED(PP_LOGGER, "Failed to convert epsilon to floating-point value");
-        return false;
-    }
-
     //////////////////////////////////////
     // parse post-processing parameters //
     //////////////////////////////////////
