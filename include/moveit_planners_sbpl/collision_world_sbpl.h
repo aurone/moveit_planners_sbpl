@@ -45,6 +45,7 @@
 #include <ros/ros.h>
 #include <sbpl_collision_checking/collision_space.h>
 #include <sbpl_collision_checking/collision_model_config.h>
+#include <sbpl_collision_checking/world_collision_detector.h>
 #include <smpl/occupancy_grid.h>
 
 // project includes
@@ -135,9 +136,11 @@ private:
 
     sbpl::OccupancyGridConstPtr m_parent_grid;
     sbpl::collision::WorldCollisionModelConstPtr m_parent_wcm;
+    sbpl::collision::WorldCollisionDetectorConstPtr m_parent_wcd;
 
     sbpl::OccupancyGridPtr m_grid;
     sbpl::collision::WorldCollisionModelPtr m_wcm;
+    sbpl::collision::WorldCollisionDetectorConstPtr m_wcd;
 
     std::unordered_map<std::string, CollisionStateUpdaterPtr> m_updaters;
 
