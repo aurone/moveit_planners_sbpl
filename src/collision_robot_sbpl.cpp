@@ -98,6 +98,7 @@ CollisionRobotSBPL::CollisionRobotSBPL(
 
     // ok! store the robot collision model
     m_rcm = rcm;
+    m_rmcm = std::make_shared<sbpl::collision::RobotMotionCollisionModel>(m_rcm.get());
 
     ros::NodeHandle nh;
     m_collision_pub = nh.advertise<visualization_msgs::MarkerArray>("visualization_markers", 10);
@@ -123,6 +124,12 @@ const sbpl::collision::RobotCollisionModelConstPtr&
 CollisionRobotSBPL::robotCollisionModel() const
 {
     return m_rcm;
+}
+
+const sbpl::collision::RobotMotionCollisionModelConstPtr&
+CollisionRobotSBPL::robotMotionCollisionModel() const
+{
+    return m_rmcm;
 }
 
 void CollisionRobotSBPL::checkOtherCollision(
@@ -311,7 +318,11 @@ void CollisionRobotSBPL::checkSelfCollisionMutable(
 
     int gidx = m_rcm->groupIndex(collision_group_name);
 
-    m_updater.updateInternal(state);
+    moveit::core::RobotState state_copy(state);
+    state_copy.setJointPositions(
+            state_copy.getRobotModel()->getRootJoint(),
+            Eigen::Affine3d::Identity());
+    m_updater.update(state_copy);
 
     double dist;
     bool valid = m_scm->checkCollision(

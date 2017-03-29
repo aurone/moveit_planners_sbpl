@@ -37,6 +37,7 @@
 #include <smpl/occupancy_grid.h>
 #include <sbpl_collision_checking/attached_bodies_collision_model.h>
 #include <sbpl_collision_checking/robot_collision_model.h>
+#include <sbpl_collision_checking/robot_motion_collision_model.h>
 #include <sbpl_collision_checking/self_collision_model.h>
 
 // module includes
@@ -58,6 +59,9 @@ public:
 
     const sbpl::collision::RobotCollisionModelConstPtr&
     robotCollisionModel() const;
+
+    const sbpl::collision::RobotMotionCollisionModelConstPtr&
+    robotMotionCollisionModel() const;
 
     /// \name Reimplemented Public Functions
     ///@{
@@ -156,6 +160,7 @@ private:
     std::unordered_map<std::string, std::string> m_jcgm_map;
 
     sbpl::collision::RobotCollisionModelConstPtr m_rcm;
+    sbpl::collision::RobotMotionCollisionModelConstPtr m_rmcm;
 
     CollisionStateUpdater m_updater;
 
