@@ -139,8 +139,6 @@ void CollisionWorldSBPL::checkRobotCollision(
     const robot_state::RobotState& state2,
     const AllowedCollisionMatrix& acm) const
 {
-    ROS_INFO_NAMED(CWP_LOGGER, "checkRobotCollision(req, res, robot, state1, state2, acm)");
-
     const_cast<CollisionWorldSBPL*>(this)->checkRobotCollisionMutable(
             req, res, robot, state1, state2, acm);
 }
@@ -561,8 +559,6 @@ void CollisionWorldSBPL::checkRobotCollisionMutable(
     const robot_state::RobotState& state2,
     const AllowedCollisionMatrix& acm)
 {
-    // TODO: implement
-    ROS_ERROR_NAMED(CWP_LOGGER, "checkRobotCollision(req, res, robot, state1, state2, acm)");
     const CollisionRobotSBPL& crobot = (const CollisionRobotSBPL&)robot;
     const auto& rcm = crobot.robotCollisionModel();
     const auto& rmcm = crobot.robotMotionCollisionModel();
@@ -589,7 +585,7 @@ void CollisionWorldSBPL::checkRobotCollisionMutable(
 
     int gidx = rcm->groupIndex(collision_group_name);
 
-    gm->update(state1);
+//    gm->update(state1);
 
     sbpl::collision::WorldCollisionDetectorConstPtr ewcd;
     if (m_wcd) {
