@@ -563,7 +563,85 @@ void CollisionWorldSBPL::checkRobotCollisionMutable(
 {
     // TODO: implement
     ROS_ERROR_NAMED(CWP_LOGGER, "checkRobotCollision(req, res, robot, state1, state2, acm)");
-    setVacuousCollision(res);
+    const CollisionRobotSBPL& crobot = (const CollisionRobotSBPL&)robot;
+    const auto& rcm = crobot.robotCollisionModel();
+    const auto& rmcm = crobot.robotMotionCollisionModel();
+
+    assert(state1.getRobotModel()->getName() == rcm->name());
+    assert(state2.getRobotModel()->getName() == rcm->name());
+
+    auto gm = getCollisionStateUpdater(crobot, *state1.getRobotModel());
+    if (!gm) {
+        ROS_ERROR_NAMED(CWP_LOGGER, "Failed to get Group Model for robot '%s', group '%s'", state1.getRobotModel()->getName().c_str(), req.group_name.c_str());
+        setVacuousCollision(res);
+        return;
+    }
+
+    auto jgcgit = m_jcgm_map.find(req.group_name);
+    const std::string& collision_group_name =
+            jgcgit == m_jcgm_map.end() ? req.group_name : jgcgit->second;
+
+    if (!rcm->hasGroup(collision_group_name)) {
+        ROS_ERROR_NAMED(CWP_LOGGER, "No group '%s' found in the Robot Collision Model", collision_group_name.c_str());
+        setVacuousCollision(res);
+        return;
+    }
+
+    int gidx = rcm->groupIndex(collision_group_name);
+
+    gm->update(state1);
+
+    sbpl::collision::WorldCollisionDetectorConstPtr ewcd;
+    if (m_wcd) {
+        ewcd = m_wcd;
+    } else if (m_parent_wcd) {
+        ewcd = m_parent_wcd;
+    } else {
+        ROS_ERROR_NAMED(CWP_LOGGER, "Neither local nor parent world collision model valid");
+        setVacuousCollision(res);
+        return;
+    }
+
+    double dist;
+
+    const std::vector<double> startvars(gm->getVariablesFor(state1));
+    const std::vector<double> goalvars(gm->getVariablesFor(state2));
+    bool valid = ewcd->checkMotionCollision(
+        *gm->collisionState(),
+        *gm->attachedBodiesCollisionState(),
+        *rmcm,
+        startvars,
+        goalvars,
+        gidx,
+        dist);
+
+    const bool visualize = req.verbose;
+    if (visualize) {
+        auto ma = getCollisionRobotVisualization(
+                *gm->collisionState(),
+                *gm->attachedBodiesCollisionState(),
+                gidx);
+        if (!valid) {
+            for (auto& m : ma.markers) {
+                m.color.r = 1.0;
+                m.color.g = m.color.b = 0.0;
+            }
+        }
+        m_cspace_pub.publish(ma);
+    }
+
+    if (!valid) {
+        res.collision = true;
+    }
+    if (req.distance) {
+        res.distance = std::min(res.distance, dist);
+    }
+    if (req.cost) {
+        ROS_WARN_ONCE("Cost sources not computed by sbpl collision checker");
+    }
+    if (req.contacts) {
+        ROS_WARN_ONCE("Contacts not computed by sbpl collision checker");
+    }
 }
 
 void CollisionWorldSBPL::processWorldUpdateUninitialized(
