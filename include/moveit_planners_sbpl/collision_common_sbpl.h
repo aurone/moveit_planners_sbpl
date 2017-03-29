@@ -102,7 +102,9 @@ public:
         const sbpl::collision::RobotCollisionModelConstPtr& rcm);
 
     void update(const moveit::core::RobotState& state);
-    void updateInternal(const moveit::core::RobotState& state);
+
+    const std::vector<double>& getVariablesFor(
+        const moveit::core::RobotState& state);
 
     const sbpl::collision::RobotCollisionStatePtr&
     collisionState() { return m_rcs; }
@@ -126,23 +128,9 @@ public:
 
 private:
 
-    // robot-only joint variable names
-    std::vector<std::string> m_var_names;
-
-    // ...their indices in the robot state
-    std::vector<int> m_var_indices;
-
-    // whether the indices are contiguous
-    bool m_vars_contiguous;
-
-    // offset into robot state, if variables are contiguous
-    int m_vars_offset;
-
-    // corresponding joint variables indices in robot collision model/state
+    // corresponding joint variables indices in
+    // RobotCollisionModel/RobotCollisionState
     std::vector<int> m_rcm_var_indices;
-
-    // storage for extract internal robot state, used if not contiguous
-    std::vector<double> m_rm_vars;
 
     // robot collision state joint variables for batch updating
     std::vector<double> m_rcm_vars;
@@ -157,19 +145,12 @@ private:
     bool extractRobotVariables(
         const moveit::core::RobotModel& model,
         std::vector<std::string>& variable_names,
-        std::vector<int>& variable_indices,
-        bool& are_variables_contiguous,
-        int& variables_offset);
+        std::vector<int>& variable_indices);
 
     bool getRobotCollisionModelJointIndices(
         const std::vector<std::string>& joint_names,
         const sbpl::collision::RobotCollisionModel& rcm,
         std::vector<int>& rcm_joint_indices);
-
-    bool getRobotVariableNames(
-        const moveit::core::RobotModel& robot_model,
-        std::vector<std::string>& var_names,
-        std::vector<int>& var_indices);
 
     bool updateAttachedBodies(const moveit::core::RobotState& state);
 };

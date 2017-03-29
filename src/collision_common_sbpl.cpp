@@ -42,10 +42,6 @@
 namespace collision_detection {
 
 CollisionStateUpdater::CollisionStateUpdater() :
-    m_var_names(),
-    m_var_indices(),
-    m_vars_contiguous(false),
-    m_vars_offset(0),
     m_rcm_var_indices(),
     m_rcm_vars(),
     m_rcs()
@@ -60,118 +56,37 @@ bool CollisionStateUpdater::init(
     using sbpl::collision::AttachedBodiesCollisionModel;
     using sbpl::collision::AttachedBodiesCollisionState;
 
-    extractRobotVariables(
-            robot,
-            m_var_names,
-            m_var_indices,
-            m_vars_contiguous,
-            m_vars_offset);
-    getRobotCollisionModelJointIndices(m_var_names, *rcm, m_rcm_var_indices);
+    if (!getRobotCollisionModelJointIndices(
+            robot.getVariableNames(), *rcm, m_rcm_var_indices))
+    {
+        return false;
+    }
 
     m_rcs = std::make_shared<RobotCollisionState>(rcm.get());
     m_ab_model = std::make_shared<AttachedBodiesCollisionModel>(rcm.get());
     m_ab_state = std::make_shared<AttachedBodiesCollisionState>(
             m_ab_model.get(), m_rcs.get());
 
-    m_rm_vars.resize(m_var_names.size(), 0.0);
-
-    const double* joint_v_begin = m_rcs->getJointVarPositions();
-    const double* joint_v_end = m_rcs->getJointVarPositions() + rcm->jointVarCount();
-    m_rcm_vars.assign(joint_v_begin, joint_v_end);
+    m_rcm_vars.assign(robot.getVariableCount(), 0.0);
     return true;
 }
 
 void CollisionStateUpdater::update(const moveit::core::RobotState& state)
 {
-    updateInternal(state);
-    const moveit::core::LinkModel* root_link;
-    root_link = state.getRobotModel()->getRootLink();
-    const Eigen::Affine3d& T_model_robot =
-            state.getGlobalLinkTransform(root_link);
-    m_rcs->setWorldToModelTransform(T_model_robot);
-}
-
-void CollisionStateUpdater::updateInternal(
-    const moveit::core::RobotState& state)
-{
-    const double* vars_begin;
-    const double* vars_end;
-    if (m_vars_contiguous) {
-        vars_begin = state.getVariablePositions() + m_vars_offset;
-        vars_end = state.getVariablePositions() + m_vars_offset + m_var_names.size();
-    } else {
-        /// extract internal robot variables
-        for (size_t i = 0; i < m_var_indices.size(); ++i) {
-            int vidx = m_var_indices[i];
-            m_rm_vars[i] = state.getVariablePosition(vidx);
-        }
-        vars_begin = m_rm_vars.data();
-        vars_end = m_rm_vars.data() + m_rm_vars.size();
-    }
-
-    assert(std::distance(vars_begin, vars_end) == m_var_names.size());
-
-    // TODO:: check whether they order of joints is identical...maybe it's
-    // worthwhile to make them such if not already?
-    for (size_t vidx = 0; vidx < m_var_names.size(); ++vidx) {
-        int rcmvidx = m_rcm_var_indices[vidx];
-        m_rcm_vars[rcmvidx] = vars_begin[vidx];
-    }
-
-    m_rcs->setJointVarPositions(m_rcm_vars.data());
-
+    m_rcs->setJointVarPositions(getVariablesFor(state).data());
     updateAttachedBodies(state);
 }
 
-bool CollisionStateUpdater::extractRobotVariables(
-    const moveit::core::RobotModel& robot_model,
-    std::vector<std::string>& variable_names,
-    std::vector<int>& variable_indices,
-    bool& are_variables_contiguous,
-    int& variables_offset)
+const std::vector<double>& CollisionStateUpdater::getVariablesFor(
+    const moveit::core::RobotState& state)
 {
-    // Figure out how to extract the internal robot state from a complete robot
-    // state. We're just going to send the entire internal robot state variables
-    // to isStateValid calls since there isn't a notion of planning variables
-    // here. The other robot state variables will be set via the world to model
-    // transform in the collision space
-
-    std::vector<std::string> robot_var_names;
-    std::vector<int> robot_var_indices;
-    if (!getRobotVariableNames(robot_model, robot_var_names, robot_var_indices))
-    {
-        return false;
+    // TODO:: check whether they order of joints is identical...maybe it's
+    // worthwhile to make them such if not already?
+    for (size_t vidx = 0; vidx < state.getVariableCount(); ++vidx) {
+        int rcmvidx = m_rcm_var_indices[vidx];
+        m_rcm_vars[rcmvidx] = state.getVariablePosition(vidx);
     }
-
-    assert(robot_var_names.size() == robot_var_indices.size());
-    // could also assert that the robot variable indices are sorted here
-
-    bool contiguous = true;
-    for (size_t i = 1; i < robot_var_indices.size(); ++i) {
-        if (robot_var_indices[i] != robot_var_indices[i - 1] + 1) {
-            contiguous = false;
-            break;
-        }
-    }
-
-    variable_names = robot_var_names;
-    variable_indices = robot_var_indices;
-    are_variables_contiguous = contiguous;
-    variables_offset = 0;
-    if (are_variables_contiguous && !robot_var_names.empty()) {
-        variables_offset = std::distance(
-                robot_model.getVariableNames().begin(),
-                std::find(
-                        robot_model.getVariableNames().begin(),
-                        robot_model.getVariableNames().end(),
-                        robot_var_names.front()));
-    }
-
-    ROS_DEBUG("Sorted Variable Names: %s", to_string(variable_names).c_str());
-    ROS_DEBUG("Sorted Variable Indices: %s", to_string(variable_indices).c_str());
-    ROS_DEBUG("Contiguous: %s", are_variables_contiguous ? "true" : "false");
-    ROS_DEBUG("Variables Offset: %d", variables_offset);
-    return true;
+    return m_rcm_vars;
 }
 
 bool CollisionStateUpdater::getRobotCollisionModelJointIndices(
@@ -197,70 +112,6 @@ bool CollisionStateUpdater::getRobotCollisionModelJointIndices(
         rcm_joint_indices[i] = jidx;
     }
 
-    return true;
-}
-
-/// Traverse a robot model to extract all variable names corresponding to the
-/// URDF model (disregarding any virtual joints). The returned variables are
-/// sorted by the order they appear in the robot model.
-///
-/// \return true if the model has a valid root link; false otherwise
-bool CollisionStateUpdater::getRobotVariableNames(
-    const moveit::core::RobotModel& model,
-    std::vector<std::string>& var_names,
-    std::vector<int>& var_indices)
-{
-    // traverse the robot kinematic structure to gather all the joint variables
-    const moveit::core::LinkModel* root_link = model.getRootLink();
-    if (!root_link) {
-        return false;
-    }
-
-    // get all descendant joint models
-    std::vector<const moveit::core::JointModel*> robot_joint_models;
-    for (auto joint_model : root_link->getChildJointModels()) {
-        robot_joint_models.insert(
-                robot_joint_models.end(),
-                joint_model->getDescendantJointModels().begin(),
-                joint_model->getDescendantJointModels().end());
-    }
-    robot_joint_models.insert(
-            robot_joint_models.end(),
-            root_link->getChildJointModels().begin(),
-            root_link->getChildJointModels().end());
-
-    // aggregate all variable names
-    std::vector<std::string> variable_names;
-    for (auto joint_model : robot_joint_models) {
-        variable_names.insert(
-                variable_names.end(),
-                joint_model->getVariableNames().begin(),
-                joint_model->getVariableNames().end());
-    }
-
-    // sort by their order in the robot model variable vector
-    std::sort(variable_names.begin(), variable_names.end(),
-            [&](const std::string& var_a, const std::string& var_b)
-            {
-                size_t va_idx = std::distance(
-                        model.getVariableNames().begin(),
-                        std::find(model.getVariableNames().begin(), model.getVariableNames().end(), var_a));
-                size_t vb_idx = std::distance(
-                        model.getVariableNames().begin(),
-                        std::find(model.getVariableNames().begin(), model.getVariableNames().end(), var_b));
-                return va_idx < vb_idx;
-            });
-
-
-    std::vector<int> variable_indices;
-    for (const auto& var_name : variable_names) {
-        variable_indices.push_back(std::distance(
-                model.getVariableNames().begin(),
-                std::find(model.getVariableNames().begin(), model.getVariableNames().end(), var_name)));
-    }
-
-    var_names = std::move(variable_names);
-    var_indices = std::move(variable_indices);
     return true;
 }
 
