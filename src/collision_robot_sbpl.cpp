@@ -220,7 +220,8 @@ void CollisionRobotSBPL::checkSelfCollision(
     const AllowedCollisionMatrix& acm) const
 {
     // TODO: implement
-    setVacuousCollision(res);
+    const_cast<CollisionRobotSBPL*>(this)->checkSelfCollisionMutable(
+            req, res, state1, state2, acm);
 }
 
 double CollisionRobotSBPL::distanceOther(
@@ -331,6 +332,107 @@ void CollisionRobotSBPL::checkSelfCollisionMutable(
             *m_updater.attachedBodiesCollisionState(),
             AllowedCollisionMatrixAndTouchLinksInterface(
                     acm, m_updater.touchLinkSet()),
+            gidx,
+            dist);
+
+    ROS_INFO_STREAM_COND_NAMED(req.verbose, CRP_LOGGER, "valid: " << std::boolalpha << valid << ", dist: " << dist);
+    ROS_DEBUG_STREAM_COND_NAMED(!req.verbose, CRP_LOGGER, "valid: " << std::boolalpha << valid << ", dist: " << dist);
+
+    const bool visualize = req.verbose;
+    if (visualize) {
+        auto ma = getCollisionRobotVisualization(
+                *m_updater.collisionState(),
+                *m_updater.attachedBodiesCollisionState(),
+                gidx);
+        if (!valid) {
+            for (auto& m : ma.markers) {
+                m.color.r = 1.0;
+                m.color.g = m.color.b = 0.0;
+            }
+        }
+        m_collision_pub.publish(m_grid->getOccupiedVoxelsVisualization());
+        m_collision_pub.publish(ma);
+    }
+
+    if (!valid) {
+        res.collision = true;
+    }
+    if (req.distance) {
+        res.distance = std::min(res.distance, dist);
+    }
+    if (req.cost) {
+        ROS_WARN_ONCE("Cost sources not computed by sbpl collision checker");
+    }
+    if (req.contacts) {
+        ROS_WARN_ONCE("Contacts not computed by sbpl collision checker");
+    }
+}
+
+void CollisionRobotSBPL::checkSelfCollisionMutable(
+    const CollisionRequest& req,
+    CollisionResult& res,
+    const moveit::core::RobotState& state1,
+    const moveit::core::RobotState& state2,
+    const AllowedCollisionMatrix& acm)
+{
+    using sbpl::collision::AttachedBodiesCollisionModel;
+    using sbpl::collision::AttachedBodiesCollisionState;
+    using sbpl::collision::RobotCollisionState;
+    using sbpl::collision::SelfCollisionModel;
+
+    assert(state1.getRobotModel()->getName() == m_rcm->name());
+    assert(state2.getRobotModel()->getName() == m_rcm->name());
+
+    // lookup the name of the corresponding collision group
+    auto jgcgit = m_jcgm_map.find(req.group_name);
+    const std::string& collision_group_name =
+            jgcgit == m_jcgm_map.end() ? req.group_name : jgcgit->second;
+
+    if (!m_rcm->hasGroup(collision_group_name)) {
+        ROS_ERROR_NAMED(CRP_LOGGER, "No group '%s' found in the Robot Collision Model", collision_group_name.c_str());
+        setVacuousCollision(res);
+        return;
+    }
+
+    if (!m_grid) {
+        ROS_DEBUG_NAMED(CRP_LOGGER, "Initialize self collision model");
+
+        // lazily initialize self collision model
+        m_grid = createGridFor(m_scm_config);
+        m_grid->setReferenceFrame(m_rcm->modelFrame());
+
+        auto bbma = m_grid->getOccupiedVoxelsVisualization();
+        for (auto& m : bbma.markers) {
+            m.ns = "self_collision_model_bounds";
+        }
+        m_collision_pub.publish(bbma);
+
+        m_scm = std::make_shared<SelfCollisionModel>(
+                m_grid.get(), m_rcm.get(), m_updater.attachedBodiesCollisionModel().get());
+    }
+
+    int gidx = m_rcm->groupIndex(collision_group_name);
+
+    moveit::core::RobotState state1_copy(state1);
+    moveit::core::RobotState state2_copy(state2);
+    state1_copy.setJointPositions(
+            state1_copy.getRobotModel()->getRootJoint(),
+            Eigen::Affine3d::Identity());
+    state2_copy.setJointPositions(
+            state1_copy.getRobotModel()->getRootJoint(),
+            Eigen::Affine3d::Identity());
+//    m_updater.update(state_copy);
+
+    double dist;
+    const std::vector<double> startvars(m_updater.getVariablesFor(state1_copy));
+    const std::vector<double> goalvars(m_updater.getVariablesFor(state2_copy));
+    bool valid = m_scm->checkMotionCollision(
+            *m_updater.collisionState(),
+            *m_updater.attachedBodiesCollisionState(),
+            AllowedCollisionMatrixAndTouchLinksInterface(acm, m_updater.touchLinkSet()),
+            *m_rmcm,
+            startvars,
+            goalvars,
             gidx,
             dist);
 

@@ -178,6 +178,13 @@ private:
         const robot_state::RobotState& state,
         const AllowedCollisionMatrix& acm);
 
+    void checkSelfCollisionMutable(
+        const CollisionRequest& req,
+        CollisionResult& res,
+        const moveit::core::RobotState& state1,
+        const moveit::core::RobotState& state2,
+        const AllowedCollisionMatrix& acm);
+
     bool updateAttachedBodies(const moveit::core::RobotState& state);
 
     double getSelfCollisionPropagationDistance() const;
