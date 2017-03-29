@@ -111,6 +111,7 @@ CollisionRobotSBPL::CollisionRobotSBPL(const CollisionRobotSBPL& other) :
     m_scm_config = other.m_scm_config;
     m_jcgm_map = other.m_jcgm_map;
     m_rcm = other.m_rcm;
+    m_rmcm = other.m_rmcm;
     m_updater = other.m_updater;
     m_collision_pub = other.m_collision_pub;
 }
