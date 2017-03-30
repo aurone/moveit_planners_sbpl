@@ -77,7 +77,6 @@ CollisionWorldSBPL::CollisionWorldSBPL(
 
     m_parent_grid = other.m_grid ? other.m_grid : other.m_parent_grid;
     m_parent_wcm = other.m_wcm ? other.m_wcm : other.m_parent_wcm;
-    m_parent_wcd = other.m_wcd ? other.m_wcd : other.m_parent_wcd;
 
     m_updaters = other.m_updaters;
     // NOTE: no need to copy observer handle
@@ -225,7 +224,6 @@ void CollisionWorldSBPL::construct()
 
     m_grid = createGridFor(m_wcm_config);
     m_wcm = std::make_shared<sbpl::collision::WorldCollisionModel>(m_grid.get());
-    m_wcd = std::make_shared<sbpl::collision::WorldCollisionDetector>(m_wcm.get());
 
     // TODO: allowed collisions matrix
 
@@ -258,10 +256,7 @@ void CollisionWorldSBPL::copyOnWrite()
 
             m_parent_grid.reset();
             m_parent_wcm.reset();
-            m_parent_wcd.reset();
         }
-
-        m_wcd = std::make_shared<sbpl::collision::WorldCollisionDetector>(m_wcm.get());
     }
 }
 
@@ -489,19 +484,20 @@ void CollisionWorldSBPL::checkRobotCollisionMutable(
 
     gm->update(state);
 
-    sbpl::collision::WorldCollisionDetectorConstPtr ewcd;
-    if (m_wcd) {
-        ewcd = m_wcd;
-    } else if (m_parent_wcd) {
-        ewcd = m_parent_wcd;
+    sbpl::collision::WorldCollisionModelConstPtr ewcm;
+    if (m_wcm) {
+        ewcm = m_wcm;
+    } else if (m_parent_wcm) {
+        ewcm = m_parent_wcm;
     } else {
         ROS_ERROR_NAMED(CWP_LOGGER, "Neither local nor parent world collision model valid");
         setVacuousCollision(res);
         return;
     }
+    sbpl::collision::WorldCollisionDetector wcd(rcm.get(), ewcm.get());
 
     double dist;
-    bool valid = ewcd->checkCollision(
+    bool valid = wcd.checkCollision(
             *gm->collisionState(),
             *gm->attachedBodiesCollisionState(),
             gidx,
@@ -587,22 +583,23 @@ void CollisionWorldSBPL::checkRobotCollisionMutable(
 
 //    gm->update(state1);
 
-    sbpl::collision::WorldCollisionDetectorConstPtr ewcd;
-    if (m_wcd) {
-        ewcd = m_wcd;
-    } else if (m_parent_wcd) {
-        ewcd = m_parent_wcd;
+    sbpl::collision::WorldCollisionModelConstPtr ewcm;
+    if (m_wcm) {
+        ewcm = m_wcm;
+    } else if (m_parent_wcm) {
+        ewcm = m_parent_wcm;
     } else {
         ROS_ERROR_NAMED(CWP_LOGGER, "Neither local nor parent world collision model valid");
         setVacuousCollision(res);
         return;
     }
+    sbpl::collision::WorldCollisionDetector wcd(rcm.get(), ewcm.get());
 
     double dist;
 
     const std::vector<double> startvars(gm->getVariablesFor(state1));
     const std::vector<double> goalvars(gm->getVariablesFor(state2));
-    bool valid = ewcd->checkMotionCollision(
+    bool valid = wcd.checkMotionCollision(
         *gm->collisionState(),
         *gm->attachedBodiesCollisionState(),
         *rmcm,

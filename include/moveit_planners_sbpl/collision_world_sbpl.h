@@ -140,7 +140,6 @@ private:
 
     sbpl::OccupancyGridPtr m_grid;
     sbpl::collision::WorldCollisionModelPtr m_wcm;
-    sbpl::collision::WorldCollisionDetectorConstPtr m_wcd;
 
     std::unordered_map<std::string, CollisionStateUpdaterPtr> m_updaters;
 
