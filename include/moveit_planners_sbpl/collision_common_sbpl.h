@@ -142,6 +142,8 @@ private:
     sbpl::collision::AttachedBodiesCollisionStatePtr m_ab_state;
     TouchLinkSet m_touch_link_map;
 
+    bool m_inorder;
+
     bool extractRobotVariables(
         const moveit::core::RobotModel& model,
         std::vector<std::string>& variable_names,

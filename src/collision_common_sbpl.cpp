@@ -44,7 +44,8 @@ namespace collision_detection {
 CollisionStateUpdater::CollisionStateUpdater() :
     m_rcm_var_indices(),
     m_rcm_vars(),
-    m_rcs()
+    m_rcs(),
+    m_inorder(false)
 {
 }
 
@@ -68,6 +69,18 @@ bool CollisionStateUpdater::init(
             m_ab_model.get(), m_rcs.get());
 
     m_rcm_vars.assign(robot.getVariableCount(), 0.0);
+
+    m_inorder = true;
+    for (size_t i = 1; i < m_rcm_var_indices.size(); ++i) {
+        if (m_rcm_var_indices[i] != m_rcm_var_indices[i - 1] + 1) {
+            m_inorder = false;
+            ROS_INFO("Joint variables not in order:");
+            ROS_INFO("  RobotModel: %s", to_string(robot.getVariableNames()).c_str());
+            ROS_INFO("  RobotCollisionModel: %s", to_string(rcm->jointVarNames()).c_str());
+            break;
+        }
+    }
+    ROS_INFO("Ordered: %s", m_inorder ? "true" : "false");
     return true;
 }
 
@@ -80,11 +93,16 @@ void CollisionStateUpdater::update(const moveit::core::RobotState& state)
 const std::vector<double>& CollisionStateUpdater::getVariablesFor(
     const moveit::core::RobotState& state)
 {
-    // TODO:: check whether they order of joints is identical...maybe it's
-    // worthwhile to make them such if not already?
-    for (size_t vidx = 0; vidx < state.getVariableCount(); ++vidx) {
-        int rcmvidx = m_rcm_var_indices[vidx];
-        m_rcm_vars[rcmvidx] = state.getVariablePosition(vidx);
+    if (m_inorder) {
+        std::copy(
+                state.getVariablePositions(),
+                state.getVariablePositions() + state.getVariableCount(),
+                m_rcm_vars.begin());
+    } else {
+        for (size_t vidx = 0; vidx < state.getVariableCount(); ++vidx) {
+            int rcmvidx = m_rcm_var_indices[vidx];
+            m_rcm_vars[rcmvidx] = state.getVariablePosition(vidx);
+        }
     }
     return m_rcm_vars;
 }
