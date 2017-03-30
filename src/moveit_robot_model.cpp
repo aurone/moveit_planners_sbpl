@@ -81,6 +81,8 @@ bool MoveItRobotModel::init(
     const robot_model::RobotModelConstPtr& robot_model,
     const std::string& group_name)
 {
+    ROS_INFO("Initialize MoveIt! Robot Model");
+
     if (!robot_model) {
         ROS_ERROR("Robot Model is null");
         return false;
@@ -117,10 +119,16 @@ bool MoveItRobotModel::init(
 
     // set the planning joints
     // TODO: should this be joint names or joint variable names?
+    // -- these should be variable names, but RobotModel will still need to have
+    // knowledge of the relationship between joints and variables to support
+    // floating joints
     std::vector<std::string> planning_joints;
     planning_joints.reserve(m_active_var_count);
     for (const moveit::core::JointModel* joint : active_joints) {
-        planning_joints.push_back(joint->getName());
+        planning_joints.insert(
+                planning_joints.end(),
+                joint->getVariableNames().begin(),
+                joint->getVariableNames().end());
     }
     setPlanningJoints(planning_joints);
     ROS_INFO("Planning Joints: %s", to_string(getPlanningJoints()).c_str());

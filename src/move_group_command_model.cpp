@@ -1213,25 +1213,49 @@ bool MoveGroupCommandModel::fillConfigurationGoalConstraints(
 
     // make a joint constraint for each active joint in the joint model group
     for (const moveit::core::JointModel* jm : jmg->getActiveJointModels()) {
-        if (jm->getType() != moveit::core::JointModel::JointType::REVOLUTE &&
-            jm->getType() != moveit::core::JointModel::JointType::PRISMATIC)
-        {
-            ROS_WARN("Skipping Multi-DOF joint '%s' in joint group '%s'", jm->getName().c_str(), group_name.c_str());
-            continue;
+        switch (jm->getType()) {
+        case moveit::core::JointModel::JointType::FIXED:
+            break;
+        case moveit::core::JointModel::JointType::PRISMATIC: {
+            moveit_msgs::JointConstraint joint_constraint;
+            joint_constraint.joint_name = jm->getName();
+            joint_constraint.position = m_robot_state->getVariablePosition(jm->getName());
+            joint_constraint.tolerance_above = m_pos_tol_m;
+            joint_constraint.tolerance_below = m_pos_tol_m;
+            joint_constraint.weight = 1.0;
+
+            constraints.joint_constraints.push_back(joint_constraint);
+        }   break;
+        case moveit::core::JointModel::JointType::REVOLUTE: { // fall-through
+            moveit_msgs::JointConstraint joint_constraint;
+            joint_constraint.joint_name = jm->getName();
+            joint_constraint.position = m_robot_state->getVariablePosition(jm->getName());
+            joint_constraint.tolerance_above = m_joint_tol_rad;
+            joint_constraint.tolerance_below = m_joint_tol_rad;
+            joint_constraint.weight = 1.0;
+
+            constraints.joint_constraints.push_back(joint_constraint);
+        }   break;
+        case moveit::core::JointModel::JointType::PLANAR: {
+            for (const std::string& var_name : jm->getVariableNames()) {
+                moveit_msgs::JointConstraint joint_constraint;
+                joint_constraint.joint_name = var_name;
+                joint_constraint.position = m_robot_state->getVariablePosition(var_name);
+                if (var_name == "theta") {
+                    joint_constraint.tolerance_above = m_joint_tol_rad;
+                    joint_constraint.tolerance_below = m_joint_tol_rad;
+                } else {
+                    joint_constraint.tolerance_above = m_pos_tol_m;
+                    joint_constraint.tolerance_below = m_pos_tol_m;
+                }
+                joint_constraint.weight = 1.0;
+                constraints.joint_constraints.push_back(joint_constraint);
+            }
+        }   break;
+        case moveit::core::JointModel::JointType::FLOATING: {
+            ROS_WARN("Skipping floating joint '%s' in joint group '%s'", jm->getName().c_str(), group_name.c_str());
+        }   break;
         }
-
-        if (jm->getType() == moveit::core::JointModel::JointType::PRISMATIC) {
-            ROS_WARN("Joint tolerance specified in radians for prismatic joint '%s'. This may not be what you want", jm->getName().c_str());
-        }
-
-        moveit_msgs::JointConstraint joint_constraint;
-        joint_constraint.joint_name = jm->getName();
-        joint_constraint.position = m_robot_state->getVariablePosition(jm->getName());
-        joint_constraint.tolerance_above = m_joint_tol_rad;
-        joint_constraint.tolerance_below = m_joint_tol_rad;
-        joint_constraint.weight = 1.0;
-
-        constraints.joint_constraints.push_back(joint_constraint);
     }
 
     req.goal_constraints.push_back(constraints);
