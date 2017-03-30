@@ -40,6 +40,7 @@
 #include <leatherman/utils.h>
 #include <ros/console.h>
 #include <sbpl_geometry_utils/utils.h>
+#include <smpl/angles.h>
 #include <tf_conversions/tf_eigen.h>
 
 namespace sbpl_interface {
@@ -723,23 +724,14 @@ bool MoveItRobotModel::computeWristIK(
     const Eigen::Quaterniond forearm_rot(T_model_forearm.rotation());
     const Eigen::Quaterniond wrist_rot(T_model_wrist.rotation());
 
-    geometry_msgs::Quaternion fq;
-    fq.w = forearm_rot.w();
-    fq.x = forearm_rot.x();
-    fq.y = forearm_rot.y();
-    fq.z = forearm_rot.z();
-
-    geometry_msgs::Quaternion wq;
-    wq.w = wrist_rot.w();
-    wq.x = wrist_rot.x();
-    wq.y = wrist_rot.y();
-    wq.z = wrist_rot.z();
-
+    // NOTE: switching from fixed axis xyz to fixed axis zyx might screw up
+    // the orientation solver but I'm not convinced the orientation solver
+    // works anymore
     double fr, fp, fy;
-    leatherman::getRPY(fq, fr, fp, fy);
+    sbpl::angles::get_euler_zyx(forearm_rot, fy, fp, fr);
 
     double wr, wp, wy;
-    leatherman::getRPY(wq, wr, wp, wy);
+    sbpl::angles::get_euler_zyx(wrist_rot, wy, wp, wr);
 
     // NOTE: calling fk to get these poses would be more convenient, but may
     // also pollute the robot state being used internally
