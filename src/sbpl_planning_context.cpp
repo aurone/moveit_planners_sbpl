@@ -361,8 +361,6 @@ bool SBPLPlanningContext::init(const std::map<std::string, std::string>& config)
         }
     }
 
-    pp.print_path = false;
-
     //////////////////////////////////////////////
     // initialize structures against parameters //
     //////////////////////////////////////////////
