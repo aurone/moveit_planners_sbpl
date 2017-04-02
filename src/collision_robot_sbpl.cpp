@@ -485,7 +485,7 @@ double CollisionRobotSBPL::getSelfCollisionPropagationDistance() const
         // distance propagations. a value larger than the max sphere radius
         // provides additional cost information about how far the robot is from
         // environment obstacles.
-        const double required_radius = m_rcm->maxLeafSphereRadius() + m_scm_config.res_m;
+        const double required_radius = m_rcm->maxLeafSphereRadius() + sqrt(3) * m_scm_config.res_m;
         if (cfg_max_distance_m < required_radius) {
             ROS_WARN_NAMED(CRP_LOGGER, "configured max distance set to %0.3f. overriding to required radius %0.3f", cfg_max_distance_m, required_radius);
         }
