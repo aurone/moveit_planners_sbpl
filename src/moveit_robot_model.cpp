@@ -141,17 +141,99 @@ bool MoveItRobotModel::init(
     m_var_vel_limits.reserve(m_active_var_count);
     m_var_acc_limits.reserve(m_active_var_count);
     for (const std::string& var_name : m_active_var_names) {
+        const int vidx = m_robot_model->getVariableIndex(var_name);
         const auto& var_bounds = m_robot_model->getVariableBounds(var_name);
-        if (var_bounds.position_bounded_) {
-            m_var_continuous.push_back(false);
-            m_var_min_limits.push_back(var_bounds.min_position_);
-            m_var_max_limits.push_back(var_bounds.max_position_);
-        }
-        else {
-            // slight hack here? !position_bounded_ => continuous?
-            m_var_continuous.push_back(true);
-            m_var_min_limits.push_back(-M_PI);
-            m_var_max_limits.push_back(M_PI);
+        const moveit::core::JointModel* jm =
+                m_robot_model->getJointOfVariable(vidx);
+        switch (jm->getType()) {
+        case moveit::core::JointModel::JointType::FIXED:
+            break; // shouldn't be here
+        case moveit::core::JointModel::JointType::REVOLUTE:
+            if (var_bounds.position_bounded_) {
+                m_var_min_limits.push_back(var_bounds.min_position_);
+                m_var_max_limits.push_back(var_bounds.max_position_);
+                m_var_continuous.push_back(false);
+                m_var_bounded.push_back(true);
+            } else {
+                // slight hack here? !position_bounded_ => continuous?
+                m_var_min_limits.push_back(-M_PI);
+                m_var_max_limits.push_back(M_PI);
+                m_var_continuous.push_back(true);
+                m_var_bounded.push_back(false);
+            }
+            break;
+        case moveit::core::JointModel::JointType::PRISMATIC: {
+            if (var_bounds.position_bounded_) {
+                m_var_min_limits.push_back(var_bounds.min_position_);
+                m_var_max_limits.push_back(var_bounds.max_position_);
+                m_var_continuous.push_back(false);
+                m_var_bounded.push_back(true);
+            } else {
+                m_var_min_limits.push_back(-std::numeric_limits<double>::infinity());
+                m_var_max_limits.push_back(std::numeric_limits<double>::infinity());
+                m_var_continuous.push_back(false);
+                m_var_bounded.push_back(false);
+            }
+        }   break;
+        case moveit::core::JointModel::JointType::PLANAR: {
+            if (var_bounds.position_bounded_) { // x and y variables
+                m_var_min_limits.push_back(-std::numeric_limits<double>::infinity());
+                m_var_max_limits.push_back(std::numeric_limits<double>::infinity());
+                m_var_continuous.push_back(false);
+                m_var_bounded.push_back(false);
+            } else { // theta variable
+                m_var_min_limits.push_back(-M_PI);
+                m_var_max_limits.push_back(M_PI);
+                m_var_continuous.push_back(true);
+                m_var_bounded.push_back(false);
+            }
+        }   break;
+        case moveit::core::JointModel::JointType::FLOATING: {
+            const size_t idx = var_name.find('/');
+            if (idx != std::string::npos) {
+                std::string local_var_name = var_name.substr(idx + 1);
+                if (local_var_name == "trans_x") {
+                    m_var_min_limits.push_back(-std::numeric_limits<double>::infinity());
+                    m_var_max_limits.push_back(std::numeric_limits<double>::infinity());
+                    m_var_continuous.push_back(false);
+                    m_var_bounded.push_back(false);
+                } else if (local_var_name == "trans_y") {
+                    m_var_min_limits.push_back(-std::numeric_limits<double>::infinity());
+                    m_var_max_limits.push_back(std::numeric_limits<double>::infinity());
+                    m_var_continuous.push_back(false);
+                    m_var_bounded.push_back(false);
+                } else if (local_var_name == "trans_z") {
+                    m_var_min_limits.push_back(-std::numeric_limits<double>::infinity());
+                    m_var_max_limits.push_back(std::numeric_limits<double>::infinity());
+                    m_var_continuous.push_back(false);
+                    m_var_bounded.push_back(false);
+                } else if (local_var_name == "rot_w") {
+                    m_var_min_limits.push_back(var_bounds.min_position_);
+                    m_var_max_limits.push_back(var_bounds.max_position_);
+                    m_var_continuous.push_back(false);
+                    m_var_bounded.push_back(true);
+                } else if (local_var_name == "rot_x") {
+                    m_var_min_limits.push_back(var_bounds.min_position_);
+                    m_var_max_limits.push_back(var_bounds.max_position_);
+                    m_var_continuous.push_back(false);
+                    m_var_bounded.push_back(true);
+                } else if (local_var_name == "rot_y") {
+                    m_var_min_limits.push_back(var_bounds.min_position_);
+                    m_var_max_limits.push_back(var_bounds.max_position_);
+                    m_var_continuous.push_back(false);
+                    m_var_bounded.push_back(true);
+                } else if (local_var_name == "rot_z") {
+                    m_var_min_limits.push_back(var_bounds.min_position_);
+                    m_var_max_limits.push_back(var_bounds.max_position_);
+                    m_var_continuous.push_back(false);
+                    m_var_bounded.push_back(true);
+                } else {
+                    ROS_ERROR("Unrecognized variable name '%s'", local_var_name.c_str());
+                }
+            } else {
+                ROS_ERROR("Multi-DOF joint variable name missing '/' separator");
+            }
+        }   break;
         }
 
         if (var_bounds.velocity_bounded_) {
@@ -315,7 +397,7 @@ double MoveItRobotModel::maxPosLimit(int jidx) const
 
 bool MoveItRobotModel::hasPosLimit(int jidx) const
 {
-    return !m_var_continuous[jidx];
+    return m_var_bounded[jidx];
 }
 
 bool MoveItRobotModel::isContinuous(int jidx) const

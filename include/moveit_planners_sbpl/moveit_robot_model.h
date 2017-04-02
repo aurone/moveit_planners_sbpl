@@ -165,6 +165,7 @@ private:
     std::vector<double> m_var_min_limits;
     std::vector<double> m_var_max_limits;
     std::vector<bool> m_var_continuous;
+    std::vector<bool> m_var_bounded;
     std::vector<double> m_var_vel_limits;
     std::vector<double> m_var_acc_limits;
 
