@@ -181,50 +181,53 @@ bool MoveItCollisionChecker::isStateToStateValid(
     int& num_checks,
     double& dist)
 {
-    collision_detection::CollisionRequest req;
-    req.verbose = false;
-    req.group_name = m_robot_model->planningGroupName();
-    collision_detection::CollisionResult res;
+    const bool use_ccd = true;
+    if (use_ccd) {
+        collision_detection::CollisionRequest req;
+        req.verbose = false;
+        req.group_name = m_robot_model->planningGroupName();
+        collision_detection::CollisionResult res;
 
-    auto cw = m_scene->getCollisionWorld();
-    moveit::core::RobotState state1(*m_ref_state);
-    moveit::core::RobotState state2(*m_ref_state);
-    for (size_t vind = 0; vind < start.size(); ++vind) {
-        state1.setVariablePosition(
-                m_robot_model->activeVariableIndices()[vind], start[vind]);
-        state2.setVariablePosition(
-                m_robot_model->activeVariableIndices()[vind], finish[vind]);
+        auto cw = m_scene->getCollisionWorld();
+        moveit::core::RobotState state1(*m_ref_state);
+        moveit::core::RobotState state2(*m_ref_state);
+        for (size_t vind = 0; vind < start.size(); ++vind) {
+            state1.setVariablePosition(
+                    m_robot_model->activeVariableIndices()[vind], start[vind]);
+            state2.setVariablePosition(
+                    m_robot_model->activeVariableIndices()[vind], finish[vind]);
+        }
+        cw->checkRobotCollision(
+                req, res, *m_scene->getCollisionRobot(), state1, state2, m_scene->getAllowedCollisionMatrix());
+        if (!res.collision || (req.contacts && res.contacts.size() < req.max_contacts)) {
+            auto cr = m_scene->getCollisionRobotUnpadded();
+            cr->checkSelfCollision(
+                    req, res, state1, state2, m_scene->getAllowedCollisionMatrix());
+        }
+
+        return !res.collision;
+    } else {
+        path_length = 0; num_checks = 0; dist = std::numeric_limits<double>::max();
+        int waypoint_count = interpolatePathFast(start, finish, m_waypoint_path);
+        if (waypoint_count < 0) {
+            return false;
+        }
+
+        for (int widx = 0; widx < waypoint_count; ++widx) {
+            const sbpl::motion::RobotState& p = m_waypoint_path[widx];
+            double d;
+            bool res = isStateValid(p, false, false, d);
+            if (d < dist) {
+                dist = d;
+            }
+            ++num_checks;
+            if (!res) {
+                return false;
+            }
+        }
+
+        return true;
     }
-    cw->checkRobotCollision(
-            req, res, *m_scene->getCollisionRobot(), state1, state2, m_scene->getAllowedCollisionMatrix());
-    if (!res.collision || (req.contacts && res.contacts.size() < req.max_contacts)) {
-        auto cr = m_scene->getCollisionRobotUnpadded();
-        cr->checkSelfCollision(
-                req, res, state1, state2, m_scene->getAllowedCollisionMatrix());
-    }
-
-    return !res.collision;
-
-//    path_length = 0; num_checks = 0; dist = std::numeric_limits<double>::max();
-//    int waypoint_count = interpolatePathFast(start, finish, m_waypoint_path);
-//    if (waypoint_count < 0) {
-//        return false;
-//    }
-//
-//    for (int widx = 0; widx < waypoint_count; ++widx) {
-//        const sbpl::motion::RobotState& p = m_waypoint_path[widx];
-//        double d;
-//        bool res = isStateValid(p, false, false, d);
-//        if (d < dist) {
-//            dist = d;
-//        }
-//        ++num_checks;
-//        if (!res) {
-//            return false;
-//        }
-//    }
-//
-//    return true;
 }
 
 bool MoveItCollisionChecker::interpolatePath(
