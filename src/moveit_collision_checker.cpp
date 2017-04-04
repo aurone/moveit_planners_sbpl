@@ -109,17 +109,11 @@ bool MoveItCollisionChecker::init(
 
     m_scene = scene;
 
-    // populate min_limits, max_limits, inc, and continuous
-    const moveit::core::JointModelGroup* joint_group =
-            robot_model->planningJointGroup();
-
-    const std::vector<std::string>& planning_var_names =
-            robot_model->planningVariableNames();
-    for (size_t vind = 0; vind < planning_var_names.size(); ++vind) {
-        const std::string& var_name = planning_var_names[vind];
-    }
-
     m_zero_state.resize(m_robot_model->activeVariableCount(), 0.0);
+
+    ros::NodeHandle ph("~");
+    ph.param("enable_ccd", m_enabled_ccd, false);
+    ROS_INFO("enable_ccd: %s", m_enabled_ccd ? "true" : "false");
 
     return true;
 }
@@ -181,8 +175,7 @@ bool MoveItCollisionChecker::isStateToStateValid(
     int& num_checks,
     double& dist)
 {
-    const bool use_ccd = true;
-    if (use_ccd) {
+    if (m_enabled_ccd) {
         collision_detection::CollisionRequest req;
         req.verbose = false;
         req.group_name = m_robot_model->planningGroupName();

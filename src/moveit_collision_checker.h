@@ -97,6 +97,8 @@ private:
     std::vector<double> m_diffs;
     std::vector<sbpl::motion::RobotState> m_waypoint_path;
 
+    bool m_enabled_ccd;
+
     // interpolate the path between start and finish, storing intermediate
     // waypoints within opath. previous entries in opath are overwritten and
     // never cleared. the number of relevant waypoints is returned
