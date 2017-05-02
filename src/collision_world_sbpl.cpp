@@ -502,8 +502,8 @@ void CollisionWorldSBPL::checkRobotCollisionMutable(
             gidx,
             dist);
 
-    ROS_INFO_STREAM_COND_NAMED(req.verbose, CWP_LOGGER, "valid: " << std::boolalpha << valid << ", dist: " << dist);
-    ROS_DEBUG_STREAM_COND_NAMED(!req.verbose, CWP_LOGGER, "valid: " << std::boolalpha << valid << ", dist: " << dist);
+    ROS_INFO_STREAM_COND_NAMED(req.verbose, CWP_LOGGER, "world valid: " << std::boolalpha << valid << ", dist: " << dist);
+    ROS_DEBUG_STREAM_COND_NAMED(!req.verbose, CWP_LOGGER, "world valid: " << std::boolalpha << valid << ", dist: " << dist);
 
     const bool visualize = req.verbose;
     if (visualize) {

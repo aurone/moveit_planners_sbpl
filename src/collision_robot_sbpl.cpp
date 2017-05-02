@@ -335,8 +335,8 @@ void CollisionRobotSBPL::checkSelfCollisionMutable(
             gidx,
             dist);
 
-    ROS_INFO_STREAM_COND_NAMED(req.verbose, CRP_LOGGER, "valid: " << std::boolalpha << valid << ", dist: " << dist);
-    ROS_DEBUG_STREAM_COND_NAMED(!req.verbose, CRP_LOGGER, "valid: " << std::boolalpha << valid << ", dist: " << dist);
+    ROS_INFO_STREAM_COND_NAMED(req.verbose, CRP_LOGGER, "self valid: " << std::boolalpha << valid << ", dist: " << dist);
+    ROS_DEBUG_STREAM_COND_NAMED(!req.verbose, CRP_LOGGER, "self valid: " << std::boolalpha << valid << ", dist: " << dist);
 
     const bool visualize = req.verbose;
     if (visualize) {
@@ -350,7 +350,6 @@ void CollisionRobotSBPL::checkSelfCollisionMutable(
                 m.color.g = m.color.b = 0.0;
             }
         }
-        m_collision_pub.publish(m_grid->getOccupiedVoxelsVisualization());
         m_collision_pub.publish(ma);
     }
 
