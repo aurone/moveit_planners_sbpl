@@ -8,6 +8,7 @@
 #include <moveit/robot_state/conversions.h>
 #include <moveit_msgs/GetMotionPlan.h>
 #include <moveit_msgs/PlanningScene.h>
+#include <smpl/ros/propagation_distance_field.h>
 
 // project includes
 #include <moveit_planners_sbpl/collision_world_sbpl.h>
@@ -555,7 +556,6 @@ bool SBPLPlanningContext::initHeuristicGrid(
 
     const double max_distance = m_use_bfs ?
             m_pp.planning_link_sphere_radius + res_x_m : res_x_m;
-    const bool propagate_negative_distances = false;
 
     Eigen::Affine3d T_planning_workspace;
     T_planning_workspace = Eigen::Translation3d(
@@ -573,16 +573,14 @@ bool SBPLPlanningContext::initHeuristicGrid(
     ROS_DEBUG_NAMED(PP_LOGGER, "  origin_x: %0.3f", workspace_pos_in_planning.x());
     ROS_DEBUG_NAMED(PP_LOGGER, "  origin_y: %0.3f", workspace_pos_in_planning.y());
     ROS_DEBUG_NAMED(PP_LOGGER, "  origin_z: %0.3f", workspace_pos_in_planning.z());
-    ROS_DEBUG_NAMED(PP_LOGGER, "  propagate_negative_distances: %s", propagate_negative_distances ? "true" : "false");
 
-    auto hdf = std::make_shared<distance_field::PropagationDistanceField>(
-            size_x, size_y, size_z,
-            res_x_m,
+    auto hdf = std::make_shared<sbpl::PropagationDistanceField>(
             workspace_pos_in_planning.x(),
             workspace_pos_in_planning.y(),
             workspace_pos_in_planning.z(),
-            max_distance,
-            propagate_negative_distances);
+            size_x, size_y, size_z,
+            res_x_m,
+            max_distance);
 
     if (!m_use_bfs) {
         ROS_DEBUG_NAMED(PP_LOGGER, "Not using BFS heuristic (Skipping occupancy grid filling)");
@@ -604,7 +602,7 @@ bool SBPLPlanningContext::initHeuristicGrid(
     if (sbpl_cworld) {
         ROS_DEBUG_NAMED(PP_LOGGER, "Use collision information from Collision World SBPL for heuristic!!!");
 
-        const distance_field::DistanceField* df = sbpl_cworld->distanceField(
+        const sbpl::DistanceMapInterface* df = sbpl_cworld->distanceField(
                     scene.getRobotModel()->getName(),
                     m_robot_model->planningGroupName());
         if (df) {
@@ -663,30 +661,28 @@ bool SBPLPlanningContext::initHeuristicGrid(
 }
 
 void SBPLPlanningContext::copyDistanceField(
-    const distance_field::DistanceField& dfin,
-    distance_field::PropagationDistanceField& dfout) const
+    const sbpl::DistanceMapInterface& dfin,
+    sbpl::DistanceMapInterface& dfout) const
 {
-    EigenSTL::vector_Vector3d points;
-    for (int x = 0; x < dfout.getXNumCells(); ++x) {
-        for (int y = 0; y < dfout.getYNumCells(); ++y) {
-            for (int z = 0; z < dfout.getZNumCells(); ++z) {
-                double wx, wy, wz;
-                dfout.gridToWorld(x, y, z, wx, wy, wz);
-                int gx, gy, gz;
-                if (dfin.worldToGrid(wx, wy, wz, gx, gy, gz)) {
-                    if (dfin.getDistance(gx, gy, gz) <= 0.0) {
-                        points.emplace_back(wx, wy, wz);
-                    }
-                }
-                else {
-                    points.emplace_back(wx, wy, wz);
-                }
-            }
+    std::vector<Eigen::Vector3d> points;
+    for (int x = 0; x < dfout.numCellsX(); ++x) {
+    for (int y = 0; y < dfout.numCellsY(); ++y) {
+    for (int z = 0; z < dfout.numCellsZ(); ++z) {
+        double wx, wy, wz;
+        dfout.gridToWorld(x, y, z, wx, wy, wz);
+        int gx, gy, gz;
+        dfin.worldToGrid(wx, wy, wz, gx, gy, gz);
+        if (!dfin.isCellValid(gx, gy, gz)) {
+            points.emplace_back(wx, wy, wz);
+        } else if (dfin.getCellDistance(gx, gy, gz) <= 0.0) {
+            points.emplace_back(wx, wy, wz);
         }
+    }
+    }
     }
 
     ROS_DEBUG_NAMED(PP_LOGGER, "Add %zu points to the bfs distance field", points.size());
-    dfout.addPointsToField(points);
+    dfout.addPointsToMap(points);
 }
 
 } // namespace sbpl_interface

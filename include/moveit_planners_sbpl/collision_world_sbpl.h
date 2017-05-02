@@ -64,7 +64,7 @@ public:
 
     virtual ~CollisionWorldSBPL();
 
-    const distance_field::DistanceField* distanceField(
+    const sbpl::DistanceMapInterface* distanceField(
         const std::string& robot_name,
         const std::string& group_name) const;
 

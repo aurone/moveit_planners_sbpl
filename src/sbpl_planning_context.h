@@ -10,6 +10,7 @@
 #include <moveit_msgs/OrientedBoundingBox.h>
 #include <moveit_msgs/MotionPlanRequest.h>
 #include <smpl/ros/planner_interface.h>
+#include <smpl/distance_map/distance_map_interface.h>
 
 #include <moveit_planners_sbpl/moveit_robot_model.h>
 
@@ -90,8 +91,8 @@ private:
         const planning_scene::PlanningScene& scene,
         const moveit_msgs::WorkspaceParameters& workspace);
     void copyDistanceField(
-        const distance_field::DistanceField& dfin,
-        distance_field::PropagationDistanceField& dfout) const;
+        const sbpl::DistanceMapInterface& dfin,
+        sbpl::DistanceMapInterface& dfout) const;
 };
 
 MOVEIT_CLASS_FORWARD(SBPLPlanningContext);

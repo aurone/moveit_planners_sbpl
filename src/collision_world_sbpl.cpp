@@ -269,8 +269,8 @@ sbpl::OccupancyGridPtr CollisionWorldSBPL::createGridFor(
     ROS_DEBUG_NAMED(CWP_LOGGER, "    resolution: %0.3f", config.res_m);
     ROS_DEBUG_NAMED(CWP_LOGGER, "    max_distance: %0.3f", config.max_distance_m);
 
-    const bool propagate_negative_distances = false;
     const bool ref_counted = true;
+
     auto dmap = std::make_shared<sbpl::OccupancyGrid>(
             config.size_x,
             config.size_y,
@@ -280,7 +280,6 @@ sbpl::OccupancyGridPtr CollisionWorldSBPL::createGridFor(
             config.origin_y,
             config.origin_z,
             config.max_distance_m,
-            propagate_negative_distances,
             ref_counted);
     dmap->setReferenceFrame(config.frame_id);
     return dmap;
@@ -308,7 +307,7 @@ CollisionStateUpdaterPtr CollisionWorldSBPL::getCollisionStateUpdater(
     return gm;
 }
 
-const distance_field::DistanceField* CollisionWorldSBPL::distanceField(
+const sbpl::DistanceMapInterface* CollisionWorldSBPL::distanceField(
     const std::string& robot_name,
     const std::string& group_name) const
 {

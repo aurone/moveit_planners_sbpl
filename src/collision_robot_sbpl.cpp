@@ -507,7 +507,6 @@ sbpl::OccupancyGridPtr CollisionRobotSBPL::createGridFor(
 
     // TODO: this can be substantially smaller since it only has to encompass
     // the range of motion of the robot
-    const bool propagate_negative_distances = false;
     const bool ref_counted = true;
     double max_distance = getSelfCollisionPropagationDistance();
     return std::make_shared<sbpl::OccupancyGrid>(
@@ -519,7 +518,6 @@ sbpl::OccupancyGridPtr CollisionRobotSBPL::createGridFor(
             config.origin_y,
             config.origin_z,
             max_distance,
-            propagate_negative_distances,
             ref_counted);
 }
 
