@@ -11,6 +11,8 @@
 
 namespace sbpl_interface {
 
+static const char *LOG = "joint_variable_command_widget";
+
 JointVariableCommandWidget::JointVariableCommandWidget(
     MoveGroupCommandModel* model,
     QWidget* parent)
@@ -45,7 +47,7 @@ JointVariableCommandWidget::~JointVariableCommandWidget()
 void JointVariableCommandWidget::displayJointGroupCommands(
     const std::string& group_name)
 {
-    ROS_INFO("display joint group commands");
+    ROS_DEBUG_NAMED(LOG, "display joint group commands");
     QGridLayout* glayout = qobject_cast<QGridLayout*>(layout());
     if (!glayout) {
         ROS_ERROR("JointVariableCommandWidget layout is not a QGridLayout");
@@ -65,7 +67,7 @@ void JointVariableCommandWidget::displayJointGroupCommands(
         return;
     }
 
-    ROS_INFO("remove everything from layout");
+    ROS_DEBUG_NAMED(LOG, "remove everything from layout");
 
     // remove everything from the layout
     while (!glayout->isEmpty()) {
@@ -86,7 +88,7 @@ void JointVariableCommandWidget::displayJointGroupCommands(
     glayout->addWidget(m_joint_groups_combo_box, 0, 1);
     m_joint_groups_combo_box->show(); // this gets hidden above
 
-    ROS_INFO("add joint group controls to layout");
+    ROS_DEBUG_NAMED(LOG, "add joint group controls to layout");
 
     // gather (label, spinbox) pairs to be visible in the layout
     // TODO: this could probably be made more better since spinboxes are
@@ -115,7 +117,7 @@ void JointVariableCommandWidget::displayJointGroupCommands(
     // add (label, spinbox) widgets to the layout
     int row = glayout->rowCount();
     for (auto& entry : group_widgets) {
-        ROS_INFO("add spinbox %p and label %p to layout", entry.first, entry.second);
+        ROS_DEBUG_NAMED(LOG, "add spinbox %p and label %p to layout", entry.first, entry.second);
         glayout->addWidget(entry.first, row, 0);
         glayout->addWidget(entry.second, row, 1);
         entry.first->show();
@@ -123,7 +125,7 @@ void JointVariableCommandWidget::displayJointGroupCommands(
         ++row;
     }
 
-    ROS_INFO("Layout contains %d controls", glayout->count());
+    ROS_DEBUG_NAMED(LOG, "Layout contains %d controls", glayout->count());
 
     ///////////////////////////////////////////////////////////////////////
     // KEEP THESE CALLS BECAUSE THEY USED TO BE THE ONLY WAY TO AUTOMATIC
@@ -150,7 +152,7 @@ void JointVariableCommandWidget::syncSpinBoxes()
         return;
     }
 
-    ROS_DEBUG("sync spinboxes");
+    ROS_DEBUG_NAMED(LOG, "sync spinboxes");
     if (!m_model->isRobotLoaded()) {
         ROS_WARN("Robot not yet loaded");
         return;
@@ -196,7 +198,7 @@ void JointVariableCommandWidget::syncSpinBoxes()
                 }
             }
 
-            ROS_INFO("sync rpy from quaternion (%0.3f, %0.3f, %0.3f, %0.3f)", qvars[0], qvars[1], qvars[2], qvars[3]);
+            ROS_DEBUG_NAMED(LOG, "sync rpy from quaternion (%0.3f, %0.3f, %0.3f, %0.3f)", qvars[0], qvars[1], qvars[2], qvars[3]);
             // simultaneously set the values for the rpy spinboxes
             Eigen::Affine3d rot(Eigen::Quaterniond(
                     qvars[0], qvars[1], qvars[2], qvars[3]));
@@ -225,7 +227,7 @@ void JointVariableCommandWidget::syncSpinBoxes()
                         this, SLOT(setJointVariableFromSpinBox(double)));
                 disconnect(qspinboxes[2], SIGNAL(valueChanged(double)),
                         this, SLOT(setJointVariableFromSpinBox(double)));
-                ROS_INFO("sync rpy spinboxes with values (%0.3f, %0.3f, %0.3f)", vR, vP, vY);
+                ROS_DEBUG_NAMED(LOG, "sync rpy spinboxes with values (%0.3f, %0.3f, %0.3f)", vR, vP, vY);
                 qspinboxes[0]->setValue(vR);
                 qspinboxes[1]->setValue(vP);
                 qspinboxes[2]->setValue(vY);
@@ -289,7 +291,7 @@ void JointVariableCommandWidget::syncPlanningJointGroupComboBox()
 /// \brief Update the spinboxes and group selections for a new robot
 void JointVariableCommandWidget::updateRobotControls()
 {
-    ROS_INFO("update robot controls");
+    ROS_DEBUG_NAMED(LOG, "update robot controls");
     QGridLayout* grid_layout = qobject_cast<QGridLayout*>(layout());
     if (!grid_layout) {
         ROS_ERROR("JointVariableCommandWidget layout is not a QGridLayout");
@@ -478,7 +480,7 @@ void JointVariableCommandWidget::updateRobotControls()
 QDoubleSpinBox* JointVariableCommandWidget::createRealVariableSpinBox(
     const moveit::core::VariableBounds& bounds)
 {
-    ROS_INFO("create real variable spinbox");
+    ROS_DEBUG_NAMED(LOG, "create real variable spinbox");
     QDoubleSpinBox* spinbox = new QDoubleSpinBox;
     double min, max, step;
     if (bounds.position_bounded_) {
@@ -509,7 +511,7 @@ QDoubleSpinBox* JointVariableCommandWidget::createRealVariableSpinBox(
 
     spinbox->setMinimum(min);
     spinbox->setMaximum(max);
-    ROS_INFO(" -> single step for real variable: %f", step);
+    ROS_DEBUG_NAMED(LOG, " -> single step for real variable: %f", step);
 
     // TODO: compute the number of decimals required to display a
     // change in the joint variable or round the step up to the
@@ -522,7 +524,7 @@ QDoubleSpinBox* JointVariableCommandWidget::createRealVariableSpinBox(
 
 QDoubleSpinBox* JointVariableCommandWidget::createRollVariableSpinBox()
 {
-    ROS_INFO("create roll variable spinbox");
+    ROS_DEBUG_NAMED(LOG, "create roll variable spinbox");
     // TODO: limit bounds
     QDoubleSpinBox* spinbox = new QDoubleSpinBox;
     spinbox->setMinimum(-180.0);
@@ -534,7 +536,7 @@ QDoubleSpinBox* JointVariableCommandWidget::createRollVariableSpinBox()
 
 QDoubleSpinBox* JointVariableCommandWidget::createPitchVariableSpinBox()
 {
-    ROS_INFO("create pitch variable spinbox");
+    ROS_DEBUG_NAMED(LOG, "create pitch variable spinbox");
     // TODO: limit bounds
     QDoubleSpinBox* spinbox = new QDoubleSpinBox;
     spinbox->setMinimum(0.0);
@@ -546,7 +548,7 @@ QDoubleSpinBox* JointVariableCommandWidget::createPitchVariableSpinBox()
 
 QDoubleSpinBox* JointVariableCommandWidget::createYawVariableSpinBox()
 {
-    ROS_INFO("create yaw variable spinbox");
+    ROS_DEBUG_NAMED(LOG, "create yaw variable spinbox");
     // TODO: limit bounds
     QDoubleSpinBox* spinbox = new QDoubleSpinBox;
     spinbox->setMinimum(-180.0);
@@ -558,7 +560,7 @@ QDoubleSpinBox* JointVariableCommandWidget::createYawVariableSpinBox()
 
 QDoubleSpinBox* JointVariableCommandWidget::createAngleVariableSpinBox()
 {
-    ROS_INFO("create angle variable spinbox");
+    ROS_DEBUG_NAMED(LOG, "create angle variable spinbox");
     QDoubleSpinBox* spinbox = new QDoubleSpinBox;
     spinbox->setMinimum(0.0);
     spinbox->setMaximum(359.0);
@@ -634,7 +636,7 @@ void JointVariableCommandWidget::setJointVariableFromSpinBox(double value)
 
     const std::vector<int>& variables = m_spinbox_to_vind[spinbox];
 
-    ROS_DEBUG("Update joint variables %s from spinbox %p with value %0.3f", to_string(variables).c_str(), spinbox, value);
+    ROS_DEBUG_NAMED(LOG, "Update joint variables %s from spinbox %p with value %0.3f", to_string(variables).c_str(), spinbox, value);
 
     if (variables.size() == 4) {
         // so much hackery here for quaternion controls
@@ -642,18 +644,18 @@ void JointVariableCommandWidget::setJointVariableFromSpinBox(double value)
         const std::vector<QDoubleSpinBox*>& rpy_controls =
                 m_vind_to_spinbox[variables[0]];
 
-        ROS_INFO("rpy controls: %s", to_string(rpy_controls).c_str());
+        ROS_DEBUG_NAMED(LOG, "rpy controls: %s", to_string(rpy_controls).c_str());
 
         // attempt stability
         double r = std::round(rpy_controls[0]->value());
         double p = std::round(rpy_controls[1]->value());
         double y = std::round(rpy_controls[2]->value());
-        ROS_INFO("set rpy values from spinbox values (%0.3f, %0.3f, %0.3f)", r, p, y);
+        ROS_DEBUG_NAMED(LOG, "set rpy values from spinbox values (%0.3f, %0.3f, %0.3f)", r, p, y);
         Eigen::Quaterniond rot(
                 Eigen::AngleAxisd(sbpl::angles::to_radians(y), Eigen::Vector3d::UnitZ()) *
                 Eigen::AngleAxisd(sbpl::angles::to_radians(p), Eigen::Vector3d::UnitY()) *
                 Eigen::AngleAxisd(sbpl::angles::to_radians(r), Eigen::Vector3d::UnitX()));
-        ROS_INFO("  set quaternion (%0.3f, %0.3f, %0.3f, %0.3f)", rot.w(), rot.x(), rot.y(), rot.z());
+        ROS_DEBUG_NAMED(LOG, "  set quaternion (%0.3f, %0.3f, %0.3f, %0.3f)", rot.w(), rot.x(), rot.y(), rot.z());
         m_ignore_sync = true;
         m_model->setJointVariable(variables[0], rot.w());
         m_model->setJointVariable(variables[1], rot.x());
