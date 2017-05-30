@@ -197,7 +197,6 @@ private:
     void reinitCheckStateValidityService();
     void reinitQueryPlannerInterfaceService();
 
-    void logRobotModelInfo(const moveit::core::RobotModel& rm) const;
     void logPlanningSceneMonitor(
         const planning_scene_monitor::PlanningSceneMonitor& monitor) const;
 
@@ -253,18 +252,6 @@ private:
     // is not modified if the current state is not available.
     bool getActualState(moveit::core::RobotState& robot_state) const;
 
-    // get all leaf links from which we can set the group state via ik
-    std::vector<std::string>
-    getTipLinkNames(const moveit::core::JointModelGroup& jmg) const;
-
-    std::vector<const moveit::core::LinkModel*>
-    getTipLinks(const moveit::core::JointModelGroup& jmg) const;
-
-    void getTipLinks(
-        const moveit::core::JointModelGroup& jmg,
-        const moveit::core::LinkModel& link,
-        std::vector<const moveit::core::LinkModel*>& tips) const;
-
     void processInteractiveMarkerFeedback(
         const visualization_msgs::InteractiveMarkerFeedbackConstPtr& msg);
 
@@ -281,31 +268,6 @@ private:
         const std::string& jv_name) const;
 
     bool updateAvailableFrames();
-
-    bool computeAxisAlignedBoundingBox(
-        const moveit::core::LinkModel& link,
-        Eigen::Vector3d& pos,
-        Eigen::Vector3d& size) const;
-    bool computeAxisAlignedBoundingBox(
-        const shapes::Shape& shape,
-        Eigen::Vector3d& pose,
-        Eigen::Vector3d& size) const;
-    bool computeAxisAlignedBoundingBox(
-        const shapes::Box& box,
-        Eigen::Vector3d& pos,
-        Eigen::Vector3d& size) const;
-    bool computeAxisAlignedBoundingBox(
-        const shapes::Cylinder& cylinder,
-        Eigen::Vector3d& pos,
-        Eigen::Vector3d& size) const;
-    bool computeAxisAlignedBoundingBox(
-        const shapes::Sphere& sphere,
-        Eigen::Vector3d& pos,
-        Eigen::Vector3d& size) const;
-    bool computeAxisAlignedBoundingBox(
-        const shapes::Mesh& mesh,
-        Eigen::Vector3d& pos,
-        Eigen::Vector3d& size) const;
 
     bool computeInscribedRadius(
         const moveit::core::LinkModel& link,
