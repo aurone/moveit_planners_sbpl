@@ -44,7 +44,9 @@ namespace sbpl_interface {
 
 class MoveItRobotModel;
 
-class MoveItCollisionChecker : public sbpl::motion::CollisionChecker
+class MoveItCollisionChecker :
+    public sbpl::motion::CollisionChecker,
+    public sbpl::motion::CollisionDistanceExtension
 {
 public:
 
@@ -95,6 +97,18 @@ public:
     getVisualization(const std::string& type);
     ///@}
 
+    /// \name Required Functions from CollisionDistanceExtension
+    ///@{
+    /// Return the distance to collision with the nearest obstacle.
+    double distanceToCollision(const sbpl::motion::RobotState& state) override;
+
+    /// Return the distance to collision with the nearest obstacle along a
+    /// motion.
+    double distanceToCollision(
+        const sbpl::motion::RobotState& start,
+        const sbpl::motion::RobotState& finish) override;
+    ///@}
+
 private:
 
     MoveItRobotModel* m_robot_model;
@@ -110,6 +124,8 @@ private:
 
     bool m_enabled_ccd;
 
+    ros::Publisher m_vpub;
+
     // interpolate the path between start and finish, storing intermediate
     // waypoints within opath. previous entries in opath are overwritten and
     // never cleared. the number of relevant waypoints is returned
@@ -118,7 +134,9 @@ private:
         const sbpl::motion::RobotState& finish,
         std::vector<sbpl::motion::RobotState>& opath);
 
-    ros::Publisher m_vpub;
+    void updateStateWithPlanningVariables(
+        moveit::core::RobotState& o,
+        const sbpl::motion::RobotState& state) const;
 };
 
 } // namespace sbpl_interface

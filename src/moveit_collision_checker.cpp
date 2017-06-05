@@ -125,7 +125,9 @@ bool MoveItCollisionChecker::initialized() const
 
 sbpl::motion::Extension* MoveItCollisionChecker::getExtension(size_t class_code)
 {
-    if (class_code == sbpl::motion::GetClassCode<sbpl::motion::CollisionChecker>()) {
+    if (class_code == sbpl::motion::GetClassCode<sbpl::motion::CollisionChecker>() ||
+        class_code == sbpl::motion::GetClassCode<sbpl::motion::CollisionDistanceExtension>())
+    {
         return this;
     }
     return nullptr;
@@ -142,11 +144,7 @@ bool MoveItCollisionChecker::isStateValid(
         return false;
     }
 
-    // fill in variable values
-    for (size_t vind = 0; vind < state.size(); ++vind) {
-        m_ref_state->setVariablePosition(
-                m_robot_model->activeVariableIndices()[vind], state[vind]);
-    }
+    updateStateWithPlanningVariables(*m_ref_state, state);
 
     // TODO: need to propagate path_constraints and trajectory_constraints down
     // to this level from the planning context. Once those are propagated, this
@@ -192,12 +190,8 @@ bool MoveItCollisionChecker::isStateToStateValid(
         auto cw = m_scene->getCollisionWorld();
         moveit::core::RobotState state1(*m_ref_state);
         moveit::core::RobotState state2(*m_ref_state);
-        for (size_t vind = 0; vind < start.size(); ++vind) {
-            state1.setVariablePosition(
-                    m_robot_model->activeVariableIndices()[vind], start[vind]);
-            state2.setVariablePosition(
-                    m_robot_model->activeVariableIndices()[vind], finish[vind]);
-        }
+        updateStateWithPlanningVariables(state1, start);
+        updateStateWithPlanningVariables(state2, finish);
         cw->checkRobotCollision(
                 req, res, *m_scene->getCollisionRobot(), state1, state2, m_scene->getAllowedCollisionMatrix());
         if (!res.collision || (req.contacts && res.contacts.size() < req.max_contacts)) {
@@ -306,10 +300,7 @@ MoveItCollisionChecker::getCollisionModelVisualization(
 {
     moveit::core::RobotState robot_state(*m_ref_state);
 
-    for (size_t vind = 0; vind < state.size(); ++vind) {
-        int avind = m_robot_model->activeVariableIndices()[vind];
-        robot_state.setVariablePosition(avind, state[vind]);
-    }
+    updateStateWithPlanningVariables(robot_state, state);
 
     visualization_msgs::MarkerArray marker_arr;
     std_msgs::ColorRGBA color;
@@ -341,6 +332,38 @@ visualization_msgs::MarkerArray
 MoveItCollisionChecker::getVisualization(const std::string& type)
 {
     return visualization_msgs::MarkerArray();
+}
+
+double MoveItCollisionChecker::distanceToCollision(
+    const sbpl::motion::RobotState& state)
+{
+    if (!initialized()) {
+        ROS_ERROR("MoveItCollisionChecker is not initialized");
+        return false;
+    }
+
+    updateStateWithPlanningVariables(*m_ref_state, state);
+
+    return m_scene->distanceToCollision(*m_ref_state);
+}
+
+double MoveItCollisionChecker::distanceToCollision(
+    const sbpl::motion::RobotState& start,
+    const sbpl::motion::RobotState& finish)
+{
+    ROS_ERROR_ONCE("%s unimplemented", __FUNCTION__);
+    return 0.0;
+}
+
+void MoveItCollisionChecker::updateStateWithPlanningVariables(
+    moveit::core::RobotState& o,
+    const sbpl::motion::RobotState& state) const
+{
+    assert(state.size() == m_robot_model->activeVariableIndices().size());
+    for (size_t vind = 0; vind < state.size(); ++vind) {
+        const int avidx = m_robot_model->activeVariableIndices()[vind];
+        o.setVariablePosition(avidx, state[vind]);
+    }
 }
 
 } // namespace sbpl_interface
