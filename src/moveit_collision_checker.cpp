@@ -123,6 +123,14 @@ bool MoveItCollisionChecker::initialized() const
     return (bool)m_robot_model;
 }
 
+sbpl::motion::Extension* MoveItCollisionChecker::getExtension(size_t class_code)
+{
+    if (class_code == sbpl::motion::GetClassCode<sbpl::motion::CollisionChecker>()) {
+        return this;
+    }
+    return nullptr;
+}
+
 bool MoveItCollisionChecker::isStateValid(
     const sbpl::motion::RobotState& state,
     bool verbose,

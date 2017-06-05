@@ -60,6 +60,13 @@ public:
 
     bool initialized() const;
 
+    /// \name Required Functions from Extension
+    ///@{
+    sbpl::motion::Extension* getExtension(size_t class_code) override;
+    ///@}
+
+    /// \name Required Functions from CollisionChecker
+    ///@{
     bool isStateValid(
         const sbpl::motion::RobotState& angles,
         bool verbose,
@@ -77,12 +84,16 @@ public:
         const sbpl::motion::RobotState& start,
         const sbpl::motion::RobotState& finish,
         std::vector<sbpl::motion::RobotState>& opath);
+    ///@}
 
+    /// \name Reimplemented Functions from CollisionChecker
+    ///@{
     visualization_msgs::MarkerArray
     getCollisionModelVisualization(const sbpl::motion::RobotState& angles);
 
     visualization_msgs::MarkerArray
     getVisualization(const std::string& type);
+    ///@}
 
 private:
 
