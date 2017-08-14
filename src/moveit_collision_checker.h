@@ -110,6 +110,22 @@ private:
 
     bool m_enabled_ccd;
 
+    auto checkContinuousCollision(
+        const sbpl::motion::RobotState& start,
+        const sbpl::motion::RobotState& finish)
+        -> bool;
+
+    auto checkInterpolatedPathCollision(
+        const sbpl::motion::RobotState& start,
+        const sbpl::motion::RobotState& finish,
+        int& check_count,
+        double& dist)
+        -> bool;
+
+    void setRobotStateFromState(
+        moveit::core::RobotState& robot_state,
+        const sbpl::motion::RobotState& state) const;
+
     // interpolate the path between start and finish, storing intermediate
     // waypoints within opath. previous entries in opath are overwritten and
     // never cleared. the number of relevant waypoints is returned

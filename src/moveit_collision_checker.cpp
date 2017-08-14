@@ -47,6 +47,8 @@
 
 namespace sbpl_interface {
 
+namespace smpl = sbpl::motion;
+
 MoveItCollisionChecker::MoveItCollisionChecker() :
     Base(),
     m_robot_model(nullptr),
@@ -123,16 +125,16 @@ bool MoveItCollisionChecker::initialized() const
     return (bool)m_robot_model;
 }
 
-sbpl::motion::Extension* MoveItCollisionChecker::getExtension(size_t class_code)
+smpl::Extension* MoveItCollisionChecker::getExtension(size_t class_code)
 {
-    if (class_code == sbpl::motion::GetClassCode<sbpl::motion::CollisionChecker>()) {
+    if (class_code == smpl::GetClassCode<smpl::CollisionChecker>()) {
         return this;
     }
     return nullptr;
 }
 
 bool MoveItCollisionChecker::isStateValid(
-    const sbpl::motion::RobotState& state,
+    const smpl::RobotState& state,
     bool verbose,
     bool visualize,
     double& dist)
@@ -142,11 +144,7 @@ bool MoveItCollisionChecker::isStateValid(
         return false;
     }
 
-    // fill in variable values
-    for (size_t vind = 0; vind < state.size(); ++vind) {
-        m_ref_state->setVariablePosition(
-                m_robot_model->activeVariableIndices()[vind], state[vind]);
-    }
+    setRobotStateFromState(*m_ref_state, state);
 
     // TODO: need to propagate path_constraints and trajectory_constraints down
     // to this level from the planning context. Once those are propagated, this
@@ -177,73 +175,105 @@ bool MoveItCollisionChecker::isStateValid(
 }
 
 bool MoveItCollisionChecker::isStateToStateValid(
-    const sbpl::motion::RobotState& start,
-    const sbpl::motion::RobotState& finish,
+    const smpl::RobotState& start,
+    const smpl::RobotState& finish,
     int& path_length,
     int& num_checks,
     double& dist)
 {
+    path_length = 0;
+    num_checks = 0;
+    dist = std::numeric_limits<double>::infinity();
     if (m_enabled_ccd) {
-        collision_detection::CollisionRequest req;
-        req.verbose = false;
-        req.group_name = m_robot_model->planningGroupName();
-        collision_detection::CollisionResult res;
-
-        auto cw = m_scene->getCollisionWorld();
-        moveit::core::RobotState state1(*m_ref_state);
-        moveit::core::RobotState state2(*m_ref_state);
-        for (size_t vind = 0; vind < start.size(); ++vind) {
-            state1.setVariablePosition(
-                    m_robot_model->activeVariableIndices()[vind], start[vind]);
-            state2.setVariablePosition(
-                    m_robot_model->activeVariableIndices()[vind], finish[vind]);
-        }
-        cw->checkRobotCollision(
-                req, res, *m_scene->getCollisionRobot(), state1, state2, m_scene->getAllowedCollisionMatrix());
-        if (!res.collision || (req.contacts && res.contacts.size() < req.max_contacts)) {
-            auto cr = m_scene->getCollisionRobotUnpadded();
-            cr->checkSelfCollision(
-                    req, res, state1, state2, m_scene->getAllowedCollisionMatrix());
-        }
-
-        return !res.collision;
+        return checkContinuousCollision(start, finish);
     } else {
-        path_length = 0; num_checks = 0; dist = std::numeric_limits<double>::max();
-        int waypoint_count = interpolatePathFast(start, finish, m_waypoint_path);
-        if (waypoint_count < 0) {
-            return false;
-        }
-
-        for (int widx = 0; widx < waypoint_count; ++widx) {
-            const sbpl::motion::RobotState& p = m_waypoint_path[widx];
-            double d;
-            bool res = isStateValid(p, false, false, d);
-            if (d < dist) {
-                dist = d;
-            }
-            ++num_checks;
-            if (!res) {
-                return false;
-            }
-        }
-
-        return true;
+        return checkInterpolatedPathCollision(start, finish, num_checks, dist);
     }
 }
 
 bool MoveItCollisionChecker::interpolatePath(
-    const sbpl::motion::RobotState& start,
-    const sbpl::motion::RobotState& finish,
-    std::vector<sbpl::motion::RobotState>& opath)
+    const smpl::RobotState& start,
+    const smpl::RobotState& finish,
+    std::vector<smpl::RobotState>& opath)
 {
     opath.clear();
     return interpolatePathFast(start, finish, opath) >= 0;
 }
 
-int MoveItCollisionChecker::interpolatePathFast(
+auto MoveItCollisionChecker::checkContinuousCollision(
+    const smpl::RobotState& start,
+    const smpl::RobotState& finish)
+    -> bool
+{
+    collision_detection::CollisionRequest req;
+    req.verbose = false;
+    req.group_name = m_robot_model->planningGroupName();
+    collision_detection::CollisionResult res;
+
+    auto cw = m_scene->getCollisionWorld();
+    moveit::core::RobotState state1(*m_ref_state);
+    moveit::core::RobotState state2(*m_ref_state);
+    setRobotStateFromState(state1, start);
+    setRobotStateFromState(state2, finish);
+    cw->checkRobotCollision(
+            req,
+            res,
+            *m_scene->getCollisionRobot(),
+            state1,
+            state2,
+            m_scene->getAllowedCollisionMatrix());
+    if (!res.collision || (req.contacts && res.contacts.size() < req.max_contacts)) {
+        auto cr = m_scene->getCollisionRobotUnpadded();
+        cr->checkSelfCollision(
+                req, res, state1, state2, m_scene->getAllowedCollisionMatrix());
+    }
+
+    return !res.collision;
+}
+
+auto MoveItCollisionChecker::checkInterpolatedPathCollision(
     const sbpl::motion::RobotState& start,
     const sbpl::motion::RobotState& finish,
-    std::vector<sbpl::motion::RobotState>& opath)
+    int& check_count,
+    double& dist)
+    -> bool
+{
+    int waypoint_count = interpolatePathFast(start, finish, m_waypoint_path);
+    if (waypoint_count < 0) {
+        return false;
+    }
+
+    for (int widx = 0; widx < waypoint_count; ++widx) {
+        const smpl::RobotState& p = m_waypoint_path[widx];
+        double d;
+        bool res = isStateValid(p, false, false, d);
+        if (d < dist) {
+            dist = d;
+        }
+        ++check_count;
+        if (!res) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+void MoveItCollisionChecker::setRobotStateFromState(
+    moveit::core::RobotState& robot_state,
+    const smpl::RobotState& state) const
+{
+    assert(state.size() == m_robot_model->activeVariableIndices().size());
+    for (size_t vidx = 0; vidx < state.size(); ++vidx) {
+        int avidx = m_robot_model->activeVariableIndices()[vidx];
+        robot_state.setVariablePosition(avidx, state[vidx]);
+    }
+}
+
+int MoveItCollisionChecker::interpolatePathFast(
+    const smpl::RobotState& start,
+    const smpl::RobotState& finish,
+    std::vector<smpl::RobotState>& opath)
 {
     assert(start.size() == m_robot_model->activeVariableCount() &&
             finish.size() == m_robot_model->activeVariableCount());
@@ -302,14 +332,11 @@ int MoveItCollisionChecker::interpolatePathFast(
 
 visualization_msgs::MarkerArray
 MoveItCollisionChecker::getCollisionModelVisualization(
-    const sbpl::motion::RobotState& state)
+    const smpl::RobotState& state)
 {
     moveit::core::RobotState robot_state(*m_ref_state);
 
-    for (size_t vind = 0; vind < state.size(); ++vind) {
-        int avind = m_robot_model->activeVariableIndices()[vind];
-        robot_state.setVariablePosition(avind, state[vind]);
-    }
+    setRobotStateFromState(robot_state, state);
 
     visualization_msgs::MarkerArray marker_arr;
     std_msgs::ColorRGBA color;
