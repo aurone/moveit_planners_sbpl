@@ -45,6 +45,8 @@
 
 namespace sbpl_interface {
 
+static const char* LOG = "model";
+
 MoveItRobotModel::MoveItRobotModel() :
     RobotModel(),
     ForwardKinematicsInterface(),
@@ -82,7 +84,7 @@ bool MoveItRobotModel::init(
     const robot_model::RobotModelConstPtr& robot_model,
     const std::string& group_name)
 {
-    ROS_INFO("Initialize MoveIt! Robot Model");
+    ROS_DEBUG_NAMED(LOG, "Initialize MoveIt! Robot Model");
 
     if (!robot_model) {
         ROS_ERROR("Robot Model is null");
@@ -114,9 +116,9 @@ bool MoveItRobotModel::init(
             m_active_var_indices.push_back(robot_model->getVariableIndex(var_name));
         }
     }
-    ROS_INFO("Active Variable Count: %d", m_active_var_count);
-    ROS_INFO("Active Variable Names: %s", to_string(m_active_var_names).c_str());
-    ROS_INFO("Active Variable Indices: %s", to_string(m_active_var_indices).c_str());
+    ROS_DEBUG_NAMED(LOG, "Active Variable Count: %d", m_active_var_count);
+    ROS_DEBUG_NAMED(LOG, "Active Variable Names: %s", to_string(m_active_var_names).c_str());
+    ROS_DEBUG_NAMED(LOG, "Active Variable Indices: %s", to_string(m_active_var_indices).c_str());
 
     // set the planning joints
     // TODO: should this be joint names or joint variable names?
@@ -132,7 +134,7 @@ bool MoveItRobotModel::init(
                 joint->getVariableNames().end());
     }
     setPlanningJoints(planning_joints);
-    ROS_INFO("Planning Joints: %s", to_string(getPlanningJoints()).c_str());
+    ROS_DEBUG_NAMED(LOG, "Planning Joints: %s", to_string(getPlanningJoints()).c_str());
 
     // cache the limits and properties of all planning joint variables
     m_var_min_limits.reserve(m_active_var_count);
@@ -251,9 +253,9 @@ bool MoveItRobotModel::init(
         }
     }
 
-    ROS_INFO("Min Limits: %s", to_string(m_var_min_limits).c_str());
-    ROS_INFO("Max Limits: %s", to_string(m_var_max_limits).c_str());
-    ROS_INFO("Continuous: %s", to_string(m_var_continuous).c_str());
+    ROS_DEBUG_NAMED(LOG, "Min Limits: %s", to_string(m_var_min_limits).c_str());
+    ROS_DEBUG_NAMED(LOG, "Max Limits: %s", to_string(m_var_max_limits).c_str());
+    ROS_DEBUG_NAMED(LOG, "Continuous: %s", to_string(m_var_continuous).c_str());
 
     // identify a default tip link to use for forward and inverse kinematics
     // TODO: better default planning link (first tip link)
@@ -328,7 +330,7 @@ bool MoveItRobotModel::init(
 
         double wrist_pitch_min = var_bounds.min_position_;
         double wrist_pitch_max = var_bounds.max_position_;
-        ROS_INFO("Instantiating orientation solver with limits [%0.3f, %0.3f]", wrist_pitch_min, wrist_pitch_max);
+        ROS_DEBUG_NAMED(LOG, "Instantiating orientation solver with limits [%0.3f, %0.3f]", wrist_pitch_min, wrist_pitch_max);
         m_rpy_solver.reset(new sbpl::motion::RPYSolver(wrist_pitch_min, wrist_pitch_max));
     }
 
