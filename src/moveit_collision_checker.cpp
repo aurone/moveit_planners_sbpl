@@ -135,9 +135,7 @@ smpl::Extension* MoveItCollisionChecker::getExtension(size_t class_code)
 
 bool MoveItCollisionChecker::isStateValid(
     const smpl::RobotState& state,
-    bool verbose,
-    bool visualize,
-    double& dist)
+    bool verbose)
 {
     if (!initialized()) {
         ROS_ERROR("MoveItCollisionChecker is not initialized");
@@ -156,38 +154,19 @@ bool MoveItCollisionChecker::isStateValid(
     //
     // http://docs.ros.org/indigo/api/moveit_core/html/classplanning__scene_1_1PlanningScene.html
     //
-    if (m_scene->isStateColliding(
-            *m_ref_state, m_robot_model->planningGroupName(), verbose))
-    {
-        dist = 0.0;
-        if (visualize) {
-            auto ma = getCollisionModelVisualization(state);
-            for (auto& marker : ma.markers) {
-                marker.color.r = 0.8;
-                marker.ns = "collision";
-            }
-            m_vpub.publish(ma);
-        }
-        return false;
-    }
-
-    return true;
+    return !m_scene->isStateColliding(
+            *m_ref_state, m_robot_model->planningGroupName(), verbose);
 }
 
 bool MoveItCollisionChecker::isStateToStateValid(
     const smpl::RobotState& start,
     const smpl::RobotState& finish,
-    int& path_length,
-    int& num_checks,
-    double& dist)
+    bool verbose)
 {
-    path_length = 0;
-    num_checks = 0;
-    dist = std::numeric_limits<double>::infinity();
     if (m_enabled_ccd) {
         return checkContinuousCollision(start, finish);
     } else {
-        return checkInterpolatedPathCollision(start, finish, num_checks, dist);
+        return checkInterpolatedPathCollision(start, finish);
     }
 }
 
@@ -233,9 +212,7 @@ auto MoveItCollisionChecker::checkContinuousCollision(
 
 auto MoveItCollisionChecker::checkInterpolatedPathCollision(
     const sbpl::motion::RobotState& start,
-    const sbpl::motion::RobotState& finish,
-    int& check_count,
-    double& dist)
+    const sbpl::motion::RobotState& finish)
     -> bool
 {
     int waypoint_count = interpolatePathFast(start, finish, m_waypoint_path);
@@ -245,13 +222,7 @@ auto MoveItCollisionChecker::checkInterpolatedPathCollision(
 
     for (int widx = 0; widx < waypoint_count; ++widx) {
         const smpl::RobotState& p = m_waypoint_path[widx];
-        double d;
-        bool res = isStateValid(p, false, false, d);
-        if (d < dist) {
-            dist = d;
-        }
-        ++check_count;
-        if (!res) {
+        if (!isStateValid(p, false)) {
             return false;
         }
     }

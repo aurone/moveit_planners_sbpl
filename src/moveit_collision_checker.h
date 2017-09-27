@@ -69,16 +69,12 @@ public:
     ///@{
     bool isStateValid(
         const sbpl::motion::RobotState& angles,
-        bool verbose,
-        bool visualize,
-        double& dist) override;
+        bool verbose) override;
 
     bool isStateToStateValid(
         const sbpl::motion::RobotState& angles0,
         const sbpl::motion::RobotState& angles1,
-        int& path_length,
-        int& num_checks,
-        double& dist) override;
+        bool verbose) override;
 
     bool interpolatePath(
         const sbpl::motion::RobotState& start,
@@ -114,9 +110,7 @@ private:
 
     auto checkInterpolatedPathCollision(
         const sbpl::motion::RobotState& start,
-        const sbpl::motion::RobotState& finish,
-        int& check_count,
-        double& dist)
+        const sbpl::motion::RobotState& finish)
         -> bool;
 
     void setRobotStateFromState(
