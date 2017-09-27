@@ -364,10 +364,4 @@ MoveItCollisionChecker::getCollisionModelVisualization(
     return marker_arr;
 }
 
-visualization_msgs::MarkerArray
-MoveItCollisionChecker::getVisualization(const std::string& type)
-{
-    return visualization_msgs::MarkerArray();
-}
-
 } // namespace sbpl_interface

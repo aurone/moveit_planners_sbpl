@@ -71,28 +71,25 @@ public:
         const sbpl::motion::RobotState& angles,
         bool verbose,
         bool visualize,
-        double& dist);
+        double& dist) override;
 
     bool isStateToStateValid(
         const sbpl::motion::RobotState& angles0,
         const sbpl::motion::RobotState& angles1,
         int& path_length,
         int& num_checks,
-        double& dist);
+        double& dist) override;
 
     bool interpolatePath(
         const sbpl::motion::RobotState& start,
         const sbpl::motion::RobotState& finish,
-        std::vector<sbpl::motion::RobotState>& opath);
+        std::vector<sbpl::motion::RobotState>& opath) override;
     ///@}
 
     /// \name Reimplemented Functions from CollisionChecker
     ///@{
-    visualization_msgs::MarkerArray
-    getCollisionModelVisualization(const sbpl::motion::RobotState& angles);
-
-    visualization_msgs::MarkerArray
-    getVisualization(const std::string& type);
+    auto getCollisionModelVisualization(const sbpl::motion::RobotState& angles)
+        -> visualization_msgs::MarkerArray override;
     ///@}
 
 private:
