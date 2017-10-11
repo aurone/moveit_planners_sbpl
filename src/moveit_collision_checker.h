@@ -85,7 +85,7 @@ public:
     /// \name Reimplemented Functions from CollisionChecker
     ///@{
     auto getCollisionModelVisualization(const sbpl::motion::RobotState& angles)
-        -> visualization_msgs::MarkerArray override;
+        -> std::vector<sbpl::visual::Marker> override;
     ///@}
 
 private:

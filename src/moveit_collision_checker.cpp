@@ -301,9 +301,9 @@ int MoveItCollisionChecker::interpolatePathFast(
     return waypoint_count;
 }
 
-visualization_msgs::MarkerArray
-MoveItCollisionChecker::getCollisionModelVisualization(
+auto MoveItCollisionChecker::getCollisionModelVisualization(
     const smpl::RobotState& state)
+    -> std::vector<sbpl::visual::Marker>
 {
     moveit::core::RobotState robot_state(*m_ref_state);
 
@@ -332,7 +332,15 @@ MoveItCollisionChecker::getCollisionModelVisualization(
         marker_arr.markers.insert(marker_arr.markers.end(), frame_markers.markers.begin(), frame_markers.markers.end());
     }
 
-    return marker_arr;
+    std::vector<sbpl::visual::Marker> markers;
+    markers.reserve(marker_arr.markers.size());
+    for (auto& mm : marker_arr.markers) {
+        sbpl::visual::Marker m;
+        sbpl::visual::ConvertMarkerMsgToMarker(mm, m);
+        markers.push_back(m);
+    }
+
+    return markers;
 }
 
 } // namespace sbpl_interface
