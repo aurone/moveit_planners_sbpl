@@ -33,6 +33,8 @@
 
 #include <ros/ros.h>
 
+#include <smpl/debug/visualize.h>
+
 namespace collision_detection {
 
 // crp = collision robot plugin
@@ -101,7 +103,6 @@ CollisionRobotSBPL::CollisionRobotSBPL(
     m_rmcm = std::make_shared<sbpl::collision::RobotMotionCollisionModel>(m_rcm.get());
 
     ros::NodeHandle nh;
-    m_collision_pub = nh.advertise<visualization_msgs::MarkerArray>("visualization_markers", 10);
 }
 
 CollisionRobotSBPL::CollisionRobotSBPL(const CollisionRobotSBPL& other) :
@@ -113,7 +114,6 @@ CollisionRobotSBPL::CollisionRobotSBPL(const CollisionRobotSBPL& other) :
     m_rcm = other.m_rcm;
     m_rmcm = other.m_rmcm;
     m_updater = other.m_updater;
-    m_collision_pub = other.m_collision_pub;
 }
 
 CollisionRobotSBPL::~CollisionRobotSBPL()
@@ -308,11 +308,9 @@ void CollisionRobotSBPL::checkSelfCollisionMutable(
         m_grid = createGridFor(m_scm_config);
         m_grid->setReferenceFrame(m_rcm->modelFrame());
 
-        auto bbma = m_grid->getOccupiedVoxelsVisualization();
-        for (auto& m : bbma.markers) {
-            m.ns = "self_collision_model_bounds";
-        }
-        m_collision_pub.publish(bbma);
+        auto bbm = m_grid->getOccupiedVoxelsVisualization();
+        bbm.ns = "self_collision_model_bounds";
+        SV_SHOW_INFO(bbm);
 
         m_scm = std::make_shared<SelfCollisionModel>(
                 m_grid.get(), m_rcm.get(), m_updater.attachedBodiesCollisionModel().get());
@@ -350,7 +348,7 @@ void CollisionRobotSBPL::checkSelfCollisionMutable(
                 m.color.g = m.color.b = 0.0;
             }
         }
-        m_collision_pub.publish(ma);
+        SV_SHOW_INFO(ma);
     }
 
     if (!valid) {
@@ -401,10 +399,8 @@ void CollisionRobotSBPL::checkSelfCollisionMutable(
         m_grid->setReferenceFrame(m_rcm->modelFrame());
 
         auto bbma = m_grid->getOccupiedVoxelsVisualization();
-        for (auto& m : bbma.markers) {
-            m.ns = "self_collision_model_bounds";
-        }
-        m_collision_pub.publish(bbma);
+        bbma.ns = "self_collision_model_bounds";
+        SV_SHOW_INFO(bbma);
 
         m_scm = std::make_shared<SelfCollisionModel>(
                 m_grid.get(), m_rcm.get(), m_updater.attachedBodiesCollisionModel().get());
@@ -450,8 +446,8 @@ void CollisionRobotSBPL::checkSelfCollisionMutable(
                 m.color.g = m.color.b = 0.0;
             }
         }
-        m_collision_pub.publish(m_grid->getOccupiedVoxelsVisualization());
-        m_collision_pub.publish(ma);
+        SV_SHOW_INFO(m_grid->getOccupiedVoxelsVisualization());
+        SV_SHOW_INFO(ma);
     }
 
     if (!valid) {

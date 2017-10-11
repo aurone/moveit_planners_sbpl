@@ -164,8 +164,6 @@ private:
 
     CollisionStateUpdater m_updater;
 
-    ros::Publisher m_collision_pub;
-
     // self colllision models
     sbpl::OccupancyGridPtr m_grid;
     sbpl::collision::SelfCollisionModelPtr m_scm;

@@ -145,8 +145,6 @@ private:
 
     World::ObserverHandle m_observer_handle;
 
-    ros::Publisher m_cspace_pub;
-
     void construct();
 
     void copyOnWrite();

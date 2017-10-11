@@ -38,6 +38,7 @@
 #include <ros/ros.h>
 #include <geometric_shapes/shape_operations.h>
 #include <leatherman/print.h>
+#include <smpl/debug/visualize.h>
 
 // project includes
 #include <moveit_planners_sbpl/moveit_robot_model.h>
@@ -82,7 +83,6 @@ CollisionWorldSBPL::CollisionWorldSBPL(
     // NOTE: no need to copy observer handle
     registerWorldCallback();
     // NOTE: no need to copy node handle
-    m_cspace_pub = other.m_cspace_pub;
 }
 
 CollisionWorldSBPL::~CollisionWorldSBPL()
@@ -227,17 +227,12 @@ void CollisionWorldSBPL::construct()
 
     // TODO: allowed collisions matrix
 
-    ros::NodeHandle nh;
-    m_cspace_pub = nh.advertise<visualization_msgs::MarkerArray>(
-            "visualization_markers", 10);
-
     ROS_INFO("Sleep to allow publish to set up");
     ros::Duration(0.5).sleep();
     ROS_INFO("Done sleeping");
 
     // publish collision world visualizations
-    auto markers = m_grid->getBoundingBoxVisualization();
-    m_cspace_pub.publish(markers);
+    SV_SHOW_INFO(m_grid->getBoundingBoxVisualization());
 }
 
 void CollisionWorldSBPL::copyOnWrite()
@@ -517,7 +512,7 @@ void CollisionWorldSBPL::checkRobotCollisionMutable(
                 m.color.g = m.color.b = 0.0;
             }
         }
-        m_cspace_pub.publish(ma);
+        SV_SHOW_INFO(ma);
     }
 
     if (!valid) {
@@ -619,7 +614,7 @@ void CollisionWorldSBPL::checkRobotCollisionMutable(
                 m.color.g = m.color.b = 0.0;
             }
         }
-        m_cspace_pub.publish(ma);
+        SV_SHOW_INFO(ma);
     }
 
     if (!valid) {
