@@ -42,6 +42,7 @@
 #include <ros/console.h>
 #include <ros/ros.h>
 #include <smpl/angles.h>
+#include <smpl/debug/marker_conversions.h>
 
 #include <moveit_planners_sbpl/moveit_robot_model.h>
 
