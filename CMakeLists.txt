@@ -23,6 +23,7 @@ find_package(catkin REQUIRED
     roscpp
     rviz
     smpl
+    smpl_ros
     sbpl_collision_checking
     sbpl_geometry_utils
     sbpl_pr2_robot_model
@@ -38,14 +39,15 @@ catkin_package(
         geometric_shapes
         leatherman
         smpl
+        smpl_ros
         sbpl_collision_checking
         sbpl_pr2_robot_model
         roscpp
     DEPENDS)
 
-include_directories(${Boost_INCLUDE_DIRS})
-include_directories(${SBPL_INCLUDE_DIRS})
-include_directories(${catkin_INCLUDE_DIRS})
+include_directories(SYSTEM ${Boost_INCLUDE_DIRS})
+include_directories(SYSTEM ${SBPL_INCLUDE_DIRS})
+include_directories(SYSTEM ${catkin_INCLUDE_DIRS})
 include_directories(include)
 
 qt4_wrap_cpp(
