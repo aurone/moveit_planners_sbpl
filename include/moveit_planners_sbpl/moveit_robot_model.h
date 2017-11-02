@@ -51,8 +51,7 @@ class MoveItRobotModel :
 {
 public:
 
-    MoveItRobotModel();
-    virtual ~MoveItRobotModel();
+    MoveItRobotModel() = default;
 
     // disallow copy/assign since RobotModel holds internal references to
     // extension interfaces
@@ -156,9 +155,9 @@ private:
     moveit::core::RobotStatePtr m_robot_state;
 
     std::string m_group_name;
-    const moveit::core::JointModelGroup* m_joint_group;
+    const moveit::core::JointModelGroup* m_joint_group = nullptr;
 
-    int m_active_var_count;
+    int m_active_var_count = 0;
     std::vector<std::string> m_active_var_names;
     std::vector<int> m_active_var_indices; // maps vars to robot state indices
 
@@ -169,11 +168,12 @@ private:
     std::vector<double> m_var_vel_limits;
     std::vector<double> m_var_acc_limits;
 
-    const moveit::core::LinkModel* m_tip_link;
+    const moveit::core::LinkModel* m_tip_link = nullptr;
 
     std::string m_planning_frame;
+    bool m_planning_frame_is_model_frame = false;
 
-    int m_redundant_var_count;
+    int m_redundant_var_count = 0;
     std::vector<int> m_redundant_var_indices;
 
     std::shared_ptr<sbpl::motion::RPYSolver> m_rpy_solver;
@@ -195,9 +195,8 @@ private:
 
     Eigen::Affine3d poseVectorToAffine(const std::vector<double>& pose) const;
 
-    bool transformToModelFrame(
-        const Eigen::Affine3d& T_planning_link,
-        Eigen::Affine3d& T_model_link) const;
+    bool transformToPlanningFrame(Eigen::Affine3d& T_model_link) const;
+    bool transformToModelFrame(Eigen::Affine3d& T_planning_link) const;
 };
 
 } // namespace sbpl_interface

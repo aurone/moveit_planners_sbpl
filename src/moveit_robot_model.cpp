@@ -47,37 +47,6 @@ namespace sbpl_interface {
 
 static const char* LOG = "model";
 
-MoveItRobotModel::MoveItRobotModel() :
-    RobotModel(),
-    ForwardKinematicsInterface(),
-    InverseKinematicsInterface(),
-    m_planning_scene(),
-    m_robot_model(),
-    m_robot_state(),
-    m_group_name(),
-    m_joint_group(nullptr),
-    m_active_var_count(0),
-    m_active_var_names(),
-    m_active_var_indices(),
-    m_var_min_limits(),
-    m_var_max_limits(),
-    m_var_continuous(),
-    m_var_vel_limits(),
-    m_var_acc_limits(),
-    m_tip_link(nullptr),
-    m_planning_frame(),
-    m_rpy_solver(),
-    m_forearm_roll_link(),
-    m_wrist_flex_link(),
-    m_wrist_roll_link(),
-    m_wrist_flex_joint()
-{
-}
-
-MoveItRobotModel::~MoveItRobotModel()
-{
-}
-
 /// \brief Initialize the MoveItRobotModel for the given MoveIt! Robot Model and
 ///     the group being planned for
 bool MoveItRobotModel::init(
@@ -370,6 +339,7 @@ bool MoveItRobotModel::setPlanningFrame(const std::string& planning_frame)
 {
     // TODO: check for frame existence in robot or planning scene?
     m_planning_frame = planning_frame;
+    m_planning_frame_is_model_frame = (m_planning_frame == m_robot_model->getModelFrame());
     return true;
 }
 
@@ -497,24 +467,13 @@ bool MoveItRobotModel::computeFK(
 
     m_robot_state->updateLinkTransforms();
 
-    const Eigen::Affine3d& T_robot_link =
-            m_robot_state->getGlobalLinkTransform(name);
+    auto T_model_link = m_robot_state->getGlobalLinkTransform(name);
 
-    // return the pose of the link in the planning frame
-    if (!m_planning_scene->knowsFrameTransform(m_planning_frame) ||
-        !m_planning_scene->knowsFrameTransform(m_robot_model->getModelFrame()))
-    {
-        ROS_ERROR("Planning Scene does not contain transforms to planning frame '%s' or model frame '%s'", m_planning_frame.c_str(), m_robot_model->getModelFrame().c_str());
-        return false;
+    if (!transformToPlanningFrame(T_model_link)) {
+        return false; // errors printed within
     }
 
-    const Eigen::Affine3d& T_scene_planning =
-            m_planning_scene->getFrameTransform(m_planning_frame);
-    const Eigen::Affine3d& T_scene_model =
-            m_planning_scene->getFrameTransform(m_robot_model->getModelFrame());
-
-    Eigen::Affine3d T_planning_link =
-            T_scene_planning.inverse() * T_scene_model * T_robot_link;
+    const auto& T_planning_link = T_model_link; // rebrand
 
     // convert to tf for its conversions to euler angles
     tf::Transform tf_planning_link;
@@ -592,14 +551,13 @@ const std::string& MoveItRobotModel::planningGroupName() const
     return m_group_name;
 }
 
-const moveit::core::JointModelGroup*
-MoveItRobotModel::planningJointGroup() const
+auto MoveItRobotModel::planningJointGroup() const
+    -> const moveit::core::JointModelGroup*
 {
     return m_joint_group;
 }
 
-const std::string&
-MoveItRobotModel::planningFrame() const
+const std::string& MoveItRobotModel::planningFrame() const
 {
     return m_planning_frame;
 }
@@ -703,19 +661,13 @@ bool MoveItRobotModel::computeUnrestrictedIK(
     std::vector<double>& solution,
     bool lock_redundant_joints)
 {
-    const Eigen::Affine3d T_planning_link = poseVectorToAffine(pose);
-
-    /////////////////////////////////////////////////////////////////
-    // Transform the planning frame pose into the kinematics frame //
-    /////////////////////////////////////////////////////////////////
+    Eigen::Affine3d T_planning_link = poseVectorToAffine(pose);
 
     // get the transform in the model frame
-
-    Eigen::Affine3d T_model_link;
-    if (!transformToModelFrame(T_planning_link, T_model_link)) {
-        ROS_ERROR("Failed to transform pose to the model frame");
-        return false;
+    if (!transformToModelFrame(T_planning_link)) {
+        return false; // errors printed within
     }
+    const auto& T_model_link = T_planning_link; // rebrand
 
     for (size_t sind = 0; sind < start.size(); ++sind) {
         int avind = m_active_var_indices[sind];
@@ -839,10 +791,18 @@ Eigen::Affine3d MoveItRobotModel::poseVectorToAffine(
             Eigen::AngleAxisd(pose[3], Eigen::Vector3d::UnitX());
 }
 
-bool MoveItRobotModel::transformToModelFrame(
-    const Eigen::Affine3d& T_planning_link,
-    Eigen::Affine3d& T_model_link) const
+bool MoveItRobotModel::transformToPlanningFrame(Eigen::Affine3d& T_model_link) const
 {
+    if (m_planning_frame_is_model_frame) {
+        return true;
+    }
+
+    if (!m_planning_scene) {
+        ROS_ERROR("Planning Scene required to transform between planning and model frame");
+        return false;
+    }
+
+    // return the pose of the link in the planning frame
     if (!m_planning_scene->knowsFrameTransform(m_planning_frame) ||
         !m_planning_scene->knowsFrameTransform(m_robot_model->getModelFrame()))
     {
@@ -855,7 +815,34 @@ bool MoveItRobotModel::transformToModelFrame(
     const Eigen::Affine3d& T_scene_model =
             m_planning_scene->getFrameTransform(m_robot_model->getModelFrame());
 
-    T_model_link = T_scene_model.inverse() * T_scene_planning * T_planning_link;
+    T_model_link = T_scene_planning.inverse() * T_scene_model * T_model_link;
+    return true;
+}
+
+bool MoveItRobotModel::transformToModelFrame(Eigen::Affine3d& T_planning_link) const
+{
+    if (m_planning_frame_is_model_frame) {
+        return true;
+    }
+
+    if (!m_planning_scene) {
+        ROS_ERROR("Planning Scene required to transform between planning and model frame");
+        return false;
+    }
+
+    if (!m_planning_scene->knowsFrameTransform(m_planning_frame) ||
+        !m_planning_scene->knowsFrameTransform(m_robot_model->getModelFrame()))
+    {
+        ROS_ERROR("Planning Scene does not contain transforms to planning frame '%s' or model frame '%s'", m_planning_frame.c_str(), m_robot_model->getModelFrame().c_str());
+        return false;
+    }
+
+    const Eigen::Affine3d& T_scene_planning =
+            m_planning_scene->getFrameTransform(m_planning_frame);
+    const Eigen::Affine3d& T_scene_model =
+            m_planning_scene->getFrameTransform(m_robot_model->getModelFrame());
+
+    T_planning_link = T_scene_model.inverse() * T_scene_planning * T_planning_link;
     return true;
 }
 
