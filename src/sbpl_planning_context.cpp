@@ -235,8 +235,6 @@ bool SBPLPlanningContext::init(const std::map<std::string, std::string>& config)
         "graph",
         "shortcutter",
 
-        "epsilon",
-
         // post-processing
         "shortcut_path",
         "interpolate_path"
