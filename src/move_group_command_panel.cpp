@@ -4,7 +4,6 @@
 #include <eigen_conversions/eigen_msg.h>
 #include <geometric_shapes/shape_operations.h>
 #include <leatherman/viz.h>
-#include <sbpl_geometry_utils/utils.h>
 #include <visualization_msgs/MarkerArray.h>
 
 // module includes

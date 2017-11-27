@@ -23,7 +23,6 @@
     <depend>smpl</depend>
     <depend>smpl_ros</depend>
     <depend>sbpl_collision_checking</depend>
-    <depend>sbpl_geometry_utils</depend>
     <depend>sbpl_pr2_robot_model</depend>
     <depend>sensor_msgs</depend>
     <depend>pluginlib</depend>

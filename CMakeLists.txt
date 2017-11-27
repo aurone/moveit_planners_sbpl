@@ -25,7 +25,6 @@ find_package(catkin REQUIRED
     smpl
     smpl_ros
     sbpl_collision_checking
-    sbpl_geometry_utils
     sbpl_pr2_robot_model
     sensor_msgs
     pluginlib

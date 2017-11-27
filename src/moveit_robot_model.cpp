@@ -39,7 +39,6 @@
 #include <leatherman/print.h>
 #include <leatherman/utils.h>
 #include <ros/console.h>
-#include <sbpl_geometry_utils/utils.h>
 #include <smpl/angles.h>
 #include <tf_conversions/tf_eigen.h>
 
