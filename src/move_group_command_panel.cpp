@@ -581,7 +581,7 @@ void MoveGroupCommandPanel::updateRobotVisualization()
     const std::string ns = robot_model->getName() + std::string("_command");
     int id = 0;
     for (auto& marker : ma.markers) {
-        marker.mesh_use_embedded_materials = true; //false;
+        marker.mesh_use_embedded_materials = false;
 
         float r_base = 0.4f; // (float)100 / (float)255;
         float g_base = 0.4f; // (float)159 / (float)255;
