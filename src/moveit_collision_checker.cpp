@@ -324,10 +324,9 @@ auto MoveItCollisionChecker::getCollisionModelVisualization(
             ros::Duration(0),
             true);
 
-    const moveit::core::LinkModel* tip_link = m_robot_model->planningTipLink();
+    auto* tip_link = m_robot_model->planningTipLink();
     if (tip_link) {
-        const Eigen::Affine3d& T_model_tip =
-                robot_state.getGlobalLinkTransform(tip_link->getName());
+        auto& T_model_tip = robot_state.getGlobalLinkTransform(tip_link->getName());
         auto frame_markers = viz::getFrameMarkerArray(
                 T_model_tip, m_robot_model->moveitRobotModel()->getModelFrame(), "", marker_arr.markers.size());
         marker_arr.markers.insert(marker_arr.markers.end(), frame_markers.markers.begin(), frame_markers.markers.end());
@@ -338,7 +337,7 @@ auto MoveItCollisionChecker::getCollisionModelVisualization(
     for (auto& mm : marker_arr.markers) {
         sbpl::visual::Marker m;
         sbpl::visual::ConvertMarkerMsgToMarker(mm, m);
-        markers.push_back(m);
+        markers.push_back(std::move(m));
     }
 
     return markers;
