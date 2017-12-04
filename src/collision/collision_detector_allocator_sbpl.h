@@ -29,10 +29,29 @@
 // POSSIBILITY OF SUCH DAMAGE.
 ////////////////////////////////////////////////////////////////////////////////
 
-#include <moveit_planners_sbpl/collision_detector_allocator_sbpl.h>
+#ifndef collision_detection_CollisionDetectorAllocatorSBPL_h
+#define collision_detection_CollisionDetectorAllocatorSBPL_h
+
+// system includes
+#include <moveit/collision_detection/collision_detector_allocator.h>
+
+// project includes
+#include "collision_robot_sbpl.h"
+#include "collision_world_sbpl.h"
 
 namespace collision_detection {
 
-const std::string CollisionDetectorAllocatorSBPL::NAME_ = "Collision Detector SBPL";
+class CollisionDetectorAllocatorSBPL :
+    public CollisionDetectorAllocatorTemplate<
+            CollisionWorldSBPL,
+            CollisionRobotSBPL,
+            CollisionDetectorAllocatorSBPL>
+{
+public:
+
+    static const std::string NAME_;
+};
 
 } // namespace collision_detection
+
+#endif

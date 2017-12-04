@@ -29,7 +29,7 @@
 // POSSIBILITY OF SUCH DAMAGE.
 ////////////////////////////////////////////////////////////////////////////////
 
-#include <moveit_planners_sbpl/collision_world_sbpl.h>
+#include "collision_world_sbpl.h"
 
 // standard includes
 #include <stdexcept>
@@ -40,11 +40,8 @@
 #include <leatherman/print.h>
 #include <smpl/debug/visualize.h>
 
-// project includes
-#include <moveit_planners_sbpl/moveit_robot_model.h>
-
 // module includes
-#include <moveit_planners_sbpl/collision_common_sbpl.h>
+#include "collision_common_sbpl.h"
 
 namespace collision_detection {
 

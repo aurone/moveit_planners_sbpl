@@ -1,13 +1,14 @@
 #ifndef sbpl_interface_sbpl_planner_manager_h
 #define sbpl_interface_sbpl_planner_manager_h
 
+// system includes
 #include <XmlRpcValue.h>
 #include <moveit/macros/class_forward.h>
 #include <moveit/planning_interface/planning_interface.h>
-
-#include <moveit_planners_sbpl/moveit_robot_model.h>
-
 #include <smpl/debug/visualizer_ros.h>
+
+// project includes
+#include <moveit_planners_sbpl/planner/moveit_robot_model.h>
 
 namespace sbpl_interface {
 

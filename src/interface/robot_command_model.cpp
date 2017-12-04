@@ -1,4 +1,4 @@
-#include "robot_command_model.h"
+#include <moveit_planners_sbpl/interface/robot_command_model.h>
 
 namespace sbpl_interface {
 

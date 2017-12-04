@@ -6,9 +6,11 @@
 #include <leatherman/viz.h>
 #include <visualization_msgs/MarkerArray.h>
 
+// project includes
+#include <moveit_planners_sbpl/interface/joint_variable_command_widget.h>
+
 // module includes
 #include "move_group_command_model.h"
-#include "joint_variable_command_widget.h"
 
 namespace sbpl_interface {
 

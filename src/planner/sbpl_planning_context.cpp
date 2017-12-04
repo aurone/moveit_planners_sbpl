@@ -11,7 +11,7 @@
 #include <smpl/ros/propagation_distance_field.h>
 
 // project includes
-#include <moveit_planners_sbpl/collision_world_sbpl.h>
+#include "../collision/collision_world_sbpl.h"
 
 static const char* PP_LOGGER = "planning";
 

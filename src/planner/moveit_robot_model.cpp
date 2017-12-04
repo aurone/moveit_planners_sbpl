@@ -31,7 +31,7 @@
 
 /// \author Andrew Dornbush
 
-#include <moveit_planners_sbpl/moveit_robot_model.h>
+#include <moveit_planners_sbpl/planner/moveit_robot_model.h>
 
 #include <math.h>
 

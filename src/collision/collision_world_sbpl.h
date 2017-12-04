@@ -49,8 +49,7 @@
 #include <smpl/occupancy_grid.h>
 
 // project includes
-#include <moveit_planners_sbpl/moveit_robot_model.h>
-#include <moveit_planners_sbpl/collision_robot_sbpl.h>
+#include "collision_robot_sbpl.h"
 
 namespace collision_detection {
 

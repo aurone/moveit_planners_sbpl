@@ -29,7 +29,7 @@
 // POSSIBILITY OF SUCH DAMAGE.
 ////////////////////////////////////////////////////////////////////////////////
 
-#include <moveit_planners_sbpl/collision_common_sbpl.h>
+#include "collision_common_sbpl.h"
 
 // standard includes
 #include <sstream>

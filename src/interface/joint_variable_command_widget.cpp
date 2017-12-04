@@ -1,4 +1,4 @@
-#include "joint_variable_command_widget.h"
+#include <moveit_planners_sbpl/interface/joint_variable_command_widget.h>
 
 // system includes
 #include <Eigen/Dense>
@@ -6,8 +6,7 @@
 #include <smpl/angles.h>
 #include <leatherman/print.h>
 
-// module includes
-#include "move_group_command_model.h"
+#include <moveit_planners_sbpl/interface/robot_command_model.h>
 
 namespace sbpl_interface {
 

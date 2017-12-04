@@ -1,6 +1,6 @@
 #include "collision_plugin_sbpl.h"
 
-#include <moveit_planners_sbpl/collision_detector_allocator_sbpl.h>
+#include "collision_detector_allocator_sbpl.h"
 
 namespace collision_detection {
 

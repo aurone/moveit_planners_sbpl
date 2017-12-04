@@ -29,7 +29,7 @@
 // POSSIBILITY OF SUCH DAMAGE.
 ////////////////////////////////////////////////////////////////////////////////
 
-#include <moveit_planners_sbpl/collision_robot_sbpl.h>
+#include "collision_robot_sbpl.h"
 
 #include <ros/ros.h>
 

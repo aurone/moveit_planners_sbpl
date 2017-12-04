@@ -44,7 +44,7 @@
 #include <smpl/angles.h>
 #include <smpl/debug/marker_conversions.h>
 
-#include <moveit_planners_sbpl/moveit_robot_model.h>
+#include <moveit_planners_sbpl/planner/moveit_robot_model.h>
 
 namespace sbpl_interface {
 

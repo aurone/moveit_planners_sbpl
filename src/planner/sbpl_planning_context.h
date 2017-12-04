@@ -1,9 +1,12 @@
 #ifndef sbpl_interface_SBPLPlanningContext_h
 #define sbpl_interface_SBPLPlanningContext_h
 
+// standard includes
 #include <map>
 #include <memory>
 #include <string>
+
+// system includes
 #include <moveit/distance_field/propagation_distance_field.h>
 #include <moveit/macros/class_forward.h>
 #include <moveit/planning_interface/planning_interface.h>
@@ -12,7 +15,8 @@
 #include <smpl/ros/planner_interface.h>
 #include <smpl/distance_map/distance_map_interface.h>
 
-#include <moveit_planners_sbpl/moveit_robot_model.h>
+// project includes
+#include <moveit_planners_sbpl/planner/moveit_robot_model.h>
 
 #include "moveit_collision_checker.h"
 
