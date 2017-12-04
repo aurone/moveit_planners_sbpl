@@ -24,6 +24,8 @@
 #include <moveit_msgs/MoveGroupAction.h>
 #include <rviz/config.h>
 
+#include "robot_command_model.h"
+
 namespace sbpl_interface {
 
 class MoveGroupCommandModel : public QObject
@@ -107,6 +109,8 @@ public:
     void load(const rviz::Config& config);
     void save(rviz::Config config) const;
 
+    RobotCommandModel* getRobotCommandModel() { return &m_robot_command_model; }
+
 public Q_SLOTS:
 
     void setPlannerName(const std::string& planner_name);
@@ -144,6 +148,59 @@ Q_SIGNALS:
     void availableFramesUpdated();
 
 private:
+
+    class MyRobotCommandModel : public RobotCommandModel
+    {
+    public:
+
+        MyRobotCommandModel(MoveGroupCommandModel* model)
+        {
+            m_model = model;
+        }
+
+        const moveit::core::RobotModel* getRobotModel() const override
+        {
+            auto model = m_model->robotModel();
+            if (model) {
+                return model.get();
+            } else {
+                return NULL;
+            }
+        }
+
+        const moveit::core::RobotState* getRobotState() const override
+        {
+            auto state = m_model->robotState();
+            if (state) {
+                return state.get();
+            } else {
+                return NULL;
+            }
+        }
+
+        const std::string& getPlanningJointGroupName() const override
+        {
+            return m_model->planningJointGroupName();
+        }
+
+        void setPlanningJointGroup(const std::string& group_name) override
+        {
+            return m_model->setPlanningJointGroup(group_name);
+        }
+
+        void setJointVariable(int index, double value) override
+        {
+            return m_model->setJointVariable(index, value);
+        }
+
+        void notifyRobotLoaded() {
+            Q_EMIT robotLoaded();
+        }
+
+    private:
+
+        MoveGroupCommandModel* m_model = nullptr;
+    } m_robot_command_model;
 
     // assertions:
     // * robot_loaded:

@@ -11,7 +11,7 @@
 
 namespace sbpl_interface {
 
-class MoveGroupCommandModel;
+class RobotCommandModel;
 
 class JointVariableCommandWidget : public QWidget //QScrollArea
 {
@@ -21,9 +21,7 @@ public:
 
     typedef QWidget Base;
 
-    JointVariableCommandWidget(
-        MoveGroupCommandModel* model,
-        QWidget* parent = 0);
+    JointVariableCommandWidget(RobotCommandModel* model, QWidget* parent = 0);
     ~JointVariableCommandWidget();
 
     void displayJointGroupCommands(const std::string& group_name);
@@ -39,7 +37,7 @@ public Q_SLOTS:
 
 private:
 
-    MoveGroupCommandModel* m_model;
+    RobotCommandModel* m_model;
 
     QComboBox* m_joint_groups_combo_box;
 

@@ -53,13 +53,15 @@ qt4_wrap_cpp(
     MOVE_GROUP_COMMAND_PANEL_MOC_SOURCES
     src/joint_variable_command_widget.h
     src/move_group_command_model.h
-    src/move_group_command_panel.h)
+    src/move_group_command_panel.h
+    src/robot_command_model.h)
 add_library(
     move_group_command_panel_plugin
     ${MOVE_GROUP_COMMAND_PANEL_MOC_SOURCES}
     src/joint_variable_command_widget.cpp
     src/move_group_command_model.cpp
-    src/move_group_command_panel.cpp)
+    src/move_group_command_panel.cpp
+    src/robot_command_model.cpp)
 target_link_libraries(
     move_group_command_panel_plugin
     ${QT_LIBRARIES}

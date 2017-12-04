@@ -78,48 +78,48 @@ private:
 
     /// \name General Settings Widgets
     ///@{
-    QLineEdit* m_robot_description_line_edit;
-    QPushButton* m_load_robot_button;
+    QLineEdit* m_robot_description_line_edit    = nullptr;
+    QPushButton* m_load_robot_button            = nullptr;
     ///@}
 
     /// \name Planner Settings Widgets
     ///@{
-    QComboBox* m_planner_name_combo_box;
-    QComboBox* m_planner_id_combo_box;
-    QSpinBox* m_num_planning_attempts_spinbox;
-    QDoubleSpinBox* m_allowed_planning_time_spinbox;
+    QComboBox* m_planner_name_combo_box             = nullptr;
+    QComboBox* m_planner_id_combo_box               = nullptr;
+    QSpinBox* m_num_planning_attempts_spinbox       = nullptr;
+    QDoubleSpinBox* m_allowed_planning_time_spinbox = nullptr;
     ///@}
 
     /// \name Goal Constraints Widgets - No Robot Required
     ///@{
-    QGroupBox* m_goal_constraints_group;
+    QGroupBox* m_goal_constraints_group = nullptr;
 
-    QDoubleSpinBox* m_joint_tol_spinbox;
-    QDoubleSpinBox* m_pos_tol_spinbox;
-    QDoubleSpinBox* m_rot_tol_spinbox;
+    QDoubleSpinBox* m_joint_tol_spinbox = nullptr;
+    QDoubleSpinBox* m_pos_tol_spinbox   = nullptr;
+    QDoubleSpinBox* m_rot_tol_spinbox   = nullptr;
 
-    QComboBox* m_workspace_frame_combo_box;
-    QDoubleSpinBox* m_workspace_min_x_spinbox;
-    QDoubleSpinBox* m_workspace_min_y_spinbox;
-    QDoubleSpinBox* m_workspace_min_z_spinbox;
-    QDoubleSpinBox* m_workspace_max_x_spinbox;
-    QDoubleSpinBox* m_workspace_max_y_spinbox;
-    QDoubleSpinBox* m_workspace_max_z_spinbox;
+    QComboBox* m_workspace_frame_combo_box      = nullptr;
+    QDoubleSpinBox* m_workspace_min_x_spinbox   = nullptr;
+    QDoubleSpinBox* m_workspace_min_y_spinbox   = nullptr;
+    QDoubleSpinBox* m_workspace_min_z_spinbox   = nullptr;
+    QDoubleSpinBox* m_workspace_max_x_spinbox   = nullptr;
+    QDoubleSpinBox* m_workspace_max_y_spinbox   = nullptr;
+    QDoubleSpinBox* m_workspace_max_z_spinbox   = nullptr;
     ///@}
 
     /// \name Goal Constraints Widgets - Robot Required
     ///@{
-    QComboBox* m_joint_groups_combo_box;
-    JointVariableCommandWidget* m_var_cmd_widget;
+    QComboBox* m_joint_groups_combo_box             = nullptr;
+    JointVariableCommandWidget* m_var_cmd_widget    = nullptr;
     ///@}
 
     /// \name Command Widgets
     ///@{
-    QPushButton* m_plan_to_position_button;
-    QPushButton* m_move_to_position_button;
-    QPushButton* m_plan_to_configuration_button;
-    QPushButton* m_move_to_configuration_button;
-    QPushButton* m_copy_current_state_button;
+    QPushButton* m_plan_to_position_button      = nullptr;
+    QPushButton* m_move_to_position_button      = nullptr;
+    QPushButton* m_plan_to_configuration_button = nullptr;
+    QPushButton* m_move_to_configuration_button = nullptr;
+    QPushButton* m_copy_current_state_button    = nullptr;
     ///@}
 
     ros::Publisher m_marker_pub;

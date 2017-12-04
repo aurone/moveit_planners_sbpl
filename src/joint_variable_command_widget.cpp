@@ -14,7 +14,7 @@ namespace sbpl_interface {
 static const char *LOG = "joint_variable_command_widget";
 
 JointVariableCommandWidget::JointVariableCommandWidget(
-    MoveGroupCommandModel* model,
+    RobotCommandModel* model,
     QWidget* parent)
 :
     Base(parent),
@@ -54,14 +54,13 @@ void JointVariableCommandWidget::displayJointGroupCommands(
         return;
     }
 
-    moveit::core::RobotModelConstPtr robot_model = m_model->robotModel();
+    auto* robot_model = m_model->getRobotModel();
     if (!robot_model) {
         ROS_ERROR("Robot Model is null");
         return;
     }
 
-    const moveit::core::JointModelGroup* jmg =
-            robot_model->getJointModelGroup(group_name);
+    auto* jmg = robot_model->getJointModelGroup(group_name);
     if (!jmg) {
         ROS_ERROR("Joint Group '%s' does not exist within Robot Model '%s'", group_name.c_str(), robot_model->getName().c_str());
         return;
@@ -153,13 +152,14 @@ void JointVariableCommandWidget::syncSpinBoxes()
     }
 
     ROS_DEBUG_NAMED(LOG, "sync spinboxes");
-    if (!m_model->isRobotLoaded()) {
+    auto* robot_model = m_model->getRobotModel();
+
+    if (!robot_model) {
         ROS_WARN("Robot not yet loaded");
         return;
     }
 
-    auto robot_model = m_model->robotModel();
-    auto robot_state = m_model->robotState();
+    auto* robot_state = m_model->getRobotState();
 
     // ugh this needs to be batched
     const auto& active_joints = robot_model->getActiveJointModels();
@@ -272,7 +272,7 @@ void JointVariableCommandWidget::syncSpinBoxes()
 /// \brief Set the choice in the group combo box to match the active group
 void JointVariableCommandWidget::syncPlanningJointGroupComboBox()
 {
-    moveit::core::RobotModelConstPtr robot_model = m_model->robotModel();
+    auto* robot_model = m_model->getRobotModel();
     if (!robot_model) {
         // TODO: set to empty selection?...yeah probably
         return;
@@ -283,7 +283,7 @@ void JointVariableCommandWidget::syncPlanningJointGroupComboBox()
     // set the selected item to match the active planning joint group
     if (!robot_model->getJointModelGroups().empty()) {
         const int ajg_idx = m_joint_groups_combo_box->findText(
-                QString::fromStdString(m_model->planningJointGroupName()));
+                QString::fromStdString(m_model->getPlanningJointGroupName()));
         m_joint_groups_combo_box->setCurrentIndex(ajg_idx);
     }
 }
@@ -298,7 +298,7 @@ void JointVariableCommandWidget::updateRobotControls()
         return;
     }
 
-    auto robot_model = m_model->robotModel();
+    auto* robot_model = m_model->getRobotModel();
     if (!robot_model) {
         ROS_ERROR("cannot update robot controls from null robot model");
         return;
@@ -466,7 +466,7 @@ void JointVariableCommandWidget::updateRobotControls()
     // set the combo box to the value of the active planning group
     if (!robot_model->getJointModelGroups().empty()) {
         const int ajg_idx = m_joint_groups_combo_box->findText(
-                QString::fromStdString(m_model->planningJointGroupName()));
+                QString::fromStdString(m_model->getPlanningJointGroupName()));
         m_joint_groups_combo_box->setCurrentIndex(ajg_idx);
     }
 
@@ -592,7 +592,7 @@ QDoubleSpinBox* JointVariableCommandWidget::createRevoluteVariableSpinBox(
 /// degrees while the underlying value is expressed in radians
 bool JointVariableCommandWidget::isVariableAngle(int vidx) const
 {
-    auto robot_model = m_model->robotModel();
+    auto* robot_model = m_model->getRobotModel();
     if (!robot_model) {
         ROS_WARN("Asking whether variable %d in uninitialized robot is an angle", vidx);
         return false;

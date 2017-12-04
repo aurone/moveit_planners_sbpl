@@ -14,29 +14,7 @@ namespace sbpl_interface {
 
 MoveGroupCommandPanel::MoveGroupCommandPanel(QWidget* parent) :
     rviz::Panel(parent),
-    m_nh(),
-    m_model(new MoveGroupCommandModel),
-    m_robot_description_line_edit(nullptr),
-    m_load_robot_button(nullptr),
-    m_planner_name_combo_box(nullptr),
-    m_planner_id_combo_box(nullptr),
-    m_joint_groups_combo_box(nullptr),
-    m_marker_pub(),
-    m_var_cmd_widget(nullptr),
-    m_plan_to_position_button(nullptr),
-    m_move_to_position_button(nullptr),
-    m_plan_to_configuration_button(nullptr),
-    m_move_to_configuration_button(nullptr),
-    m_joint_tol_spinbox(nullptr),
-    m_pos_tol_spinbox(nullptr),
-    m_rot_tol_spinbox(nullptr),
-    m_workspace_frame_combo_box(nullptr),
-    m_workspace_min_x_spinbox(nullptr),
-    m_workspace_min_y_spinbox(nullptr),
-    m_workspace_min_z_spinbox(nullptr),
-    m_workspace_max_x_spinbox(nullptr),
-    m_workspace_max_y_spinbox(nullptr),
-    m_workspace_max_z_spinbox(nullptr)
+    m_model(new MoveGroupCommandModel)
 {
     m_marker_pub = m_nh.advertise<visualization_msgs::MarkerArray>(
             "visualization_markers", 5);
@@ -423,7 +401,7 @@ QGroupBox* MoveGroupCommandPanel::setupGoalConstraintsGroup()
     // Goal Command Group
     QGroupBox* command_group = new QGroupBox(tr("Position Command"));
     QVBoxLayout* command_layout = new QVBoxLayout;
-    m_var_cmd_widget = new JointVariableCommandWidget(m_model.get());
+    m_var_cmd_widget = new JointVariableCommandWidget(m_model->getRobotCommandModel());
     command_layout->addWidget(m_var_cmd_widget);
     command_group->setLayout(command_layout);
     // End Goal Command Group

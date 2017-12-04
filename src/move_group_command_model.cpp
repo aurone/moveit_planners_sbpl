@@ -555,6 +555,7 @@ static std::string to_string(moveit_msgs::MoveItErrorCodes code)
 
 MoveGroupCommandModel::MoveGroupCommandModel(QObject* parent) :
     QObject(parent),
+    m_robot_command_model(this),
     m_nh(),
     m_command_robot_state_pub(),
     m_scene_monitor(),
@@ -666,7 +667,7 @@ bool MoveGroupCommandModel::loadRobot(const std::string& robot_description)
     }
     // otherwise retain the selected joint group
 
-    ROS_DEBUG_STREAM(RobotModelInfo(robotModel()));
+    ROS_INFO_STREAM(RobotModelInfo(robotModel()));
 
     reinitInteractiveMarkers();
 
@@ -674,6 +675,11 @@ bool MoveGroupCommandModel::loadRobot(const std::string& robot_description)
 
     clearMoveGroupRequest();
 
+    // The robotLoaded() signal from RobotCommandModel currently needs to be
+    // emitted first to give dependents a chance to update to the robot model
+    // before updates to this command model (JointVariableCommandWidget in
+    // particular)
+    m_robot_command_model.notifyRobotLoaded();
     Q_EMIT robotLoaded();
 
     // seed the available transforms using the available links
