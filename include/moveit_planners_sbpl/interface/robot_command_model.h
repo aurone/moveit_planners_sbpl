@@ -10,25 +10,68 @@
 
 namespace sbpl_interface {
 
-/// The interface used by JointVariableCommandWidget to control the state of the
-/// robot command using spinbox controls.
+// A wrapper around moveit::core::RobotState to provide a QObject-enabled
+// RobotState that signals state changes
 class RobotCommandModel : public QObject
 {
     Q_OBJECT
 
 public:
 
-    virtual ~RobotCommandModel();
+    ~RobotCommandModel();
 
-    virtual const moveit::core::RobotModel* getRobotModel() const = 0;
-    virtual const moveit::core::RobotState* getRobotState() const = 0;
-    virtual const std::string& getPlanningJointGroupName() const = 0;
-    virtual void setPlanningJointGroup(const std::string& group_name) = 0;
-    virtual void setJointVariable(int index, double value) = 0;
+    // Load a new RobotModel into the RobotCommandModel. Emits the robotLoaded()
+    // signal, sets the managed RobotState to its default values, and emits a
+    // robotStateChanged() signal.
+    bool load(const moveit::core::RobotModelConstPtr& robot);
+
+    /// Returns the loaded RobotModel, null if no RobotModel has been loaded.
+    auto getRobotModel() const -> const moveit::core::RobotModelConstPtr& {
+        return m_robot_model;
+    }
+
+    /// Return a pointer to the managed RobotState, null if no RobotModel has
+    /// been loaded.
+    auto getRobotState() const -> const moveit::core::RobotState* {
+        return m_robot_state.get();
+    }
+
+    void setVariablePositions(const double* position);
+
+    void setVariablePositions(const std::vector<double>& position);
+
+    void setVariablePositions(
+        const std::map<std::string, double>& variable_map);
+
+    void setVariablePositions(
+        const std::map<std::string, double>& variable_map,
+        std::vector<std::string>& missing_variables);
+
+    void setVariablePositions(
+        const std::vector<std::string>& variable_names,
+        const std::vector<double>& variable_position);
+
+    void setVariablePosition(const std::string& variable, double value);
+
+    void setVariablePosition(int index, double value);
+
+    bool setFromIK(
+        const moveit::core::JointModelGroup* group,
+        const Eigen::Affine3d& pose,
+        unsigned int attempts = 0,
+        double timeout = 0.0,
+        const moveit::core::GroupStateValidityCallbackFn& constraint = moveit::core::GroupStateValidityCallbackFn(),
+        const kinematics::KinematicsQueryOptions& options = kinematics::KinematicsQueryOptions());
 
 Q_SIGNALS:
 
     void robotLoaded();
+    void robotStateChanged();
+
+private:
+
+    moveit::core::RobotModelConstPtr m_robot_model = nullptr;
+    std::unique_ptr<moveit::core::RobotState> m_robot_state;
 };
 
 } // namespace sbpl_interface

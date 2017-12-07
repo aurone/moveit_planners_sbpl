@@ -20,8 +20,6 @@ JointVariableCommandWidget::JointVariableCommandWidget(
     m_model(model),
     m_ignore_sync(false)
 {
-    connect(model, SIGNAL(robotLoaded()), this, SLOT(updateRobotControls()));
-
     QGridLayout* glayout = new QGridLayout;
 
     m_joint_groups_combo_box = new QComboBox;
@@ -30,10 +28,11 @@ JointVariableCommandWidget::JointVariableCommandWidget(
     glayout->addWidget(m_joint_groups_combo_box, 0, 1);
     setLayout(glayout);
 
-    connect(m_joint_groups_combo_box,
-            SIGNAL(currentIndexChanged(const QString&)),
-            this,
-            SLOT(setJointGroup(const QString&)));
+    connect(m_model, SIGNAL(robotLoaded()), this, SLOT(updateRobotModel()));
+    connect(m_model, SIGNAL(robotStateChanged()), this, SLOT(updateRobotState()));
+
+    connect(m_joint_groups_combo_box, SIGNAL(currentIndexChanged(const QString&)),
+            this, SLOT(setJointGroup(const QString&)));
 }
 
 JointVariableCommandWidget::~JointVariableCommandWidget()
@@ -43,29 +42,37 @@ JointVariableCommandWidget::~JointVariableCommandWidget()
     // that case we may have to delete them manually
 }
 
-void JointVariableCommandWidget::displayJointGroupCommands(
-    const std::string& group_name)
+// Display the joint variable controls for the active joint group. This function
+// does nothing if the robot model has not been loaded (or if it has, this
+// widget did not receive a signal notifying it of the load), no active joint
+// group has been set, or if the active joint group does not exist within the
+// robot model. If the above conditions are met, the assumption is that the
+// controls have already been set up upon notification of the robot load, and
+// simply need to be added to the layout and displayed.
+void JointVariableCommandWidget::displayJointGroupControls()
 {
-    ROS_DEBUG_NAMED(LOG, "display joint group commands");
-    QGridLayout* glayout = qobject_cast<QGridLayout*>(layout());
-    if (!glayout) {
-        ROS_ERROR("JointVariableCommandWidget layout is not a QGridLayout");
-        return;
-    }
-
-    auto* robot_model = m_model->getRobotModel();
+    ROS_DEBUG_NAMED(LOG, "Display joint variable controls for active joint group");
+    auto& robot_model = m_model->getRobotModel();
     if (!robot_model) {
-        ROS_ERROR("Robot Model is null");
+        ROS_DEBUG_NAMED(LOG, " -> Robot has not been loaded");
         return;
     }
 
-    auto* jmg = robot_model->getJointModelGroup(group_name);
+    if (m_active_joint_group.empty()) {
+        ROS_DEBUG_NAMED(LOG, " -> No active joint group set");
+        return;
+    }
+
+    auto* jmg = robot_model->getJointModelGroup(m_active_joint_group);
     if (!jmg) {
-        ROS_ERROR("Joint Group '%s' does not exist within Robot Model '%s'", group_name.c_str(), robot_model->getName().c_str());
+        ROS_DEBUG_NAMED(LOG, " -> Joint Group '%s' does not exist within Robot Model '%s'", m_active_joint_group.c_str(), robot_model->getName().c_str());
         return;
     }
 
-    ROS_DEBUG_NAMED(LOG, "remove everything from layout");
+    QGridLayout* glayout = qobject_cast<QGridLayout*>(layout());
+    assert(glayout != NULL);
+
+    ROS_DEBUG_NAMED(LOG, "  Remove everything from layout");
 
     // remove everything from the layout
     while (!glayout->isEmpty()) {
@@ -86,7 +93,7 @@ void JointVariableCommandWidget::displayJointGroupCommands(
     glayout->addWidget(m_joint_groups_combo_box, 0, 1);
     m_joint_groups_combo_box->show(); // this gets hidden above
 
-    ROS_DEBUG_NAMED(LOG, "add joint group controls to layout");
+    ROS_DEBUG_NAMED(LOG, "  Add joint group controls to layout");
 
     // gather (label, spinbox) pairs to be visible in the layout
     // TODO: this could probably be made more better since spinboxes are
@@ -94,12 +101,12 @@ void JointVariableCommandWidget::displayJointGroupCommands(
     // they derive from
     std::vector<std::pair<QLabel*, QDoubleSpinBox*>> group_widgets;
     const auto& joint_models = jmg->getActiveJointModels();
-    for (const moveit::core::JointModel* joint_model : joint_models) {
+    for (auto* joint_model : joint_models) {
         int bidx = joint_model->getFirstVariableIndex();
         for (int vidx = bidx; vidx < bidx + joint_model->getVariableCount(); ++vidx) {
-            const std::string& var_name = robot_model->getVariableNames()[vidx];
+            auto& var_name = robot_model->getVariableNames()[vidx];
             assert(vidx >= 0 && vidx < m_vind_to_spinbox.size());
-            for (QDoubleSpinBox* spinbox : m_vind_to_spinbox[vidx]) {
+            for (auto* spinbox : m_vind_to_spinbox[vidx]) {
                 // find the label corresponding to this spinbox
                 auto it = std::find(m_spinboxes.begin(), m_spinboxes.end(), spinbox);
                 auto sidx = std::distance(m_spinboxes.begin(), it);
@@ -115,7 +122,7 @@ void JointVariableCommandWidget::displayJointGroupCommands(
     // add (label, spinbox) widgets to the layout
     int row = glayout->rowCount();
     for (auto& entry : group_widgets) {
-        ROS_DEBUG_NAMED(LOG, "add spinbox %p and label %p to layout", entry.first, entry.second);
+        ROS_DEBUG_NAMED(LOG, "  Add spinbox %p and label %p to layout", entry.first, entry.second);
         glayout->addWidget(entry.first, row, 0);
         glayout->addWidget(entry.second, row, 1);
         entry.first->show();
@@ -123,7 +130,7 @@ void JointVariableCommandWidget::displayJointGroupCommands(
         ++row;
     }
 
-    ROS_DEBUG_NAMED(LOG, "Layout contains %d controls", glayout->count());
+    ROS_DEBUG_NAMED(LOG, "  Layout contains %d controls", glayout->count());
 
     ///////////////////////////////////////////////////////////////////////
     // KEEP THESE CALLS BECAUSE THEY USED TO BE THE ONLY WAY TO AUTOMATIC
@@ -143,15 +150,54 @@ void JointVariableCommandWidget::displayJointGroupCommands(
     //////////////////////////////////////////////////////////////////////
 }
 
-/// \brief Set the values of all spinboxes to match those in the robot state
-void JointVariableCommandWidget::syncSpinBoxes()
+void JointVariableCommandWidget::setActiveJointGroup(
+    const std::string& group_name)
 {
+    if (m_active_joint_group != group_name) {
+        ROS_DEBUG_NAMED(LOG, "Update active joint group '%s' -> '%s'", m_active_joint_group.c_str(), group_name.c_str());
+        m_active_joint_group = group_name;
+
+        displayJointGroupControls();
+
+        Q_EMIT updateActiveJointGroup(m_active_joint_group);
+    }
+}
+
+void JointVariableCommandWidget::updateRobotModel()
+{
+    ROS_DEBUG_NAMED(LOG, "Update JointVariableCommandWidget after Robot Model update");
+
+    auto& robot_model = m_model->getRobotModel();
+    if (!robot_model) {
+        // TODO: set to empty selection?...yeah probably
+        return;
+    }
+
+    buildRobotControls();
+
+    assert(m_joint_groups_combo_box != NULL);
+
+    if (!m_active_joint_group.empty() &&
+        robot_model->getJointModelGroup(m_active_joint_group) != NULL)
+    {
+        // procedurally set the active joint group, this will cause the correct
+        // control widgets to displayed
+        const int ajg_idx = m_joint_groups_combo_box->findText(
+                QString::fromStdString(m_active_joint_group));
+        m_joint_groups_combo_box->setCurrentIndex(ajg_idx);
+    }
+}
+
+void JointVariableCommandWidget::updateRobotState()
+{
+    ROS_DEBUG_NAMED(LOG, "Update JointVariableCommandWidget after Robot State update");
+
     if (m_ignore_sync) {
         return;
     }
 
-    ROS_DEBUG_NAMED(LOG, "sync spinboxes");
-    auto* robot_model = m_model->getRobotModel();
+    ROS_DEBUG_NAMED(LOG, "  Sync spinboxes");
+    auto& robot_model = m_model->getRobotModel();
 
     if (!robot_model) {
         ROS_WARN("Robot not yet loaded");
@@ -159,10 +205,11 @@ void JointVariableCommandWidget::syncSpinBoxes()
     }
 
     auto* robot_state = m_model->getRobotState();
+    assert(robot_state != NULL);
 
     // ugh this needs to be batched
     const auto& active_joints = robot_model->getActiveJointModels();
-    for (const moveit::core::JointModel* jm : active_joints) {
+    for (auto* jm : active_joints) {
         if (jm->getType() == moveit::core::JointModel::FLOATING) {
             // only floating joints have many-to-many joint variable to
             // spinbox mappings
@@ -173,7 +220,7 @@ void JointVariableCommandWidget::syncSpinBoxes()
             int bidx = jm->getFirstVariableIndex();
             for (int vi = bidx; vi < bidx + jm->getVariableCount(); ++vi) {
                 const int lvi = vi - jm->getFirstVariableIndex();
-                const std::string& var_name = jm->getLocalVariableNames()[lvi];
+                auto& var_name = jm->getLocalVariableNames()[lvi];
                 if (var_name == "trans_x" ||
                     var_name == "trans_y" ||
                     var_name == "trans_z")
@@ -197,7 +244,7 @@ void JointVariableCommandWidget::syncSpinBoxes()
                 }
             }
 
-            ROS_DEBUG_NAMED(LOG, "sync rpy from quaternion (%0.3f, %0.3f, %0.3f, %0.3f)", qvars[0], qvars[1], qvars[2], qvars[3]);
+            ROS_DEBUG_NAMED(LOG, "  Sync rpy from quaternion (%0.3f, %0.3f, %0.3f, %0.3f)", qvars[0], qvars[1], qvars[2], qvars[3]);
             // simultaneously set the values for the rpy spinboxes
             Eigen::Affine3d rot(Eigen::Quaterniond(
                     qvars[0], qvars[1], qvars[2], qvars[3]));
@@ -268,36 +315,14 @@ void JointVariableCommandWidget::syncSpinBoxes()
     }
 }
 
-/// \brief Set the choice in the group combo box to match the active group
-void JointVariableCommandWidget::syncPlanningJointGroupComboBox()
-{
-    auto* robot_model = m_model->getRobotModel();
-    if (!robot_model) {
-        // TODO: set to empty selection?...yeah probably
-        return;
-    }
-
-    assert(m_joint_groups_combo_box);
-
-    // set the selected item to match the active planning joint group
-    if (!robot_model->getJointModelGroups().empty()) {
-        const int ajg_idx = m_joint_groups_combo_box->findText(
-                QString::fromStdString(m_model->getPlanningJointGroupName()));
-        m_joint_groups_combo_box->setCurrentIndex(ajg_idx);
-    }
-}
-
 /// \brief Update the spinboxes and group selections for a new robot
-void JointVariableCommandWidget::updateRobotControls()
+void JointVariableCommandWidget::buildRobotControls()
 {
-    ROS_DEBUG_NAMED(LOG, "update robot controls");
+    ROS_DEBUG_NAMED(LOG, "Build joint variable controls");
     QGridLayout* grid_layout = qobject_cast<QGridLayout*>(layout());
-    if (!grid_layout) {
-        ROS_ERROR("JointVariableCommandWidget layout is not a QGridLayout");
-        return;
-    }
+    assert(grid_layout != NULL);
 
-    auto* robot_model = m_model->getRobotModel();
+    auto& robot_model = m_model->getRobotModel();
     if (!robot_model) {
         ROS_ERROR("cannot update robot controls from null robot model");
         return;
@@ -311,7 +336,7 @@ void JointVariableCommandWidget::updateRobotControls()
     m_labels.clear();
 
     const auto& active_joints = robot_model->getActiveJointModels();
-    for (const moveit::core::JointModel* jm : active_joints) {
+    for (auto* jm : active_joints) {
         switch (jm->getType()) {
         case moveit::core::JointModel::FLOATING: {
             QDoubleSpinBox* trans_x_spinbox = createRealVariableSpinBox(
@@ -392,7 +417,7 @@ void JointVariableCommandWidget::updateRobotControls()
                     m_spinbox_to_vind[rot_P_spinbox][3] = vidx;
                     m_spinbox_to_vind[rot_Y_spinbox][3] = vidx;
                 } else {
-                    ROS_ERROR("unrecognized local joint variable name");
+                    ROS_ERROR("Unrecognized local joint variable name");
                 }
             }
         }   break;
@@ -426,7 +451,7 @@ void JointVariableCommandWidget::updateRobotControls()
                     m_vind_to_spinbox[vidx] = { theta_spinbox };
                     m_spinbox_to_vind[theta_spinbox] = { vidx };
                 } else {
-                    ROS_ERROR("unrecognized local joint variable name");
+                    ROS_ERROR("Unrecognized local joint variable name");
                 }
             }
         }   break;
@@ -448,26 +473,28 @@ void JointVariableCommandWidget::updateRobotControls()
         }   break;
         case moveit::core::JointModel::FIXED:
         case moveit::core::JointModel::UNKNOWN: {
-            ROS_ERROR("invalid joint type %d found in active joint models", (int)jm->getType());
+            ROS_ERROR("Invalid joint type %d found in active joint models", (int)jm->getType());
         }   break;
         }
     }
 
     // NOTE: update the combo box after the variable spinboxes have been created
     // since setJointGroup will be called by signals emitted by the combo box
+    ROS_DEBUG_NAMED(LOG, "  Remove previous entries from combo box");
     m_joint_groups_combo_box->clear();
 
+    ROS_DEBUG_NAMED(LOG, "  Add joint group entries to combo box");
     const auto& group_names = robot_model->getJointModelGroupNames();
-    for (const std::string& group_name : group_names) {
+    for (auto& group_name : robot_model->getJointModelGroupNames()) {
         m_joint_groups_combo_box->addItem(QString::fromStdString(group_name));
     }
 
-    // set the combo box to the value of the active planning group
-    if (!robot_model->getJointModelGroups().empty()) {
-        const int ajg_idx = m_joint_groups_combo_box->findText(
-                QString::fromStdString(m_model->getPlanningJointGroupName()));
-        m_joint_groups_combo_box->setCurrentIndex(ajg_idx);
-    }
+//    // set the combo box to the value of the active planning group
+//    if (!robot_model->getJointModelGroups().empty()) {
+//        const int ajg_idx = m_joint_groups_combo_box->findText(
+//                QString::fromStdString(m_active_joint_group));
+//        m_joint_groups_combo_box->setCurrentIndex(ajg_idx);
+//    }
 
     // connect all spinboxes to slot for setting joint variables
     for (QDoubleSpinBox* spinbox : m_spinboxes) {
@@ -479,7 +506,7 @@ void JointVariableCommandWidget::updateRobotControls()
 QDoubleSpinBox* JointVariableCommandWidget::createRealVariableSpinBox(
     const moveit::core::VariableBounds& bounds)
 {
-    ROS_DEBUG_NAMED(LOG, "create real variable spinbox");
+    ROS_DEBUG_NAMED(LOG, "Create real variable spinbox");
     QDoubleSpinBox* spinbox = new QDoubleSpinBox;
     double min, max, step;
     if (bounds.position_bounded_) {
@@ -510,7 +537,7 @@ QDoubleSpinBox* JointVariableCommandWidget::createRealVariableSpinBox(
 
     spinbox->setMinimum(min);
     spinbox->setMaximum(max);
-    ROS_DEBUG_NAMED(LOG, " -> single step for real variable: %f", step);
+    ROS_DEBUG_NAMED(LOG, "  Single step for real variable: %f", step);
 
     // TODO: compute the number of decimals required to display a
     // change in the joint variable or round the step up to the
@@ -523,7 +550,7 @@ QDoubleSpinBox* JointVariableCommandWidget::createRealVariableSpinBox(
 
 QDoubleSpinBox* JointVariableCommandWidget::createRollVariableSpinBox()
 {
-    ROS_DEBUG_NAMED(LOG, "create roll variable spinbox");
+    ROS_DEBUG_NAMED(LOG, "Create roll variable spinbox");
     // TODO: limit bounds
     QDoubleSpinBox* spinbox = new QDoubleSpinBox;
     spinbox->setMinimum(-180.0);
@@ -535,7 +562,7 @@ QDoubleSpinBox* JointVariableCommandWidget::createRollVariableSpinBox()
 
 QDoubleSpinBox* JointVariableCommandWidget::createPitchVariableSpinBox()
 {
-    ROS_DEBUG_NAMED(LOG, "create pitch variable spinbox");
+    ROS_DEBUG_NAMED(LOG, "Create pitch variable spinbox");
     // TODO: limit bounds
     QDoubleSpinBox* spinbox = new QDoubleSpinBox;
     spinbox->setMinimum(0.0);
@@ -547,7 +574,7 @@ QDoubleSpinBox* JointVariableCommandWidget::createPitchVariableSpinBox()
 
 QDoubleSpinBox* JointVariableCommandWidget::createYawVariableSpinBox()
 {
-    ROS_DEBUG_NAMED(LOG, "create yaw variable spinbox");
+    ROS_DEBUG_NAMED(LOG, "Create yaw variable spinbox");
     // TODO: limit bounds
     QDoubleSpinBox* spinbox = new QDoubleSpinBox;
     spinbox->setMinimum(-180.0);
@@ -559,7 +586,7 @@ QDoubleSpinBox* JointVariableCommandWidget::createYawVariableSpinBox()
 
 QDoubleSpinBox* JointVariableCommandWidget::createAngleVariableSpinBox()
 {
-    ROS_DEBUG_NAMED(LOG, "create angle variable spinbox");
+    ROS_DEBUG_NAMED(LOG, "Create angle variable spinbox");
     QDoubleSpinBox* spinbox = new QDoubleSpinBox;
     spinbox->setMinimum(0.0);
     spinbox->setMaximum(359.0);
@@ -572,6 +599,7 @@ QDoubleSpinBox* JointVariableCommandWidget::createRevoluteVariableSpinBox(
     const moveit::core::VariableBounds& bounds)
 {
     if (bounds.position_bounded_) {
+        ROS_DEBUG_NAMED(LOG, "Create revolute variable spinbox");
         QDoubleSpinBox* spinbox = new QDoubleSpinBox;
         spinbox->setMinimum(
                 sbpl::angles::to_degrees(bounds.min_position_));
@@ -591,17 +619,17 @@ QDoubleSpinBox* JointVariableCommandWidget::createRevoluteVariableSpinBox(
 /// degrees while the underlying value is expressed in radians
 bool JointVariableCommandWidget::isVariableAngle(int vidx) const
 {
-    auto* robot_model = m_model->getRobotModel();
+    auto& robot_model = m_model->getRobotModel();
     if (!robot_model) {
         ROS_WARN("Asking whether variable %d in uninitialized robot is an angle", vidx);
         return false;
     }
 
-    const moveit::core::JointModel* jm = robot_model->getJointOfVariable(vidx);
+    auto* jm = robot_model->getJointOfVariable(vidx);
 
-    const std::string& var_name = robot_model->getVariableNames()[vidx];
+    auto& var_name = robot_model->getVariableNames()[vidx];
 
-    const auto& var_bounds = jm->getVariableBounds(var_name);
+    auto& var_bounds = jm->getVariableBounds(var_name);
 
     return (jm->getType() == moveit::core::JointModel::REVOLUTE ||
         (
@@ -618,8 +646,7 @@ bool JointVariableCommandWidget::isVariableAngle(int vidx) const
 void JointVariableCommandWidget::setJointGroup(const QString& group_name)
 {
     std::string group_name_str = group_name.toStdString();
-    displayJointGroupCommands(group_name_str);
-    m_model->setPlanningJointGroup(group_name_str);
+    setActiveJointGroup(group_name_str);
 }
 
 /// \brief Update the model variable from a spinbox
@@ -633,15 +660,14 @@ void JointVariableCommandWidget::setJointVariableFromSpinBox(double value)
 
     assert(m_spinbox_to_vind.find(spinbox) != m_spinbox_to_vind.end());
 
-    const std::vector<int>& variables = m_spinbox_to_vind[spinbox];
+    auto& vindices = m_spinbox_to_vind[spinbox];
 
-    ROS_DEBUG_NAMED(LOG, "Update joint variables %s from spinbox %p with value %0.3f", to_string(variables).c_str(), spinbox, value);
+    ROS_DEBUG_NAMED(LOG, "Update joint variables %s from spinbox %p with value %0.3f", to_string(vindices).c_str(), spinbox, value);
 
-    if (variables.size() == 4) {
+    if (vindices.size() == 4) {
         // so much hackery here for quaternion controls
         // need to get the values from the other spinboxes
-        const std::vector<QDoubleSpinBox*>& rpy_controls =
-                m_vind_to_spinbox[variables[0]];
+        auto& rpy_controls = m_vind_to_spinbox[vindices[0]];
 
         ROS_DEBUG_NAMED(LOG, "rpy controls: %s", to_string(rpy_controls).c_str());
 
@@ -656,19 +682,19 @@ void JointVariableCommandWidget::setJointVariableFromSpinBox(double value)
                 Eigen::AngleAxisd(sbpl::angles::to_radians(r), Eigen::Vector3d::UnitX()));
         ROS_DEBUG_NAMED(LOG, "  set quaternion (%0.3f, %0.3f, %0.3f, %0.3f)", rot.w(), rot.x(), rot.y(), rot.z());
         m_ignore_sync = true;
-        m_model->setJointVariable(variables[0], rot.w());
-        m_model->setJointVariable(variables[1], rot.x());
-        m_model->setJointVariable(variables[2], rot.y());
-        m_model->setJointVariable(variables[3], rot.z());
+        m_model->setVariablePosition(vindices[0], rot.w());
+        m_model->setVariablePosition(vindices[1], rot.x());
+        m_model->setVariablePosition(vindices[2], rot.y());
+        m_model->setVariablePosition(vindices[3], rot.z());
         m_ignore_sync = false;
-    } else if (variables.size() == 1) {
+    } else if (vindices.size() == 1) {
         // everything else
-        if (isVariableAngle(variables[0])) {
+        if (isVariableAngle(vindices[0])) {
             // convert to radians and assign
-            m_model->setJointVariable(variables[0], sbpl::angles::to_radians(value));
+            m_model->setVariablePosition(vindices[0], sbpl::angles::to_radians(value));
         } else {
             // assign without conversion
-            m_model->setJointVariable(variables[0], value);
+            m_model->setVariablePosition(vindices[0], value);
         }
     } else {
         ROS_ERROR("weird");

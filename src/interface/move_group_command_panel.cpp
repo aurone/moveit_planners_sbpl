@@ -14,9 +14,10 @@
 
 namespace sbpl_interface {
 
+static const char* LOG = "move_group_command_panel";
+
 MoveGroupCommandPanel::MoveGroupCommandPanel(QWidget* parent) :
-    rviz::Panel(parent),
-    m_model(new MoveGroupCommandModel)
+    rviz::Panel(parent)
 {
     m_marker_pub = m_nh.advertise<visualization_msgs::MarkerArray>(
             "visualization_markers", 5);
@@ -24,13 +25,15 @@ MoveGroupCommandPanel::MoveGroupCommandPanel(QWidget* parent) :
     setupGUI();
 
     // wait for a robot model to be loaded or for the robot's state to change
-    connect(m_model.get(), SIGNAL(robotLoaded()),
-            this, SLOT(updateRobot()));
-    connect(m_model.get(), SIGNAL(robotStateChanged()),
-            this, SLOT(syncRobot()));
-    connect(m_model.get(), SIGNAL(configChanged()),
-            this, SLOT(syncModelConfig()));
-    connect(m_model.get(), SIGNAL(availableFramesUpdated()),
+    connect(&m_model, SIGNAL(robotLoaded()), this, SLOT(updateRobot()));
+
+    // NOTE: connect to m_model's robotStateChanged() signal instead of
+    // directly to its RobotCommandModel's so that the signal is interrupted and
+    // validity checking is run before visualizing the state of the robot
+    connect(&m_model, SIGNAL(robotStateChanged()), this, SLOT(syncRobot()));
+
+    connect(&m_model, SIGNAL(configChanged()), this, SLOT(syncModelConfig()));
+    connect(&m_model, SIGNAL(availableFramesUpdated()),
             this, SLOT(updateTransforms()));
 }
 
@@ -42,14 +45,14 @@ void MoveGroupCommandPanel::load(const rviz::Config& config)
 {
     rviz::Panel::load(config);
     ROS_INFO("Loading config for '%s'", this->getName().toStdString().c_str());
-    m_model->load(config);
+    m_model.load(config);
 }
 
 void MoveGroupCommandPanel::save(rviz::Config config) const
 {
     rviz::Panel::save(config);
     ROS_INFO("Saving config for '%s'", this->getName().toStdString().c_str());
-    m_model->save(config);
+    m_model.save(config);
 }
 
 void MoveGroupCommandPanel::loadRobot()
@@ -65,7 +68,7 @@ void MoveGroupCommandPanel::loadRobot()
         return;
     }
 
-    if (!m_model->loadRobot(user_robot_description)) {
+    if (!m_model.loadRobot(user_robot_description)) {
         QMessageBox::warning(
                 this,
                 tr("Robot Description"),
@@ -76,7 +79,7 @@ void MoveGroupCommandPanel::loadRobot()
 
 void MoveGroupCommandPanel::updateRobot()
 {
-    const std::string& robot_description = m_model->robotDescription();
+    const auto& robot_description = m_model.robotDescription();
     if (m_robot_description_line_edit->text().toStdString() !=
         robot_description)
     {
@@ -92,7 +95,7 @@ void MoveGroupCommandPanel::updateTransforms()
     QString workspace_frame = m_workspace_frame_combo_box->currentText();
 
     m_workspace_frame_combo_box->clear();
-    for (const std::string& frame : m_model->availableFrames()) {
+    for (const std::string& frame : m_model.availableFrames()) {
         m_workspace_frame_combo_box->addItem(QString::fromStdString(frame));
     }
 
@@ -115,7 +118,6 @@ void MoveGroupCommandPanel::updateTransforms()
 
 void MoveGroupCommandPanel::syncRobot()
 {
-    syncSpinBoxes();
     updateRobotVisualization();
     Q_EMIT configChanged();
 }
@@ -127,7 +129,10 @@ void MoveGroupCommandPanel::syncModelConfig()
     syncNumPlanningAttemptsSpinBox();
     syncAllowedPlanningTimeSpinBox();
 
-    syncPlanningJointGroupComboBox();
+    // TODO: need to determine the owner of the active planning joint group
+    // variable so that updates can be propagated from it and synchronized in
+    // the gui
+    m_var_cmd_widget->setActiveJointGroup(m_model.planningJointGroupName());
 
     syncGoalPositionToleranceSpinBox();
     syncGoalOrientationToleranceSpinBox();
@@ -150,10 +155,53 @@ void MoveGroupCommandPanel::setupGUI()
     QGroupBox* planner_settings_group = setupPlannerSettingsGroup();
     m_goal_constraints_group = setupGoalConstraintsGroup();
 
-    assert(!m_model->isRobotLoaded());
-//    if (m_model->isRobotLoaded()) {
-//        setupRobotGUI(main_layout, goal_constraints_layout);
-//    }
+    ///////////////////////////////////////////////
+    // Populate GUI with initial property values //
+    ///////////////////////////////////////////////
+
+    // add all planner names as items in the combo box
+    const auto& planner_interfaces = m_model.plannerInterfaces();
+    for (const auto& planner_interface : planner_interfaces) {
+        const std::string& planner_name = planner_interface.name;
+        m_planner_name_combo_box->addItem(QString::fromStdString(planner_name));
+    }
+
+    // add all planner ids part of the current planner as items in the combo box
+    const std::string planner_name = m_model.plannerName();
+    if (planner_name != "UNKNOWN") {
+        size_t pidx;
+        for (pidx = 0; pidx < planner_interfaces.size(); ++pidx) {
+            if (planner_interfaces[pidx].name == planner_name) {
+                break;
+            }
+        }
+
+        for (const auto& planner_id : planner_interfaces[pidx].planner_ids) {
+            m_planner_id_combo_box->addItem(QString::fromStdString(planner_id));
+        }
+    }
+
+//    syncPlannerNameComboBox();
+//    syncPlannerIdComboBox();
+//
+//    syncNumPlanningAttemptsSpinBox();
+//    syncAllowedPlanningTimeSpinBox();
+//
+//    syncGoalJointToleranceSpinBox();
+//    syncGoalPositionToleranceSpinBox();
+//    syncGoalOrientationToleranceSpinBox();
+
+    for (auto& frame : m_model.availableFrames()) {
+        m_workspace_frame_combo_box->addItem(QString::fromStdString(frame));
+    }
+
+//    syncWorkspaceWidgets();
+
+    ////////////////////
+    // End population //
+    ////////////////////
+
+    assert(!m_model.isRobotLoaded());
 
     QGroupBox* commands_group_box = setupCommandsGroup();
 
@@ -177,9 +225,9 @@ void MoveGroupCommandPanel::setupGUI()
     connect(m_planner_id_combo_box, SIGNAL(currentIndexChanged(const QString&)),
             this, SLOT(setCurrentPlannerID(const QString&)));
     connect(m_num_planning_attempts_spinbox, SIGNAL(valueChanged(int)),
-            m_model.get(), SLOT(setNumPlanningAttempts(int)));
+            &m_model, SLOT(setNumPlanningAttempts(int)));
     connect(m_allowed_planning_time_spinbox, SIGNAL(valueChanged(double)),
-            m_model.get(), SLOT(setAllowedPlanningTime(double)));
+            &m_model, SLOT(setAllowedPlanningTime(double)));
 
     connect(m_joint_tol_spinbox, SIGNAL(valueChanged(double)),
             this, SLOT(setGoalJointTolerance(double)));
@@ -189,6 +237,9 @@ void MoveGroupCommandPanel::setupGUI()
 
     connect(m_rot_tol_spinbox, SIGNAL(valueChanged(double)),
             this, SLOT(setGoalOrientationTolerance(double)));
+
+    connect(m_var_cmd_widget, SIGNAL(updateActiveJointGroup(const std::string&)),
+            &m_model, SLOT(setPlanningJointGroup(const std::string&)));
 
     connect(m_workspace_frame_combo_box, SIGNAL(currentIndexChanged(const QString&)),
             this, SLOT(setWorkspaceFrame(const QString&)));
@@ -246,37 +297,11 @@ QGroupBox* MoveGroupCommandPanel::setupPlannerSettingsGroup()
     m_planner_name_combo_box = new QComboBox;
     m_planner_id_combo_box = new QComboBox;
 
-    // add all planner names as items in the combo box
-    const auto& planner_interfaces = m_model->plannerInterfaces();
-    for (const auto& planner_interface : planner_interfaces) {
-        const std::string& planner_name = planner_interface.name;
-        m_planner_name_combo_box->addItem(QString::fromStdString(planner_name));
-    }
-
-    // add all planner ids part of the current planner as items in the combo box
-    const std::string planner_name = m_model->plannerName();
-    if (planner_name != "UNKNOWN") {
-        size_t pidx;
-        for (pidx = 0; pidx < planner_interfaces.size(); ++pidx) {
-            if (planner_interfaces[pidx].name == planner_name) {
-                break;
-            }
-        }
-
-        for (const auto& planner_id : planner_interfaces[pidx].planner_ids) {
-            m_planner_id_combo_box->addItem(QString::fromStdString(planner_id));
-        }
-    }
-
-    syncPlannerNameComboBox();
-    syncPlannerIdComboBox();
-
     QLabel* num_attempts_label = new QLabel(tr("Num Attempts"));
     m_num_planning_attempts_spinbox = new QSpinBox;
     m_num_planning_attempts_spinbox->setMinimum(1);
     m_num_planning_attempts_spinbox->setMaximum(100);
     m_num_planning_attempts_spinbox->setWrapping(false);
-    syncNumPlanningAttemptsSpinBox();
 
     QLabel* allowed_planning_time_label = new QLabel(tr("Allowed Time (s)"));
     m_allowed_planning_time_spinbox = new QDoubleSpinBox;
@@ -284,7 +309,6 @@ QGroupBox* MoveGroupCommandPanel::setupPlannerSettingsGroup()
     m_allowed_planning_time_spinbox->setMaximum(120.0);
     m_allowed_planning_time_spinbox->setSingleStep(1.0);
     m_allowed_planning_time_spinbox->setWrapping(false);
-    syncAllowedPlanningTimeSpinBox();
 
     planner_settings_layout->addWidget(planner_name_label,              0, 0);
     planner_settings_layout->addWidget(m_planner_name_combo_box,        0, 1);
@@ -313,21 +337,18 @@ QGroupBox* MoveGroupCommandPanel::setupGoalConstraintsGroup()
     m_joint_tol_spinbox->setMaximum( 180.0);
     m_joint_tol_spinbox->setSingleStep(1.0);
     m_joint_tol_spinbox->setWrapping(false);
-    syncGoalJointToleranceSpinBox();
 
     m_pos_tol_spinbox = new QDoubleSpinBox;
     m_pos_tol_spinbox->setMinimum(-1.0);
     m_pos_tol_spinbox->setMaximum( 1.0);
     m_pos_tol_spinbox->setSingleStep(0.01);
     m_pos_tol_spinbox->setWrapping(false);
-    syncGoalPositionToleranceSpinBox();
 
     m_rot_tol_spinbox = new QDoubleSpinBox;
     m_rot_tol_spinbox->setMinimum(0.0);
     m_rot_tol_spinbox->setMaximum(180.0);
     m_rot_tol_spinbox->setSingleStep(1.0);
     m_rot_tol_spinbox->setWrapping(false);
-    syncGoalOrientationToleranceSpinBox();
 
     tolerance_layout->addWidget(new QLabel(tr("Position (m)")), 0, 0);
     tolerance_layout->addWidget(m_pos_tol_spinbox, 0, 1);
@@ -344,9 +365,6 @@ QGroupBox* MoveGroupCommandPanel::setupGoalConstraintsGroup()
     QGridLayout* workspace_layout = new QGridLayout;
 
     m_workspace_frame_combo_box = new QComboBox;
-    for (const std::string& frame : m_model->availableFrames()) {
-        m_workspace_frame_combo_box->addItem(QString::fromStdString(frame));
-    }
 
     m_workspace_min_x_spinbox = new QDoubleSpinBox;
     m_workspace_min_x_spinbox->setMinimum(-5.0);
@@ -384,8 +402,6 @@ QGroupBox* MoveGroupCommandPanel::setupGoalConstraintsGroup()
     m_workspace_max_z_spinbox->setSingleStep(0.01);
     m_workspace_max_z_spinbox->setWrapping(false);
 
-    syncWorkspaceWidgets();
-
     workspace_layout->addWidget(new QLabel(tr("Frame:")),       0, 0);
     workspace_layout->addWidget(m_workspace_frame_combo_box,    0, 1, 1, 3);
     workspace_layout->addWidget(new QLabel(tr("Min Corner:")),  1, 0);
@@ -403,7 +419,7 @@ QGroupBox* MoveGroupCommandPanel::setupGoalConstraintsGroup()
     // Goal Command Group
     QGroupBox* command_group = new QGroupBox(tr("Position Command"));
     QVBoxLayout* command_layout = new QVBoxLayout;
-    m_var_cmd_widget = new JointVariableCommandWidget(m_model->getRobotCommandModel());
+    m_var_cmd_widget = new JointVariableCommandWidget(m_model.getRobotCommandModel());
     command_layout->addWidget(m_var_cmd_widget);
     command_group->setLayout(command_layout);
     // End Goal Command Group
@@ -439,9 +455,9 @@ QGroupBox* MoveGroupCommandPanel::setupCommandsGroup()
 
 void MoveGroupCommandPanel::syncPlannerNameComboBox()
 {
-    assert(m_model && m_planner_name_combo_box);
+    assert(m_planner_name_combo_box);
     // set the selected item to match the current planner
-    const std::string planner_name = m_model->plannerName();
+    const std::string planner_name = m_model.plannerName();
     for (int i = 0; i < m_planner_name_combo_box->count(); ++i) {
         if (m_planner_name_combo_box->itemText(i).toStdString() ==
                 planner_name)
@@ -454,9 +470,9 @@ void MoveGroupCommandPanel::syncPlannerNameComboBox()
 
 void MoveGroupCommandPanel::syncPlannerIdComboBox()
 {
-    assert(m_model && m_planner_id_combo_box);
+    assert(m_planner_id_combo_box);
     // set the selected item to match the current planner id
-    const std::string planner_id = m_model->plannerID();
+    const std::string planner_id = m_model.plannerID();
     for (int i = 0; i < m_planner_id_combo_box->count(); ++i) {
         if (m_planner_id_combo_box->itemText(i).toStdString() == planner_id) {
             m_planner_id_combo_box->setCurrentIndex(i);
@@ -467,54 +483,43 @@ void MoveGroupCommandPanel::syncPlannerIdComboBox()
 
 void MoveGroupCommandPanel::syncNumPlanningAttemptsSpinBox()
 {
-    assert(m_model && m_num_planning_attempts_spinbox);
-    m_num_planning_attempts_spinbox->setValue(m_model->numPlanningAttempts());
+    assert(m_num_planning_attempts_spinbox);
+    m_num_planning_attempts_spinbox->setValue(m_model.numPlanningAttempts());
 }
 
 void MoveGroupCommandPanel::syncAllowedPlanningTimeSpinBox()
 {
-    assert(m_model && m_allowed_planning_time_spinbox);
-    m_allowed_planning_time_spinbox->setValue(m_model->allowedPlanningTime());
-}
-
-void MoveGroupCommandPanel::syncPlanningJointGroupComboBox()
-{
-    m_var_cmd_widget->syncPlanningJointGroupComboBox();
-}
-
-void MoveGroupCommandPanel::syncSpinBoxes()
-{
-    m_var_cmd_widget->syncSpinBoxes();
+    assert(m_allowed_planning_time_spinbox);
+    m_allowed_planning_time_spinbox->setValue(m_model.allowedPlanningTime());
 }
 
 void MoveGroupCommandPanel::syncGoalPositionToleranceSpinBox()
 {
-    assert(m_model && m_pos_tol_spinbox);
-    m_pos_tol_spinbox->setValue(m_model->goalPositionTolerance());
+    assert(m_pos_tol_spinbox);
+    m_pos_tol_spinbox->setValue(m_model.goalPositionTolerance());
 }
 
 void MoveGroupCommandPanel::syncGoalOrientationToleranceSpinBox()
 {
-    assert(m_model && m_rot_tol_spinbox);
-    m_rot_tol_spinbox->setValue(m_model->goalOrientationTolerance());
+    assert(m_rot_tol_spinbox);
+    m_rot_tol_spinbox->setValue(m_model.goalOrientationTolerance());
 }
 
 void MoveGroupCommandPanel::syncGoalJointToleranceSpinBox()
 {
-    assert(m_model && m_joint_tol_spinbox);
-    m_joint_tol_spinbox->setValue(m_model->goalJointTolerance());
+    assert(m_joint_tol_spinbox);
+    m_joint_tol_spinbox->setValue(m_model.goalJointTolerance());
 }
 
 void MoveGroupCommandPanel::syncWorkspaceWidgets()
 {
-    assert(m_model &&
-            m_workspace_min_x_spinbox && m_workspace_max_x_spinbox &&
+    assert(m_workspace_min_x_spinbox && m_workspace_max_x_spinbox &&
             m_workspace_min_y_spinbox && m_workspace_max_y_spinbox &&
             m_workspace_min_z_spinbox && m_workspace_max_z_spinbox);
     bool found = false;
     for (int i = 0; i < m_workspace_frame_combo_box->count(); ++i) {
         if (m_workspace_frame_combo_box->itemText(i).toStdString() ==
-                m_model->workspace().header.frame_id)
+                m_model.workspace().header.frame_id)
         {
             m_workspace_frame_combo_box->setCurrentIndex(i);
             found = true;
@@ -524,27 +529,25 @@ void MoveGroupCommandPanel::syncWorkspaceWidgets()
     if (!found) {
         m_workspace_frame_combo_box->setCurrentIndex(-1);
     }
-    m_workspace_min_x_spinbox->setValue(m_model->workspace().min_corner.x);
-    m_workspace_min_y_spinbox->setValue(m_model->workspace().min_corner.y);
-    m_workspace_min_z_spinbox->setValue(m_model->workspace().min_corner.z);
-    m_workspace_max_x_spinbox->setValue(m_model->workspace().max_corner.x);
-    m_workspace_max_y_spinbox->setValue(m_model->workspace().max_corner.y);
-    m_workspace_max_z_spinbox->setValue(m_model->workspace().max_corner.z);
+    m_workspace_min_x_spinbox->setValue(m_model.workspace().min_corner.x);
+    m_workspace_min_y_spinbox->setValue(m_model.workspace().min_corner.y);
+    m_workspace_min_z_spinbox->setValue(m_model.workspace().min_corner.z);
+    m_workspace_max_x_spinbox->setValue(m_model.workspace().max_corner.x);
+    m_workspace_max_y_spinbox->setValue(m_model.workspace().max_corner.y);
+    m_workspace_max_z_spinbox->setValue(m_model.workspace().max_corner.z);
 
     m_marker_pub.publish(getWorkspaceVisualization());
 }
 
 void MoveGroupCommandPanel::updateRobotVisualization()
 {
-    ROS_DEBUG("Updating robot visualization");
+    ROS_DEBUG_NAMED(LOG, "Update robot visualization");
 
-    if (!m_model->isRobotLoaded()) {
-        ROS_WARN("Robot not yet loaded");
-        return;
-    }
+    auto robot_model = m_model.robotModel();
+    auto* robot_state = m_model.robotState();
 
-    moveit::core::RobotModelConstPtr robot_model = m_model->robotModel();
-    moveit::core::RobotStateConstPtr robot_state = m_model->robotState();
+    assert(robot_model && "Robot Model must be loaded before visualization");
+    assert(robot_state != NULL && "Robot State must be initialized before visualization");
 
     const bool collision_markers = true;
     const bool include_attached = true;
@@ -566,7 +569,7 @@ void MoveGroupCommandPanel::updateRobotVisualization()
         float r_base = 0.4f; // (float)100 / (float)255;
         float g_base = 0.4f; // (float)159 / (float)255;
         float b_base = 0.4f; // (float)237 / (float)255;
-        boost::tribool valid = m_model->robotStateValidity();
+        boost::tribool valid = m_model.robotStateValidity();
         if (valid) {
             g_base = 1.0f;
         }
@@ -587,7 +590,7 @@ void MoveGroupCommandPanel::updateRobotVisualization()
     }
 
     int cid = 0;
-    for (const auto& contact : m_model->contacts()) {
+    for (auto& contact : m_model.contacts()) {
         const double arrow_len = 1.0;
         const Eigen::Vector3d arrow_pos =
                 Eigen::Vector3d(
@@ -621,109 +624,109 @@ void MoveGroupCommandPanel::updateRobotVisualization()
 
 void MoveGroupCommandPanel::planToGoalPose()
 {
-    if (!m_model->planToGoalPose()) {
+    if (!m_model.planToGoalPose()) {
         ROS_ERROR("This should be a message box");
     }
 }
 
 void MoveGroupCommandPanel::moveToGoalPose()
 {
-    if (!m_model->moveToGoalPose()) {
+    if (!m_model.moveToGoalPose()) {
         ROS_ERROR("This should also be a message box");
     }
 }
 
 void MoveGroupCommandPanel::planToGoalConfiguration()
 {
-    if (!m_model->planToGoalConfiguration()) {
+    if (!m_model.planToGoalConfiguration()) {
         ROS_ERROR("This should be a message box");
     }
 }
 
 void MoveGroupCommandPanel::moveToGoalConfiguration()
 {
-    if (!m_model->moveToGoalConfiguration()) {
+    if (!m_model.moveToGoalConfiguration()) {
         ROS_ERROR("This should be a message box");
     }
 }
 
 void MoveGroupCommandPanel::copyCurrentState()
 {
-    m_model->copyCurrentState();
+    m_model.copyCurrentState();
 }
 
 void MoveGroupCommandPanel::setGoalJointTolerance(double tol_deg)
 {
-    m_model->setGoalJointTolerance(tol_deg);
+    m_model.setGoalJointTolerance(tol_deg);
 }
 
 void MoveGroupCommandPanel::setGoalPositionTolerance(double tol_m)
 {
-    m_model->setGoalPositionTolerance(tol_m);
+    m_model.setGoalPositionTolerance(tol_m);
 }
 
 void MoveGroupCommandPanel::setGoalOrientationTolerance(double tol_deg)
 {
-    m_model->setGoalOrientationTolerance(tol_deg);
+    m_model.setGoalOrientationTolerance(tol_deg);
 }
 
 void MoveGroupCommandPanel::setCurrentPlanner(const QString& name)
 {
-    m_model->setPlannerName(name.toStdString());
+    m_model.setPlannerName(name.toStdString());
 }
 
 void MoveGroupCommandPanel::setCurrentPlannerID(const QString& id)
 {
-    m_model->setPlannerID(id.toStdString());
+    m_model.setPlannerID(id.toStdString());
 }
 
 void MoveGroupCommandPanel::setWorkspaceFrame(const QString& frame)
 {
-    moveit_msgs::WorkspaceParameters params = m_model->workspace();
+    moveit_msgs::WorkspaceParameters params = m_model.workspace();
     params.header.frame_id = frame.toStdString();
-    m_model->setWorkspace(params);
+    m_model.setWorkspace(params);
 }
 
 void MoveGroupCommandPanel::setWorkspaceMinX(double value)
 {
-    moveit_msgs::WorkspaceParameters params = m_model->workspace();
+    moveit_msgs::WorkspaceParameters params = m_model.workspace();
     params.min_corner.x = value;
-    m_model->setWorkspace(params);
+    m_model.setWorkspace(params);
 }
 
 void MoveGroupCommandPanel::setWorkspaceMinY(double value)
 {
-    moveit_msgs::WorkspaceParameters params = m_model->workspace();
+    moveit_msgs::WorkspaceParameters params = m_model.workspace();
     params.min_corner.y = value;
-    m_model->setWorkspace(params);
+    m_model.setWorkspace(params);
 }
 
 void MoveGroupCommandPanel::setWorkspaceMinZ(double value)
 {
-    moveit_msgs::WorkspaceParameters params = m_model->workspace();
+    moveit_msgs::WorkspaceParameters params = m_model.workspace();
     params.min_corner.z = value;
-    m_model->setWorkspace(params);
+    m_model.setWorkspace(params);
 }
 
 void MoveGroupCommandPanel::setWorkspaceMaxX(double value)
 {
-    moveit_msgs::WorkspaceParameters params = m_model->workspace();
+    moveit_msgs::WorkspaceParameters params = m_model.workspace();
     params.max_corner.x = value;
-    m_model->setWorkspace(params);
+    m_model.setWorkspace(params);
 }
 
 void MoveGroupCommandPanel::setWorkspaceMaxY(double value)
 {
-    moveit_msgs::WorkspaceParameters params = m_model->workspace();
+    moveit_msgs::WorkspaceParameters params = m_model.workspace();
     params.max_corner.y = value;
-    m_model->setWorkspace(params);
+    m_model.setWorkspace(params);
 }
 
 void MoveGroupCommandPanel::setWorkspaceMaxZ(double value)
 {
-    moveit_msgs::WorkspaceParameters params = m_model->workspace();
+    moveit_msgs::WorkspaceParameters params = m_model.workspace();
     params.max_corner.z = value;
-    m_model->setWorkspace(params);
+    m_model.setWorkspace(params);
 }
 
 visualization_msgs::MarkerArray
@@ -733,7 +736,7 @@ MoveGroupCommandPanel::getWorkspaceVisualization() const
 
     visualization_msgs::MarkerArray ma;
 
-    const auto& workspace = m_model->workspace();
+    const auto& workspace = m_model.workspace();
 
     visualization_msgs::Marker marker;
 

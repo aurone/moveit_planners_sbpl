@@ -46,7 +46,7 @@ public:
     static constexpr double DefaultWorkspaceMaxY =  1.0;
     static constexpr double DefaultWorkspaceMaxZ =  1.0;
 
-    MoveGroupCommandModel(QObject* parent = 0);
+    MoveGroupCommandModel();
     ~MoveGroupCommandModel();
 
     /// \brief Load a robot into the command model.
@@ -62,13 +62,16 @@ public:
     bool isRobotLoaded() const;
 
     /// \brief Return the model of the commanded robot.
-    moveit::core::RobotModelConstPtr robotModel() const;
+    auto robotModel() const -> const moveit::core::RobotModelConstPtr&;
 
     /// \brief Return the state of the phantom robot used for commanding.
-    moveit::core::RobotStateConstPtr robotState() const;
+    auto robotState() const -> const moveit::core::RobotState*;
 
     boost::tribool robotStateValidity() const { return m_validity; }
-    const std::vector<moveit_msgs::ContactInformation>& contacts() const { return m_contacts; }
+
+    auto contacts() const
+        -> const std::vector<moveit_msgs::ContactInformation>&
+    { return m_contacts; }
 
     bool readyToPlan() const;
 
@@ -79,10 +82,10 @@ public:
 
     bool copyCurrentState();
 
-    const std::vector<moveit_msgs::PlannerInterfaceDescription>&
-    plannerInterfaces() const;
+    auto plannerInterfaces() const
+        -> const std::vector<moveit_msgs::PlannerInterfaceDescription>&;
 
-    const std::vector<std::string>& availableFrames() const;
+    auto availableFrames() const -> const std::vector<std::string>&;
 
     /// \name General/Robot Settings
     ///@{
@@ -99,11 +102,11 @@ public:
 
     /// \name Goal Constraints Settings
     ///@{
-    const std::string& planningJointGroupName() const;
+    auto planningJointGroupName() const -> const std::string&;
     double goalJointTolerance() const;
     double goalPositionTolerance() const;
     double goalOrientationTolerance() const;
-    const moveit_msgs::WorkspaceParameters& workspace() const;
+    auto workspace() const -> const moveit_msgs::WorkspaceParameters&;
     ///@}
 
     void load(const rviz::Config& config);
@@ -147,60 +150,13 @@ Q_SIGNALS:
 
     void availableFramesUpdated();
 
+private Q_SLOTS:
+
+    void updateRobotState();
+
 private:
 
-    class MyRobotCommandModel : public RobotCommandModel
-    {
-    public:
-
-        MyRobotCommandModel(MoveGroupCommandModel* model)
-        {
-            m_model = model;
-        }
-
-        const moveit::core::RobotModel* getRobotModel() const override
-        {
-            auto model = m_model->robotModel();
-            if (model) {
-                return model.get();
-            } else {
-                return NULL;
-            }
-        }
-
-        const moveit::core::RobotState* getRobotState() const override
-        {
-            auto state = m_model->robotState();
-            if (state) {
-                return state.get();
-            } else {
-                return NULL;
-            }
-        }
-
-        const std::string& getPlanningJointGroupName() const override
-        {
-            return m_model->planningJointGroupName();
-        }
-
-        void setPlanningJointGroup(const std::string& group_name) override
-        {
-            return m_model->setPlanningJointGroup(group_name);
-        }
-
-        void setJointVariable(int index, double value) override
-        {
-            return m_model->setJointVariable(index, value);
-        }
-
-        void notifyRobotLoaded() {
-            Q_EMIT robotLoaded();
-        }
-
-    private:
-
-        MoveGroupCommandModel* m_model = nullptr;
-    } m_robot_command_model;
+    RobotCommandModel m_robot_command_model;
 
     // assertions:
     // * robot_loaded:
@@ -210,11 +166,14 @@ private:
 
     ros::NodeHandle m_nh;
 
+    // publishes the current command state whenever it is updated
     ros::Publisher m_command_robot_state_pub;
 
+    // monitors the active planning scene to provide:
+    // * current state information to synchronize the command state with
+    // * knowledge of the available frames in the system, for specifying a frame
+    //   for the workspace
     planning_scene_monitor::PlanningSceneMonitorPtr m_scene_monitor;
-
-    moveit::core::RobotStatePtr m_robot_state;
 
     boost::tribool m_validity;
     std::vector<moveit_msgs::ContactInformation> m_contacts;
@@ -248,23 +207,13 @@ private:
     std::string m_curr_joint_group_name;
     ///@}
 
-    interactive_markers::InteractiveMarkerServer m_im_server;
-    std::vector<std::string> m_int_marker_names;
-
     void reinitCheckStateValidityService();
     void reinitQueryPlannerInterfaceService();
 
     void logPlanningSceneMonitor(
         const planning_scene_monitor::PlanningSceneMonitor& monitor) const;
 
-    void reinitInteractiveMarkers();
-
-    // Synchronize the poses of all markers with the current robot state.
-    void updateInteractiveMarkers();
-
     void updateRobotStateValidity();
-
-    void clearMoveGroupRequest();
 
     bool fillWorkspaceParameters(
         const ros::Time& now,
@@ -302,21 +251,6 @@ private:
     void moveGroupResultCallback(
         const actionlib::SimpleClientGoalState& state,
         const moveit_msgs::MoveGroupResult::ConstPtr& result);
-
-    // Get the state of the real robot.
-    //
-    // Returns false if the current robot state is not available. \p robot_state
-    // is not modified if the current state is not available.
-    bool getActualState(moveit::core::RobotState& robot_state) const;
-
-    void processInteractiveMarkerFeedback(
-        const visualization_msgs::InteractiveMarkerFeedbackConstPtr& msg);
-
-    void processSceneUpdate(
-        planning_scene_monitor::PlanningSceneMonitor::SceneUpdateType type);
-
-    std::string markerNameFromTipName(const std::string& tip_name) const;
-    std::string tipNameFromMarkerName(const std::string& marker_name) const;
 
     bool plannerIndicesValid(int planner_idx, int planner_id_idx) const;
 

@@ -24,24 +24,26 @@ public:
     JointVariableCommandWidget(RobotCommandModel* model, QWidget* parent = 0);
     ~JointVariableCommandWidget();
 
-    void displayJointGroupCommands(const std::string& group_name);
-
-    // TODO: we should be notified of changes to the model directly from the
-    // model itself
-    void syncSpinBoxes();
-    void syncPlanningJointGroupComboBox();
+    const std::string& activeJointGroup() const { return m_active_joint_group; }
 
 public Q_SLOTS:
 
-    void updateRobotControls();
+    void setActiveJointGroup(const std::string& group_name);
+
+Q_SIGNALS:
+
+    // emitted whenever the active joint group changes
+    void updateActiveJointGroup(const std::string& group_name);
 
 private:
 
     RobotCommandModel* m_model;
 
+    std::string m_active_joint_group;
+
     QComboBox* m_joint_groups_combo_box;
 
-    std::vector<QDoubleSpinBox*>  m_spinboxes;
+    std::vector<QDoubleSpinBox*> m_spinboxes;
     std::vector<QLabel*> m_labels;
 
     // mapping from each qdoublespinbox to the indices of the joint variables it
@@ -61,6 +63,10 @@ private:
 
     bool m_ignore_sync;
 
+    void buildRobotControls();
+
+    void displayJointGroupControls();
+
     QDoubleSpinBox* createRealVariableSpinBox(
         const moveit::core::VariableBounds& bounds);
 
@@ -77,7 +83,12 @@ private:
 
 private Q_SLOTS:
 
+    void updateRobotModel();
+    void updateRobotState();
+
+    // called when the item in the combo box changes
     void setJointGroup(const QString& group_name);
+
     void setJointVariableFromSpinBox(double value);
 };
 

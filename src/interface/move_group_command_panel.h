@@ -13,9 +13,10 @@
 #include <rviz/panel.h>
 #include <visualization_msgs/MarkerArray.h>
 
+#include "move_group_command_model.h"
+
 namespace sbpl_interface {
 
-class MoveGroupCommandModel;
 class JointVariableCommandWidget;
 
 class MoveGroupCommandPanel : public rviz::Panel
@@ -74,7 +75,7 @@ private:
 
     ros::NodeHandle m_nh;
 
-    std::unique_ptr<MoveGroupCommandModel> m_model;
+    MoveGroupCommandModel m_model;
 
     /// \name General Settings Widgets
     ///@{
@@ -136,8 +137,6 @@ private:
     void syncPlannerIdComboBox();
     void syncNumPlanningAttemptsSpinBox();
     void syncAllowedPlanningTimeSpinBox();
-    void syncPlanningJointGroupComboBox();
-    void syncSpinBoxes();
     void syncGoalPositionToleranceSpinBox();
     void syncGoalOrientationToleranceSpinBox();
     void syncGoalJointToleranceSpinBox();
