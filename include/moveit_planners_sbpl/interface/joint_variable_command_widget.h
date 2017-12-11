@@ -38,7 +38,6 @@ Q_SIGNALS:
 private:
 
     RobotCommandModel* m_model;
-
     std::string m_active_joint_group;
 
     QComboBox* m_joint_groups_combo_box;
@@ -58,28 +57,11 @@ private:
     // expected order of these spinboxes is (r, p, y)
     std::vector<std::vector<QDoubleSpinBox*>> m_vind_to_spinbox;
 
-    // ...and their corresponding labels
-    std::vector<std::vector<QLabel*>> m_vind_to_label;
-
     bool m_ignore_sync;
 
     void buildRobotControls();
 
-    void displayJointGroupControls();
-
-    QDoubleSpinBox* createRealVariableSpinBox(
-        const moveit::core::VariableBounds& bounds);
-
-    QDoubleSpinBox* createRollVariableSpinBox();
-    QDoubleSpinBox* createPitchVariableSpinBox();
-    QDoubleSpinBox* createYawVariableSpinBox();
-
-    QDoubleSpinBox* createAngleVariableSpinBox();
-
-    QDoubleSpinBox* createRevoluteVariableSpinBox(
-        const moveit::core::VariableBounds& var_bounds);
-
-    bool isVariableAngle(int vidx) const;
+    void updateJointGroupControls();
 
 private Q_SLOTS:
 
