@@ -151,7 +151,7 @@ JointVariableCommandWidget::JointVariableCommandWidget(
     RobotCommandModel* model,
     QWidget* parent)
 :
-    Base(parent),
+    QWidget(parent),
     m_model(model),
     m_ignore_sync(false)
 {

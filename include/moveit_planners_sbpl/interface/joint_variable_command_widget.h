@@ -13,13 +13,14 @@ namespace sbpl_interface {
 
 class RobotCommandModel;
 
-class JointVariableCommandWidget : public QWidget //QScrollArea
+/// A widget providing spinbox controls for joint variables in a RobotModel.
+/// Upon construction, this widget automatically subscribes to the robotLoaded()
+/// and robotStateChanged() signals from its associated RobotCommandModel.
+class JointVariableCommandWidget : public QWidget
 {
     Q_OBJECT
 
 public:
-
-    typedef QWidget Base;
 
     JointVariableCommandWidget(RobotCommandModel* model, QWidget* parent = 0);
     ~JointVariableCommandWidget();
