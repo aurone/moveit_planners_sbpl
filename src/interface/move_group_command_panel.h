@@ -14,6 +14,7 @@
 #include <visualization_msgs/MarkerArray.h>
 
 #include <moveit_planners_sbpl/interface/ik_command_interactive_marker.h>
+#include <moveit_planners_sbpl/interface/teleop_command.h>
 
 #include "move_group_command_model.h"
 
@@ -115,7 +116,9 @@ private:
     ///@{
     QComboBox* m_joint_groups_combo_box             = nullptr;
     JointVariableCommandWidget* m_var_cmd_widget    = nullptr;
-    IKCommandInteractiveMarker m_ik_cmd_marker;
+
+    IKCommandInteractiveMarker  m_ik_cmd_marker;
+    TeleopCommand               m_teleop_command;
     ///@}
 
     /// \name Command Widgets
