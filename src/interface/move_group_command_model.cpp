@@ -155,7 +155,7 @@ bool MoveGroupCommandModel::loadRobot(const std::string& robot_description)
     auto update_fn = [this](
         planning_scene_monitor::PlanningSceneMonitor::SceneUpdateType type)
     {
-        ROS_DEBUG_NAMED(LOG, "Process scene update %s", to_cstring(type));
+//        ROS_DEBUG_NAMED(LOG, "Process scene update %s", to_cstring(type));
         switch (type) {
         case planning_scene_monitor::PlanningSceneMonitor::UPDATE_NONE:
             break;
