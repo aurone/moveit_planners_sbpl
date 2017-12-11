@@ -136,6 +136,7 @@ void MoveGroupCommandPanel::syncModelConfig()
     // the gui
     m_var_cmd_widget->setActiveJointGroup(m_model.planningJointGroupName());
     m_ik_cmd_marker.setActiveJointGroup(m_model.planningJointGroupName());
+    m_teleop_command.setActiveJointGroup(m_model.planningJointGroupName());
 
     syncGoalPositionToleranceSpinBox();
     syncGoalOrientationToleranceSpinBox();
@@ -242,6 +243,8 @@ void MoveGroupCommandPanel::setupGUI()
             this, SLOT(setGoalOrientationTolerance(double)));
 
     connect(m_var_cmd_widget, SIGNAL(updateActiveJointGroup(const std::string&)),
+            &m_model, SLOT(setPlanningJointGroup(const std::string&)));
+    connect(&m_teleop_command, SIGNAL(updateActiveJointGroup(const std::string&)),
             &m_model, SLOT(setPlanningJointGroup(const std::string&)));
 
     connect(m_workspace_frame_combo_box, SIGNAL(currentIndexChanged(const QString&)),

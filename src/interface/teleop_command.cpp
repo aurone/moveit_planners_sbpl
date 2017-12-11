@@ -22,7 +22,21 @@ TeleopCommand::TeleopCommand(RobotCommandModel* model)
 
 void TeleopCommand::setActiveJointGroup(const std::string& group_name)
 {
+    if (m_active_group_name != group_name) {
+        m_active_group_name = group_name;
+        m_remote_curr_var = 0;
 
+        ROS_DEBUG_STREAM_NAMED(LOG, "  Next joint group: " << m_active_group_name);
+        auto& robot_model = m_model->getRobotModel();
+        if (robot_model) {
+            auto* jg = robot_model->getJointModelGroup(group_name);
+            if (jg) {
+                ROS_DEBUG_STREAM_NAMED(LOG, "  Active variable: " << jg->getVariableNames()[0]);
+            }
+        }
+
+        Q_EMIT updateActiveJointGroup(group_name);
+    }
 }
 
 void TeleopCommand::updateRobotModel()
@@ -50,57 +64,25 @@ void TeleopCommand::updateRobotState()
 
 }
 
-enum struct Button {
-    A = 0,      // next joint
-    B,          // next joint group
-    X,          // prev joint
-    Y,          // previous joint group
-    LB,
-    RB,
-    Back,       // set active group to zero state
-    Start,
-    Power,
-    LStick,
-    RStick,
-    Count,
-};
-
-enum struct Axis {
-    LH = 0, // left horizontal     - ik yaw left/right
-    LV,     // left vertical       - ik up/down
-    LT,     // left trigger        - joint down
-    RH,     // right horizontal    - ik left/right
-    RV,     // right vertical      - ik forward/back
-    RT,     // right trigger       - joint up
-    DH,     // d-pad horizontal    - roll
-    DV,     // d-pad vertical      - pitch
-    Count,
-};
-
-enum struct ButtonState {
-    Up = 0,
-    Down = 1,
-};
-
 bool ButtonPressed(
     const sensor_msgs::Joy& prev,
     const sensor_msgs::Joy& curr,
-    Button button)
+    TeleopCommand::Button button)
 {
     using ButtonStateType = sensor_msgs::Joy::_buttons_type::value_type;
-    return prev.buttons[(int)button] == (ButtonStateType)ButtonState::Up &&
-            curr.buttons[(int)button] == (ButtonStateType)ButtonState::Down;
+    return prev.buttons[(int)button] == (ButtonStateType)TeleopCommand::ButtonState::Up &&
+            curr.buttons[(int)button] == (ButtonStateType)TeleopCommand::ButtonState::Down;
 }
 
 bool AxisMoved(
     const sensor_msgs::Joy& prev,
     const sensor_msgs::Joy& curr,
-    Axis axis)
+    TeleopCommand::Axis axis)
 {
     return prev.axes[(int)axis] != curr.axes[(int)axis];
 }
 
-bool AxisNonZero(const sensor_msgs::Joy& msg, Axis axis)
+bool AxisNonZero(const sensor_msgs::Joy& msg, TeleopCommand::Axis axis)
 {
     return msg.axes[(int)axis] != 0.0;
 }
@@ -202,7 +184,9 @@ void TeleopCommand::joyCallback(const sensor_msgs::Joy::ConstPtr& msg)
     if (AxisNonZero(*msg, Axis::RV) ||
         AxisNonZero(*msg, Axis::RH) ||
         AxisNonZero(*msg, Axis::LV) ||
-        AxisNonZero(*msg, Axis::LH))
+        AxisNonZero(*msg, Axis::LH) ||
+        AxisNonZero(*msg, Axis::DH) ||
+        AxisNonZero(*msg, Axis::DV))
     {
         auto tip_links = GetTipLinkNames(*jg);
         if (!tip_links.empty()) {
@@ -211,7 +195,9 @@ void TeleopCommand::joyCallback(const sensor_msgs::Joy::ConstPtr& msg)
             const double dx = mps * dt * msg->axes[(int)Axis::RV];
             const double dy = mps * dt * msg->axes[(int)Axis::RH];
             const double dz = mps * dt * msg->axes[(int)Axis::LV];
-            const double dY = mps * dt * msg->axes[(int)Axis::LH];
+            const double dY = rps * dt * msg->axes[(int)Axis::LH];
+            const double dP = rps * dt * msg->axes[(int)Axis::DV];
+            const double dR = rps * dt * msg->axes[(int)Axis::DH];
 
             auto& T_world_tip = robot_state->getGlobalLinkTransform(tip_link);
 
@@ -227,9 +213,20 @@ void TeleopCommand::joyCallback(const sensor_msgs::Joy::ConstPtr& msg)
                     T_root_root_offset *
                     T_world_root.inverse() *
                     T_world_tip *
-                    Eigen::AngleAxisd(dY, Eigen::Vector3d::UnitZ());
+                    Eigen::AngleAxisd(dY, Eigen::Vector3d::UnitZ()) *
+                    Eigen::AngleAxisd(dP, Eigen::Vector3d::UnitY()) *
+                    Eigen::AngleAxisd(dR, Eigen::Vector3d::UnitX());
             if (m_model->setFromIK(jg, target_pose)) {
 
+            }
+        }
+    }
+
+    for (int i = 0; i < (int)Button::Count; ++i) {
+        Button b = (Button)i;
+        if (ButtonPressed(*m_prev_joy, *msg, b)) {
+            for (auto& e : button_press_callbacks_) {
+                e.second(b);
             }
         }
     }
@@ -262,6 +259,8 @@ void TeleopCommand::cycleActiveJoint(bool forward)
 
     ROS_DEBUG_STREAM_NAMED(LOG, "Update active joint variable to '" <<
             jg->getVariableNames()[m_remote_curr_var] << "'");
+
+    Q_EMIT updateActiveJointVariable(jg->getVariableIndexList()[m_remote_curr_var]);
 }
 
 void TeleopCommand::cycleActiveGroup(bool forward)
@@ -294,6 +293,8 @@ void TeleopCommand::cycleActiveGroup(bool forward)
     m_active_group_name = next_group_name;
     ROS_DEBUG_STREAM_NAMED(LOG, "  Next joint group: " << m_active_group_name);
     ROS_DEBUG_STREAM_NAMED(LOG, "  Active variable: " << next_group->getVariableNames()[0]);
+
+    Q_EMIT updateActiveJointGroup(m_active_group_name);
 }
 
 } // namespace sbpl_interface

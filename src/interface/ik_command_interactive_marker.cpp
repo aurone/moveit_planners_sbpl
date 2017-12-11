@@ -25,6 +25,7 @@ void IKCommandInteractiveMarker::setActiveJointGroup(const std::string& group_na
     if (group_name != m_active_group_name) {
         m_active_group_name = group_name;
         reinitInteractiveMarkers();
+        updateInteractiveMarkers();
         Q_EMIT updateActiveJointGroup(group_name);
     }
 }
