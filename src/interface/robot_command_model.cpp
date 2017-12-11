@@ -109,4 +109,24 @@ bool RobotCommandModel::setFromIK(
     return res;
 }
 
+bool RobotCommandModel::setToDefaultValues(
+    const moveit::core::JointModelGroup* group,
+    const std::string& name)
+{
+    ROS_DEBUG_NAMED(LOG, "Set positions of joint group '%s' to default values '%s'", group->getName().c_str(), name.c_str());
+    if (m_robot_state->setToDefaultValues(group, name)) {
+        Q_EMIT robotStateChanged();
+        return true;
+    }
+    return false;
+}
+
+void RobotCommandModel::setJointGroupPositions(
+    const moveit::core::JointModelGroup* group,
+    const std::vector<double>& positions)
+{
+    m_robot_state->setJointGroupPositions(group, positions);
+    Q_EMIT robotStateChanged();
+}
+
 } // namespace sbpl_interface

@@ -63,6 +63,14 @@ public:
         const moveit::core::GroupStateValidityCallbackFn& constraint = moveit::core::GroupStateValidityCallbackFn(),
         const kinematics::KinematicsQueryOptions& options = kinematics::KinematicsQueryOptions());
 
+    void setJointGroupPositions(
+        const moveit::core::JointModelGroup* group,
+        const std::vector<double>& positions);
+
+    bool setToDefaultValues(
+        const moveit::core::JointModelGroup* group,
+        const std::string& name = "");
+
 Q_SIGNALS:
 
     void robotLoaded();
