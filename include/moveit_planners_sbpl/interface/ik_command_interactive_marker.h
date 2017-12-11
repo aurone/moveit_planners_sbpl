@@ -27,11 +27,6 @@ public Q_SLOTS:
 
     void setActiveJointGroup(const std::string& group_name);
 
-private Q_SLOTS:
-
-    void updateRobotModel();
-    void updateRobotState();
-
 Q_SIGNALS:
 
     void updateActiveJointGroup(const std::string& group_name);
@@ -39,17 +34,21 @@ Q_SIGNALS:
 private:
 
     RobotCommandModel* m_model = nullptr;
+    std::string m_active_group_name;
 
     interactive_markers::InteractiveMarkerServer m_im_server;
     std::vector<std::string> m_int_marker_names;
-
-    std::string m_active_group_name;
 
     void reinitInteractiveMarkers();
     void updateInteractiveMarkers();
 
     void processInteractiveMarkerFeedback(
         const visualization_msgs::InteractiveMarkerFeedbackConstPtr& msg);
+
+private Q_SLOTS:
+
+    void updateRobotModel();
+    void updateRobotState();
 };
 
 } // namespace sbpl_interface

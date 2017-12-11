@@ -13,11 +13,14 @@
 #include <rviz/panel.h>
 #include <visualization_msgs/MarkerArray.h>
 
+#include <moveit_planners_sbpl/interface/ik_command_interactive_marker.h>
+
 #include "move_group_command_model.h"
 
 namespace sbpl_interface {
 
 class JointVariableCommandWidget;
+class IKCommandInteractiveMarker;
 
 class MoveGroupCommandPanel : public rviz::Panel
 {
@@ -112,6 +115,7 @@ private:
     ///@{
     QComboBox* m_joint_groups_combo_box             = nullptr;
     JointVariableCommandWidget* m_var_cmd_widget    = nullptr;
+    IKCommandInteractiveMarker m_ik_cmd_marker;
     ///@}
 
     /// \name Command Widgets

@@ -17,7 +17,8 @@ namespace sbpl_interface {
 static const char* LOG = "move_group_command_panel";
 
 MoveGroupCommandPanel::MoveGroupCommandPanel(QWidget* parent) :
-    rviz::Panel(parent)
+    rviz::Panel(parent),
+    m_ik_cmd_marker(m_model.getRobotCommandModel())
 {
     m_marker_pub = m_nh.advertise<visualization_msgs::MarkerArray>(
             "visualization_markers", 5);
@@ -133,6 +134,7 @@ void MoveGroupCommandPanel::syncModelConfig()
     // variable so that updates can be propagated from it and synchronized in
     // the gui
     m_var_cmd_widget->setActiveJointGroup(m_model.planningJointGroupName());
+    m_ik_cmd_marker.setActiveJointGroup(m_model.planningJointGroupName());
 
     syncGoalPositionToleranceSpinBox();
     syncGoalOrientationToleranceSpinBox();
