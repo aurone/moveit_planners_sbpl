@@ -1,5 +1,8 @@
 #include <moveit_planners_sbpl/interface/ik_command_interactive_marker.h>
 
+#include <cmath>
+#include <cstdlib>
+
 #include <Eigen/Dense>
 #include <eigen_conversions/eigen_msg.h>
 
@@ -50,6 +53,57 @@ void IKCommandInteractiveMarker::updateRobotState()
     updateInteractiveMarkers();
 }
 
+// Given a state, for each revolute joint, find the equivalent 2*pi joint
+// position that is nearest (numerically) to a reference state
+void CorrectIKSolution(
+    moveit::core::RobotState& state,
+    const moveit::core::JointModelGroup* group,
+    const moveit::core::RobotState& ref_state)
+{
+    for (size_t gvidx = 0; gvidx < group->getVariableCount(); ++gvidx) {
+        ROS_DEBUG_NAMED(LOG, "Check variable '%s' for bounded revoluteness", group->getVariableNames()[gvidx].c_str());
+
+        int vidx = group->getVariableIndexList()[gvidx];
+        auto* joint = state.getRobotModel()->getJointOfVariable(vidx);
+        if (joint->getType() != moveit::core::JointModel::REVOLUTE ||
+            !joint->getVariableBounds()[0].position_bounded_)
+        {
+            continue;
+        }
+
+        ROS_DEBUG_NAMED(LOG, "  Normalize variable '%s'", group->getVariableNames()[gvidx].c_str());
+
+        double spos = state.getVariablePosition(vidx);
+        double vdiff = ref_state.getVariablePosition(gvidx) - spos;
+        int twopi_hops = (int)std::abs(vdiff / (2.0 * M_PI));
+
+        ROS_DEBUG_NAMED(LOG, " -> seed pos: %f", ref_state.getVariablePosition(gvidx));
+        ROS_DEBUG_NAMED(LOG, " ->  sol pos: %f", spos);
+        ROS_DEBUG_NAMED(LOG, " ->    vdiff: %f", vdiff);
+        ROS_DEBUG_NAMED(LOG, " -> num hops: %d", twopi_hops);
+
+        const double dir = std::copysign(1.0, vdiff);
+        double npos = spos + (2.0 * M_PI) * twopi_hops * dir;
+        if (std::abs(npos - ref_state.getVariablePosition(gvidx)) > M_PI) {
+            npos += 2.0 * M_PI * dir;
+        }
+
+        ROS_DEBUG_NAMED(LOG, " ->     npos: %f", npos);
+
+        if (twopi_hops) {
+            ROS_DEBUG_NAMED(LOG, " -> Attempt to normalize variable '%s' to %f from %f", group->getVariableNames()[gvidx].c_str(), npos, spos);
+        } else {
+            ROS_DEBUG_NAMED(LOG, "No hops necessary");
+        }
+
+        state.setVariablePosition(vidx, npos);
+        if (!state.satisfiesBounds(joint)) {
+            ROS_WARN_NAMED(LOG, "normalized value for '%s' out of bounds",  group->getVariableNames()[gvidx].c_str());
+            state.setVariablePosition(vidx, spos);
+        }
+    }
+}
+
 void IKCommandInteractiveMarker::processInteractiveMarkerFeedback(
     const visualization_msgs::InteractiveMarkerFeedbackConstPtr& msg)
 {
@@ -58,83 +112,27 @@ void IKCommandInteractiveMarker::processInteractiveMarkerFeedback(
     ROS_DEBUG_NAMED(LOG, "  Control: %s", msg->control_name.c_str());
     ROS_DEBUG_NAMED(LOG, "  Event Type: %u", (unsigned)msg->event_type);
 
-    auto* robot_state = m_model->getRobotState();
-
-    switch (msg->event_type) {
-    case visualization_msgs::InteractiveMarkerFeedback::KEEP_ALIVE:
-        break;
-    case visualization_msgs::InteractiveMarkerFeedback::POSE_UPDATE:
-    {
-        auto* jg = robot_state->getJointModelGroup(m_active_group_name);
-        if (!jg) {
+    if (msg->event_type == visualization_msgs::InteractiveMarkerFeedback::POSE_UPDATE) {
+        auto* robot_state = m_model->getRobotState();
+        auto* group = robot_state->getJointModelGroup(m_active_group_name);
+        if (!group) {
             ROS_ERROR_NAMED(LOG, "Failed to retrieve joint group '%s'", m_active_group_name.c_str());
-            break;
+            return;
         }
 
         // run ik from this tip link
         Eigen::Affine3d wrist_pose;
         tf::poseMsgToEigen(msg->pose, wrist_pose);
 
-        // extract the seed
-        std::vector<double> seed;
-        robot_state->copyJointGroupPositions(jg, seed);
-
-        auto& rm = m_model->getRobotModel();
-        assert(rm);
-
-        if (m_model->setFromIK(jg, wrist_pose)) {
-            // for each variable corresponding to a revolute joint
-            for (size_t gvidx = 0; gvidx < seed.size(); ++gvidx) {
-                ROS_DEBUG_NAMED(LOG, "Check variable '%s' for bounded revoluteness", jg->getVariableNames()[gvidx].c_str());
-
-                int vidx = jg->getVariableIndexList()[gvidx];
-                const moveit::core::JointModel* j = rm->getJointOfVariable(vidx);
-                if (j->getType() != moveit::core::JointModel::REVOLUTE ||
-                    !j->getVariableBounds()[0].position_bounded_)
-                {
-                    continue;
-                }
-
-                ROS_DEBUG_NAMED(LOG, "  Normalize variable '%s'", jg->getVariableNames()[gvidx].c_str());
-
-                double spos = robot_state->getVariablePosition(vidx);
-                double vdiff = seed[gvidx] - spos;
-                int twopi_hops = (int)std::fabs(vdiff / (2.0 * M_PI));
-
-                ROS_DEBUG_NAMED(LOG, " -> seed pos: %0.3f", seed[gvidx]);
-                ROS_DEBUG_NAMED(LOG, " ->  sol pos: %0.3f", spos);
-                ROS_DEBUG_NAMED(LOG, " ->    vdiff: %0.3f", vdiff);
-                ROS_DEBUG_NAMED(LOG, " -> num hops: %d", twopi_hops);
-
-                double npos = spos + (2.0 * M_PI) * twopi_hops * std::copysign(1.0, vdiff);
-                if (fabs(npos - seed[gvidx]) > M_PI) {
-                    npos += 2.0 * M_PI * std::copysign(1.0, vdiff);
-                }
-
-                ROS_DEBUG_NAMED(LOG, " ->     npos: %0.3f", npos);
-
-                if (twopi_hops) {
-                    ROS_DEBUG_NAMED(LOG, " -> Attempt to normalize variable '%s' to %0.3f from %0.3f", jg->getVariableNames()[gvidx].c_str(), npos, spos);
-                } else {
-                    ROS_DEBUG_NAMED(LOG, "No hops necessary");
-                }
-
-                m_model->setVariablePosition(vidx, npos);
-                if (!robot_state->satisfiesBounds(j)) {
-                    ROS_WARN_NAMED(LOG, "normalized value for '%s' out of bounds",  jg->getVariableNames()[gvidx].c_str());
-                    m_model->setVariablePosition(vidx, spos);
-                }
-            }
+        moveit::core::RobotState ik_state(*robot_state);
+        if (ik_state.setFromIK(group, wrist_pose)) {
+            // correct solution to be closer to seed state
+            CorrectIKSolution(ik_state, group, *robot_state);
+            m_model->setVariablePositions(ik_state.getVariablePositions());
         } else {
             // TODO: anything special here?
         }
-    }   break;
-    case visualization_msgs::InteractiveMarkerFeedback::MENU_SELECT:
-    case visualization_msgs::InteractiveMarkerFeedback::BUTTON_CLICK:
-    default:
-        break;
     }
-    std::string tip_link_name = TipNameFromMarkerName(msg->marker_name);
 }
 
 // This gets called whenever the robot model or active joint group changes.
