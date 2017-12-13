@@ -11,10 +11,10 @@ namespace sbpl_interface {
 
 static const char* LOG = "teleop_command";
 
-TeleopCommand::TeleopCommand(RobotCommandModel* model)
+TeleopCommand::TeleopCommand(RobotCommandModel* model, const std::string& joy_topic)
 {
     m_model = model;
-    m_joy_sub = m_nh.subscribe("user_demo_joy", 5, &TeleopCommand::joyCallback, this);
+    m_joy_sub = m_nh.subscribe(joy_topic, 5, &TeleopCommand::joyCallback, this);
     connect(m_model, SIGNAL(robotLoaded()), this, SLOT(updateRobotModel()));
     connect(m_model, SIGNAL(robotStateChanged()), this, SLOT(updateRobotState()));
 }
@@ -99,12 +99,12 @@ void TeleopCommand::joyCallback(const sensor_msgs::Joy::ConstPtr& msg)
     }
 
     if (m_active_group_name.empty()) {
-        ROS_ERROR("no active joint group");
+//        ROS_DEBUG_NAMED(LOG, "no active joint group");
         return;
     }
 
     if (m_remote_curr_var == -1) {
-        ROS_ERROR("no active joints in joint group");
+        ROS_DEBUG_NAMED(LOG, "no active joints in joint group");
         return;
     }
 
@@ -115,7 +115,7 @@ void TeleopCommand::joyCallback(const sensor_msgs::Joy::ConstPtr& msg)
 
     auto* jg = robot_model->getJointModelGroup(m_active_group_name);
     if (!jg) {
-        ROS_ERROR("bad! not a real joint group");
+        ROS_WARN_NAMED(LOG, "bad! not a real joint group");
         return;
     }
 

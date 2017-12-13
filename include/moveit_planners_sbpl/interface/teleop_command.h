@@ -57,7 +57,7 @@ public:
     using ButtonPressCallback = std::function<void(Button)>;
     using ButtonReleaseCallback = std::function<void(Button)>;
 
-    TeleopCommand(RobotCommandModel* model);
+    TeleopCommand(RobotCommandModel* model, const std::string& joy_topic);
 
     auto getActiveJointGroup() const -> const std::string& {
         return m_active_group_name;
