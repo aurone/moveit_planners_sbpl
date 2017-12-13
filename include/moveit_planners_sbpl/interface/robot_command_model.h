@@ -71,6 +71,10 @@ public:
         const moveit::core::JointModelGroup* group,
         const std::string& name = "");
 
+    void setJointPositions(
+        const moveit::core::JointModel* joint,
+        const Eigen::Affine3d& joint_transform);
+
 Q_SIGNALS:
 
     void robotLoaded();
@@ -80,6 +84,8 @@ private:
 
     moveit::core::RobotModelConstPtr m_robot_model = nullptr;
     std::unique_ptr<moveit::core::RobotState> m_robot_state;
+
+    void updateAndNotify();
 };
 
 } // namespace sbpl_interface

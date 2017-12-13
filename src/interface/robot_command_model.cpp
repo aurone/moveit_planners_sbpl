@@ -20,8 +20,7 @@ bool RobotCommandModel::load(const moveit::core::RobotModelConstPtr& robot)
 
     m_robot_state.reset(new moveit::core::RobotState(robot));
     m_robot_state->setToDefaultValues();
-    m_robot_state->update();
-    Q_EMIT robotStateChanged();
+    updateAndNotify();
 
     return true;
 }
@@ -38,8 +37,7 @@ void RobotCommandModel::setVariablePositions(const double* position)
     if (!same) {
         ROS_DEBUG_NAMED(LOG, "Set variable positions from array");
         m_robot_state->setVariablePositions(position);
-        m_robot_state->update();
-        Q_EMIT robotStateChanged();
+        updateAndNotify();
     }
 }
 
@@ -51,8 +49,7 @@ void RobotCommandModel::setVariablePositions(const std::vector<double>& position
     if (!same) {
         ROS_DEBUG_NAMED(LOG, "Set variable positions from vector");
         m_robot_state->setVariablePositions(position);
-        m_robot_state->update();
-        Q_EMIT robotStateChanged();
+        updateAndNotify();
     }
 }
 
@@ -69,8 +66,7 @@ void RobotCommandModel::setVariablePositions(
     if (!same) {
         ROS_DEBUG_NAMED(LOG, "Set variable positions from map");
         m_robot_state->setVariablePositions(variable_map);
-        m_robot_state->update();
-        Q_EMIT robotStateChanged();
+        updateAndNotify();
     }
 }
 
@@ -81,8 +77,7 @@ void RobotCommandModel::setVariablePositions(
     // TODO: detect differences
     ROS_DEBUG_NAMED(LOG, "Set variable positions from map and report missing");
     m_robot_state->setVariablePositions(variable_map, missing_variables);
-    m_robot_state->update();
-    Q_EMIT robotStateChanged();
+    updateAndNotify();
 }
 
 void RobotCommandModel::setVariablePositions(
@@ -102,8 +97,7 @@ void RobotCommandModel::setVariablePositions(
     if (!same) {
         ROS_DEBUG_NAMED(LOG, "Set variable positions from name/position pairs");
         m_robot_state->setVariablePositions(variable_names, variable_position);
-        m_robot_state->update();
-        Q_EMIT robotStateChanged();
+        updateAndNotify();
     }
 }
 
@@ -114,8 +108,7 @@ void RobotCommandModel::setVariablePosition(
     if (m_robot_state->getVariablePosition(variable) != value) {
         ROS_DEBUG_NAMED(LOG, "Set position of variable '%s' to %f", variable.c_str(), value);
         m_robot_state->setVariablePosition(variable, value);
-        m_robot_state->update();
-        Q_EMIT robotStateChanged();
+        updateAndNotify();
     }
 }
 
@@ -124,8 +117,7 @@ void RobotCommandModel::setVariablePosition(int index, double value)
     if (m_robot_state->getVariablePosition(index) != value) {
         ROS_DEBUG_NAMED(LOG, "Set position of variable %d to %f", index, value);
         m_robot_state->setVariablePosition(index, value);
-        m_robot_state->update();
-        Q_EMIT robotStateChanged();
+        updateAndNotify();
     }
 }
 
@@ -141,8 +133,7 @@ bool RobotCommandModel::setFromIK(
     bool res = m_robot_state->setFromIK(group, pose, attempts, timeout, constraint, options);
     if (res) {
         ROS_DEBUG_NAMED(LOG, "Set positions of joint group '%s' via IK", group->getName().c_str());
-        m_robot_state->update();
-        Q_EMIT robotStateChanged();
+        updateAndNotify();
     }
     return res;
 }
@@ -154,10 +145,19 @@ bool RobotCommandModel::setToDefaultValues(
     // TODO: detect changes?
     if (m_robot_state->setToDefaultValues(group, name)) {
         ROS_DEBUG_NAMED(LOG, "Set positions of joint group '%s' to default values '%s'", group->getName().c_str(), name.c_str());
-        Q_EMIT robotStateChanged();
+        updateAndNotify();
         return true;
     }
     return false;
+}
+
+void RobotCommandModel::setJointPositions(
+    const moveit::core::JointModel* joint,
+    const Eigen::Affine3d& joint_transform)
+{
+    // TODO: detect changes?
+    m_robot_state->setJointPositions(joint, joint_transform);
+    updateAndNotify();
 }
 
 void RobotCommandModel::setJointGroupPositions(
@@ -167,6 +167,12 @@ void RobotCommandModel::setJointGroupPositions(
     // TODO: detect changes?
     ROS_DEBUG_NAMED(LOG, "Set positions of joint group '%s'", group->getName().c_str());
     m_robot_state->setJointGroupPositions(group, positions);
+    updateAndNotify();
+}
+
+void RobotCommandModel::updateAndNotify()
+{
+    m_robot_state->update();
     Q_EMIT robotStateChanged();
 }
 
