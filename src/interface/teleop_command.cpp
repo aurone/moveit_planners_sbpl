@@ -5,8 +5,7 @@
 
 // project includes
 #include <moveit_planners_sbpl/interface/robot_command_model.h>
-
-#include "utils.h"
+#include <moveit_planners_sbpl/interface/utils.h>
 
 namespace sbpl_interface {
 

@@ -1,4 +1,4 @@
-#include "utils.h"
+#include <moveit_planners_sbpl/interface/utils.h>
 
 #include <algorithm>
 #include <stack>
@@ -426,7 +426,7 @@ std::ostream& operator<<(std::ostream& o, const RobotModelInfo& info)
     return o;
 }
 
-std::string to_string(moveit_msgs::MoveItErrorCodes code)
+const char* to_cstring(moveit_msgs::MoveItErrorCodes code)
 {
     switch (code.val) {
     case moveit_msgs::MoveItErrorCodes::SUCCESS:
