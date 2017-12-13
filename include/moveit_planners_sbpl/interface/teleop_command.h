@@ -8,6 +8,8 @@
 #include <ros/ros.h>
 #include <sensor_msgs/Joy.h>
 
+class QTimer;
+
 namespace sbpl_interface {
 
 class RobotCommandModel;
@@ -97,14 +99,23 @@ private:
     RobotCommandModel* m_model = nullptr;
     std::string m_active_group_name;
 
+
     ros::NodeHandle m_nh;
     ros::Subscriber m_joy_sub;
 
+    sensor_msgs::Joy::ConstPtr m_init_joy;
+
+    std::vector<bool> m_pressed;
+    std::vector<bool> m_released;
+
     sensor_msgs::Joy::ConstPtr m_prev_joy;
+    sensor_msgs::Joy::ConstPtr m_last_processed;
     int m_remote_curr_var = -1;
 
     // ordered map for handle maintenance
     std::map<size_t, ButtonPressCallback> button_press_callbacks_;
+
+    QTimer* m_timer;
 
 private Q_SLOTS:
 
@@ -112,6 +123,7 @@ private Q_SLOTS:
     void updateRobotState();
 
     void joyCallback(const sensor_msgs::Joy::ConstPtr& msg);
+    void update();
 
     void cycleActiveJoint(bool forward);
     void cycleActiveGroup(bool forward);
