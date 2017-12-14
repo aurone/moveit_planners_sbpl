@@ -65,25 +65,9 @@ public:
         return m_active_group_name;
     }
 
-    size_t registerButtonPressCallback(const ButtonPressCallback& cb)
-    {
-        size_t handle = 0;
-        for (auto& e : button_press_callbacks_) {
-            if (e.first != handle) {
-                button_press_callbacks_[handle] = cb;
-                return handle;
-            } else {
-                ++handle;
-            }
-        }
-        button_press_callbacks_[handle] = cb;
-        return handle;
-    }
+    size_t registerButtonPressCallback(const ButtonPressCallback& cb);
 
-    void unregisterButtonPressCallback(size_t handle)
-    {
-        button_press_callbacks_.erase(handle);
-    }
+    void unregisterButtonPressCallback(size_t handle);
 
 public Q_SLOTS:
 
@@ -118,6 +102,10 @@ private:
     QTimer* m_timer;
 
 private Q_SLOTS:
+
+    bool nearInitAxis(
+        const sensor_msgs::Joy::ConstPtr& joy,
+        TeleopCommand::Axis axis) const;
 
     void updateRobotModel();
     void updateRobotState();

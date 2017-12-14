@@ -24,6 +24,28 @@ TeleopCommand::TeleopCommand(RobotCommandModel* model, const std::string& joy_to
     m_timer->start(16);
 }
 
+size_t TeleopCommand::registerButtonPressCallback(const ButtonPressCallback& cb)
+{
+    ROS_DEBUG_NAMED(LOG, "Register button callback");
+    size_t handle = 0;
+    for (auto& e : button_press_callbacks_) {
+        if (e.first != handle) {
+            button_press_callbacks_[handle] = cb;
+            return handle;
+        } else {
+            ++handle;
+        }
+    }
+    button_press_callbacks_[handle] = cb;
+    return handle;
+}
+
+void TeleopCommand::unregisterButtonPressCallback(size_t handle)
+{
+    ROS_DEBUG_NAMED(LOG, "Unregister button callback");
+    button_press_callbacks_.erase(handle);
+}
+
 void TeleopCommand::setActiveJointGroup(const std::string& group_name)
 {
     if (m_active_group_name != group_name) {
@@ -89,6 +111,13 @@ bool AxisMoved(
 bool AxisNonZero(const sensor_msgs::Joy& msg, TeleopCommand::Axis axis)
 {
     return msg.axes[(int)axis] != 0.0;
+}
+
+bool TeleopCommand::nearInitAxis(
+    const sensor_msgs::Joy::ConstPtr& joy,
+    TeleopCommand::Axis axis) const
+{
+    return std::abs(joy->axes[(int)axis] - m_init_joy->axes[(int)axis]) < 0.01;
 }
 
 void TeleopCommand::joyCallback(const sensor_msgs::Joy::ConstPtr& msg)
