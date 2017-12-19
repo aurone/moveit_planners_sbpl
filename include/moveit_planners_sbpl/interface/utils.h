@@ -67,7 +67,7 @@ struct RobotModelInfo
 
 std::ostream& operator<<(std::ostream& o, const RobotModelInfo& info);
 
-std::string to_string(moveit_msgs::MoveItErrorCodes code);
+const char* to_cstring(moveit_msgs::MoveItErrorCodes code);
 
 } // namespace sbpl_interface
 

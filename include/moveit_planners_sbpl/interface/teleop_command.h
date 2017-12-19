@@ -8,6 +8,8 @@
 #include <ros/ros.h>
 #include <sensor_msgs/Joy.h>
 
+class QTimer;
+
 namespace sbpl_interface {
 
 class RobotCommandModel;
@@ -57,31 +59,15 @@ public:
     using ButtonPressCallback = std::function<void(Button)>;
     using ButtonReleaseCallback = std::function<void(Button)>;
 
-    TeleopCommand(RobotCommandModel* model);
+    TeleopCommand(RobotCommandModel* model, const std::string& joy_topic);
 
     auto getActiveJointGroup() const -> const std::string& {
         return m_active_group_name;
     }
 
-    size_t registerButtonPressCallback(const ButtonPressCallback& cb)
-    {
-        size_t handle = 0;
-        for (auto& e : button_press_callbacks_) {
-            if (e.first != handle) {
-                button_press_callbacks_[handle] = cb;
-                return handle;
-            } else {
-                ++handle;
-            }
-        }
-        button_press_callbacks_[handle] = cb;
-        return handle;
-    }
+    size_t registerButtonPressCallback(const ButtonPressCallback& cb);
 
-    void unregisterButtonPressCallback(size_t handle)
-    {
-        button_press_callbacks_.erase(handle);
-    }
+    void unregisterButtonPressCallback(size_t handle);
 
 public Q_SLOTS:
 
@@ -97,21 +83,35 @@ private:
     RobotCommandModel* m_model = nullptr;
     std::string m_active_group_name;
 
+
     ros::NodeHandle m_nh;
     ros::Subscriber m_joy_sub;
 
+    sensor_msgs::Joy::ConstPtr m_init_joy;
+
+    std::vector<bool> m_pressed;
+    std::vector<bool> m_released;
+
     sensor_msgs::Joy::ConstPtr m_prev_joy;
+    sensor_msgs::Joy::ConstPtr m_last_processed;
     int m_remote_curr_var = -1;
 
     // ordered map for handle maintenance
     std::map<size_t, ButtonPressCallback> button_press_callbacks_;
 
+    QTimer* m_timer;
+
 private Q_SLOTS:
+
+    bool nearInitAxis(
+        const sensor_msgs::Joy::ConstPtr& joy,
+        TeleopCommand::Axis axis) const;
 
     void updateRobotModel();
     void updateRobotState();
 
     void joyCallback(const sensor_msgs::Joy::ConstPtr& msg);
+    void update();
 
     void cycleActiveJoint(bool forward);
     void cycleActiveGroup(bool forward);

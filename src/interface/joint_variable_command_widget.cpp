@@ -617,7 +617,9 @@ void JointVariableCommandWidget::updateRobotState()
                     double value = sbpl::angles::to_degrees(
                             robot_state->getVariablePosition(vi));
                     if (value != spinbox->value()) {
+                        disconnect(spinbox, SIGNAL(valueChanged(double)), this, SLOT(setJointVariableFromSpinBox(double)));
                         spinbox->setValue(value);
+                        connect(spinbox, SIGNAL(valueChanged(double)), this, SLOT(setJointVariableFromSpinBox(double)));
                     }
                 } else {
                     double value = robot_state->getVariablePosition(vi);
@@ -630,12 +632,15 @@ void JointVariableCommandWidget::updateRobotState()
                     // this check can result in not being able to update a
                     // joint variable
                     if (value != spinbox->value()) {
+                        disconnect(spinbox, SIGNAL(valueChanged(double)), this, SLOT(setJointVariableFromSpinBox(double)));
                         spinbox->setValue(value);
+                        connect(spinbox, SIGNAL(valueChanged(double)), this, SLOT(setJointVariableFromSpinBox(double)));
                     }
                 }
             }
         }
     }
+    ROS_DEBUG_NAMED(LOG, "Finished synchronizing spinboxes");
 }
 
 

@@ -16,7 +16,7 @@
 #include <ros/console.h>
 #include <smpl/angles.h>
 
-#include "utils.h"
+#include <moveit_planners_sbpl/interface/utils.h>
 
 namespace sbpl_interface {
 
@@ -988,14 +988,14 @@ void MoveGroupCommandModel::logMotionPlanResponse(
     ROS_INFO("planning_time: %0.6f", res.planning_time);
 
     // error_code
-    ROS_INFO("error_code: { val: %s }", to_string(res.error_code).c_str());
+    ROS_INFO("error_code: { val: %s }", to_cstring(res.error_code));
 }
 
 void MoveGroupCommandModel::logMotionPlanResponse(
     const moveit_msgs::MoveGroupResult& res) const
 {
     // error_code
-    ROS_INFO("error_code: { val: %s }", to_string(res.error_code).c_str());
+    ROS_INFO("error_code: { val: %s }", to_cstring(res.error_code));
 
     // trajectory_start
     const auto& trajectory_start = res.trajectory_start;

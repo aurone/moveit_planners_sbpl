@@ -1,23 +1,49 @@
 #include <moveit_planners_sbpl/interface/teleop_command.h>
 
 // system includes
+#include <QTimer>
 #include <smpl/angles.h>
 
 // project includes
 #include <moveit_planners_sbpl/interface/robot_command_model.h>
-
-#include "utils.h"
+#include <moveit_planners_sbpl/interface/utils.h>
 
 namespace sbpl_interface {
 
 static const char* LOG = "teleop_command";
 
-TeleopCommand::TeleopCommand(RobotCommandModel* model)
+TeleopCommand::TeleopCommand(RobotCommandModel* model, const std::string& joy_topic)
 {
     m_model = model;
-    m_joy_sub = m_nh.subscribe("user_demo_joy", 5, &TeleopCommand::joyCallback, this);
+    m_joy_sub = m_nh.subscribe(joy_topic, 5, &TeleopCommand::joyCallback, this);
     connect(m_model, SIGNAL(robotLoaded()), this, SLOT(updateRobotModel()));
     connect(m_model, SIGNAL(robotStateChanged()), this, SLOT(updateRobotState()));
+
+    m_timer = new QTimer(this);
+    connect(m_timer, SIGNAL(timeout()), this, SLOT(update()));
+    m_timer->start(16);
+}
+
+size_t TeleopCommand::registerButtonPressCallback(const ButtonPressCallback& cb)
+{
+    ROS_DEBUG_NAMED(LOG, "Register button callback");
+    size_t handle = 0;
+    for (auto& e : button_press_callbacks_) {
+        if (e.first != handle) {
+            button_press_callbacks_[handle] = cb;
+            return handle;
+        } else {
+            ++handle;
+        }
+    }
+    button_press_callbacks_[handle] = cb;
+    return handle;
+}
+
+void TeleopCommand::unregisterButtonPressCallback(size_t handle)
+{
+    ROS_DEBUG_NAMED(LOG, "Unregister button callback");
+    button_press_callbacks_.erase(handle);
 }
 
 void TeleopCommand::setActiveJointGroup(const std::string& group_name)
@@ -87,25 +113,45 @@ bool AxisNonZero(const sensor_msgs::Joy& msg, TeleopCommand::Axis axis)
     return msg.axes[(int)axis] != 0.0;
 }
 
+bool TeleopCommand::nearInitAxis(
+    const sensor_msgs::Joy::ConstPtr& joy,
+    TeleopCommand::Axis axis) const
+{
+    return std::abs(joy->axes[(int)axis] - m_init_joy->axes[(int)axis]) < 0.01;
+}
+
 void TeleopCommand::joyCallback(const sensor_msgs::Joy::ConstPtr& msg)
 {
-    if (!m_prev_joy) {
+    if (!m_init_joy) {
+        m_init_joy = msg;
         ROS_DEBUG_NAMED(LOG, "Create fake previous joy message");
-        auto new_joy = sensor_msgs::JoyPtr(new sensor_msgs::Joy);
-        new_joy->buttons.resize((int)Button::Count);
-        new_joy->axes.resize((int)Axis::Count);
-        std::fill(begin(new_joy->buttons), end(new_joy->buttons), 0);
-        std::fill(begin(new_joy->axes), end(new_joy->axes), 0.0);
-        m_prev_joy = std::move(new_joy);
+//        auto new_joy = sensor_msgs::JoyPtr(new sensor_msgs::Joy);
+//        new_joy->buttons.resize((int)Button::Count);
+//        new_joy->axes.resize((int)Axis::Count);
+//        std::fill(begin(new_joy->buttons), end(new_joy->buttons), 0);
+//        std::fill(begin(new_joy->axes), end(new_joy->axes), 0.0);
+//        m_prev_joy = std::move(new_joy);
+    }
+
+    m_prev_joy = msg;
+}
+
+void TeleopCommand::update()
+{
+    if (!m_init_joy) {
+        return;
+    }
+
+    if (!m_last_processed) {
+        m_last_processed = m_init_joy;
     }
 
     if (m_active_group_name.empty()) {
-        ROS_ERROR("no active joint group");
         return;
     }
 
     if (m_remote_curr_var == -1) {
-        ROS_ERROR("no active joints in joint group");
+        ROS_DEBUG_NAMED(LOG, "no active joints in joint group");
         return;
     }
 
@@ -116,7 +162,7 @@ void TeleopCommand::joyCallback(const sensor_msgs::Joy::ConstPtr& msg)
 
     auto* jg = robot_model->getJointModelGroup(m_active_group_name);
     if (!jg) {
-        ROS_ERROR("bad! not a real joint group");
+        ROS_WARN_NAMED(LOG, "bad! not a real joint group");
         return;
     }
 
@@ -129,20 +175,20 @@ void TeleopCommand::joyCallback(const sensor_msgs::Joy::ConstPtr& msg)
     // X - prev joint
     // B - next joint group
     // Y - previous joint group
-    if (ButtonPressed(*m_prev_joy, *msg, Button::B)) {
+    if (ButtonPressed(*m_last_processed, *m_prev_joy, Button::B)) {
         cycleActiveGroup(true);
     }
-    if (ButtonPressed(*m_prev_joy, *msg, Button::Y)) {
+    if (ButtonPressed(*m_last_processed, *m_prev_joy, Button::Y)) {
         cycleActiveGroup(false);
     }
-    if (ButtonPressed(*m_prev_joy, *msg, Button::A)) {
+    if (ButtonPressed(*m_last_processed, *m_prev_joy, Button::A)) {
         cycleActiveJoint(true);
     }
-    if (ButtonPressed(*m_prev_joy, *msg, Button::X)) {
+    if (ButtonPressed(*m_last_processed, *m_prev_joy, Button::X)) {
         cycleActiveJoint(false);
     }
 
-    if (ButtonPressed(*m_prev_joy, *msg, Button::Back)) {
+    if (ButtonPressed(*m_last_processed, *m_prev_joy, Button::Back)) {
         std::vector<double> default_positions;
         jg->getVariableDefaultPositions(default_positions);
         m_model->setJointGroupPositions(jg, default_positions);
@@ -155,14 +201,14 @@ void TeleopCommand::joyCallback(const sensor_msgs::Joy::ConstPtr& msg)
     // Process trigger input for joint commands
     // TODO: detect the zero-value of the axis, since the trigger on the xbox
     // remote uses +1 to mean zero and goes down to -1 when depressed
-    if (msg->axes[(int)Axis::LT] != 1.0 ||
-        msg->axes[(int)Axis::RT] != 1.0
-//        AxisNonZero(*msg, Axis::LT) ||
-//        AxisNonZero(*msg, Axis::RT)
+    if (m_prev_joy->axes[(int)Axis::LT] != m_init_joy->axes[(int)Axis::LT] ||
+        m_prev_joy->axes[(int)Axis::RT] != m_init_joy->axes[(int)Axis::RT]
+//        AxisNonZero(*m_prev_joy, Axis::LT) ||
+//        AxisNonZero(*m_prev_joy, Axis::RT)
     )
         {
-        double udp = rps * dt * msg->axes[(int)Axis::LT];
-        double ddp = rps * dt * msg->axes[(int)Axis::RT];
+        double udp = rps * dt * m_prev_joy->axes[(int)Axis::LT];
+        double ddp = rps * dt * m_prev_joy->axes[(int)Axis::RT];
 
         // get the index into the robot state of the current joint variable
         auto& var_name = jg->getVariableNames()[m_remote_curr_var];
@@ -181,23 +227,23 @@ void TeleopCommand::joyCallback(const sensor_msgs::Joy::ConstPtr& msg)
     }
 
     // Process trigger input for ik commands
-    if (AxisNonZero(*msg, Axis::RV) ||
-        AxisNonZero(*msg, Axis::RH) ||
-        AxisNonZero(*msg, Axis::LV) ||
-        AxisNonZero(*msg, Axis::LH) ||
-        AxisNonZero(*msg, Axis::DH) ||
-        AxisNonZero(*msg, Axis::DV))
+    if (AxisNonZero(*m_prev_joy, Axis::RV) ||
+        AxisNonZero(*m_prev_joy, Axis::RH) ||
+        AxisNonZero(*m_prev_joy, Axis::LV) ||
+        AxisNonZero(*m_prev_joy, Axis::LH) ||
+        AxisNonZero(*m_prev_joy, Axis::DH) ||
+        AxisNonZero(*m_prev_joy, Axis::DV))
     {
         auto tip_links = GetTipLinkNames(*jg);
         if (!tip_links.empty()) {
             auto& tip_link = tip_links.front();
 
-            const double dx = mps * dt * msg->axes[(int)Axis::RV];
-            const double dy = mps * dt * msg->axes[(int)Axis::RH];
-            const double dz = mps * dt * msg->axes[(int)Axis::LV];
-            const double dY = rps * dt * msg->axes[(int)Axis::LH];
-            const double dP = rps * dt * msg->axes[(int)Axis::DV];
-            const double dR = rps * dt * msg->axes[(int)Axis::DH];
+            const double dx = mps * dt * m_prev_joy->axes[(int)Axis::RV];
+            const double dy = mps * dt * m_prev_joy->axes[(int)Axis::RH];
+            const double dz = mps * dt * m_prev_joy->axes[(int)Axis::LV];
+            const double dY = rps * dt * m_prev_joy->axes[(int)Axis::LH];
+            const double dP = rps * dt * m_prev_joy->axes[(int)Axis::DV];
+            const double dR = rps * dt * m_prev_joy->axes[(int)Axis::DH];
 
             auto& T_world_tip = robot_state->getGlobalLinkTransform(tip_link);
 
@@ -219,19 +265,39 @@ void TeleopCommand::joyCallback(const sensor_msgs::Joy::ConstPtr& msg)
             if (m_model->setFromIK(jg, target_pose)) {
 
             }
+        } else {
+            if (jg->hasLinkModel(robot_model->getRootLinkName())) {
+                const double dx = mps * dt * m_prev_joy->axes[(int)Axis::RV];
+                const double dy = mps * dt * m_prev_joy->axes[(int)Axis::RH];
+                const double dz = mps * dt * m_prev_joy->axes[(int)Axis::LV];
+                const double dY = rps * dt * m_prev_joy->axes[(int)Axis::LH];
+                const double dP = rps * dt * m_prev_joy->axes[(int)Axis::DV];
+                const double dR = rps * dt * m_prev_joy->axes[(int)Axis::DH];
+                auto& T_world_robot = robot_state->getGlobalLinkTransform(
+                        robot_model->getRootLink());
+                Eigen::Affine3d target_pose =
+                        T_world_robot *
+                        Eigen::Translation3d(dx, dy, dz) *
+                        Eigen::AngleAxisd(dY, Eigen::Vector3d::UnitZ()) *
+                        Eigen::AngleAxisd(dP, Eigen::Vector3d::UnitY()) *
+                        Eigen::AngleAxisd(dR, Eigen::Vector3d::UnitX());
+                m_model->setJointPositions(robot_model->getRootJoint(), target_pose);
+            }
+            // if there are no links from which we can solve IK for this group
+            // and group contains the root link
         }
     }
 
     for (int i = 0; i < (int)Button::Count; ++i) {
         Button b = (Button)i;
-        if (ButtonPressed(*m_prev_joy, *msg, b)) {
+        if (ButtonPressed(*m_last_processed, *m_prev_joy, b)) {
             for (auto& e : button_press_callbacks_) {
                 e.second(b);
             }
         }
     }
 
-    m_prev_joy = msg;
+    m_last_processed = m_prev_joy;
 }
 
 void TeleopCommand::cycleActiveJoint(bool forward)

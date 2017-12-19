@@ -19,7 +19,7 @@ static const char* LOG = "move_group_command_panel";
 MoveGroupCommandPanel::MoveGroupCommandPanel(QWidget* parent) :
     rviz::Panel(parent),
     m_ik_cmd_marker(m_model.getRobotCommandModel()),
-    m_teleop_command(m_model.getRobotCommandModel())
+    m_teleop_command(m_model.getRobotCommandModel(), "phantom_teleop")
 {
     m_marker_pub = m_nh.advertise<visualization_msgs::MarkerArray>(
             "visualization_markers", 5);
