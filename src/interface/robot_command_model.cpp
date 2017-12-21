@@ -1,5 +1,7 @@
 #include <moveit_planners_sbpl/interface/robot_command_model.h>
 
+#include <ros/console.h>
+
 namespace sbpl_interface {
 
 static const char* LOG = "robot_command_model";
