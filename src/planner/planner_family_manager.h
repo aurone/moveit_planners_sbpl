@@ -1,10 +1,11 @@
-#ifndef sbpl_interface_planner_family_manager_h
-#define sbpl_interface_planner_family_manager_h
+#ifndef MOVEIT_PLANNERS_SBPL_PLANNER_FAMILY_MANAGER_H
+#define MOVEIT_PLANNERS_SBPL_PLANNER_FAMILY_MANAGER_H
 
 // standard includes
 #include <map>
 
 // system includes
+#include <boost/scoped_ptr.hpp>
 #include <moveit/planning_interface/planning_interface.h>
 #include <pluginlib/class_loader.h>
 
