@@ -97,7 +97,7 @@ public:
 
     /// \namem Reimplemented Public Functions from Extension
     ///@{
-    virtual sbpl::motion::Extension* getExtension(size_t class_code);
+    sbpl::motion::Extension* getExtension(size_t class_code) override;
     ///@}
 
     /// \name Reimplemented Public Functions from sbpl::motion::RobotModel
@@ -119,11 +119,11 @@ public:
     bool computeFK(
         const std::vector<double>& angles,
         const std::string& name,
-        std::vector<double>& pose);
+        std::vector<double>& pose) override;
 
     bool computePlanningLinkFK(
         const std::vector<double>& angles,
-        std::vector<double>& pose);
+        std::vector<double>& pose) override;
     ///@}
 
     /// \name Reimplemented Public Functions from sbpl::motion::InverseKinematicsInterface

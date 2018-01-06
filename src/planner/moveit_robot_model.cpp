@@ -116,6 +116,7 @@ bool MoveItRobotModel::init(
         const moveit::core::JointModel* jm =
                 m_robot_model->getJointOfVariable(vidx);
         switch (jm->getType()) {
+        case moveit::core::JointModel::UNKNOWN:
         case moveit::core::JointModel::JointType::FIXED:
             break; // shouldn't be here
         case moveit::core::JointModel::JointType::REVOLUTE:
@@ -531,6 +532,8 @@ bool MoveItRobotModel::computeIK(
         return computeUnrestrictedIK(pose, start, solution);
     case sbpl::motion::ik_option::RESTRICT_XYZ:
         return computeWristIK(pose, start, solution);
+    case sbpl::motion::ik_option::RESTRICT_RPY:
+        return false;
     }
 
     return false;
