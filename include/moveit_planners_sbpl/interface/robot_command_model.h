@@ -5,8 +5,10 @@
 
 #include <QObject>
 
+#ifndef Q_MOC_RUN
 #include <moveit/robot_model/robot_model.h>
 #include <moveit/robot_state/robot_state.h>
+#endif
 
 namespace sbpl_interface {
 

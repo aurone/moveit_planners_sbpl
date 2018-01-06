@@ -8,10 +8,12 @@
 
 // system includes
 #include <QtGui>
+#ifndef Q_MOC_RUN
 #include <moveit/robot_model/robot_model.h>
 #include <ros/ros.h>
 #include <rviz/panel.h>
 #include <visualization_msgs/MarkerArray.h>
+#endif
 
 #include <moveit_planners_sbpl/interface/ik_command_interactive_marker.h>
 #include <moveit_planners_sbpl/interface/teleop_command.h>

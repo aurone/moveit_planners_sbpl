@@ -5,7 +5,9 @@
 #include <vector>
 
 #include <QtCore>
+#ifndef Q_MOC_RUN
 #include <interactive_markers/interactive_marker_server.h>
+#endif
 
 namespace sbpl_interface {
 

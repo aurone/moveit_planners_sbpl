@@ -8,6 +8,7 @@
 
 // system includes
 #include <QtGui>
+#ifndef Q_MOC_RUN
 #include <actionlib/client/simple_action_client.h>
 #include <boost/logic/tribool.hpp>
 #include <ros/ros.h>
@@ -23,6 +24,7 @@
 #include <moveit_msgs/GetMotionPlan.h>
 #include <moveit_msgs/MoveGroupAction.h>
 #include <rviz/config.h>
+#endif
 
 #include <moveit_planners_sbpl/interface/robot_command_model.h>
 

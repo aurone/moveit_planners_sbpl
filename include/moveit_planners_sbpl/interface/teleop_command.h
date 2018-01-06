@@ -5,8 +5,10 @@
 #include <map>
 
 #include <QObject>
+#ifndef Q_MOC_RUN
 #include <ros/ros.h>
 #include <sensor_msgs/Joy.h>
+#endif
 
 class QTimer;
 

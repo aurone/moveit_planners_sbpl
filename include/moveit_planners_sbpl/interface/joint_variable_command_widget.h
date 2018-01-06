@@ -7,7 +7,10 @@
 
 // system includes
 #include <QtGui>
+
+#ifndef Q_MOC_RUN
 #include <moveit/robot_model/robot_model.h>
+#endif
 
 namespace sbpl_interface {
 
