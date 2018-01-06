@@ -125,8 +125,9 @@ bool MoveGroupCommandModel::loadRobot(const std::string& robot_description)
         using planning_scene_monitor::PlanningSceneMonitor;
 
         auto transformer = boost::make_shared<tf::TransformListener>();
-        auto scene_monitor = boost::make_shared<PlanningSceneMonitor>(
-                robot_description, transformer);
+
+        planning_scene_monitor::PlanningSceneMonitorPtr scene_monitor;
+        scene_monitor.reset(new PlanningSceneMonitor(robot_description, transformer));
 
         if (!scene_monitor) {
             ROS_ERROR("Failed to instantiate Planning Scene Monitor");
