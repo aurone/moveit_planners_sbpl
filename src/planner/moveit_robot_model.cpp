@@ -277,6 +277,7 @@ bool MoveItRobotModel::init(
     // arbitrary joint group and the relevant links and joints that are part of
     // the spherical wrist
 
+#ifdef PR2_WRIST_IK
     if (robot_model->getName() == "pr2") {
         if (group_name == "right_arm") {
             m_forearm_roll_link = "r_forearm_roll_link";
@@ -301,6 +302,7 @@ bool MoveItRobotModel::init(
         ROS_DEBUG_NAMED(LOG, "Instantiating orientation solver with limits [%0.3f, %0.3f]", wrist_pitch_min, wrist_pitch_max);
         m_rpy_solver.reset(new sbpl::motion::RPYSolver(wrist_pitch_min, wrist_pitch_max));
     }
+#endif
 
     return true;
 }
@@ -743,6 +745,7 @@ bool MoveItRobotModel::computeWristIK(
     const std::vector<double>& start,
     std::vector<double>& solution)
 {
+#ifdef PR2_WRIST_IK
     for (size_t sind = 0; sind < start.size(); ++sind) {
         int avind = m_active_var_indices[sind];
         m_robot_state->setVariablePosition(avind, start[sind]);
@@ -779,6 +782,9 @@ bool MoveItRobotModel::computeWristIK(
     const int solnum = 1;
     return m_rpy_solver->computeRPYOnly(
             rpy, start, forearm_roll_link_pose, endeff_link_pose, solnum, solution);
+#else
+    return false;
+#endif
 }
 
 Eigen::Affine3d MoveItRobotModel::poseVectorToAffine(

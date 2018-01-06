@@ -40,7 +40,12 @@
 #include <moveit/robot_state/robot_state.h>
 #include <moveit/planning_scene/planning_scene.h>
 #include <smpl/robot_model.h>
+
+//#define PR2_WRIST_IK
+
+#ifdef PR2_WRIST_IK
 #include <sbpl_pr2_robot_model/orientation_solver.h>
+#endif
 
 namespace sbpl_interface {
 
@@ -177,11 +182,13 @@ private:
     int m_redundant_var_count = 0;
     std::vector<int> m_redundant_var_indices;
 
+#ifdef PR2_WRIST_IK
     std::shared_ptr<sbpl::motion::RPYSolver> m_rpy_solver;
     std::string m_forearm_roll_link;
     std::string m_wrist_flex_link;
     std::string m_wrist_roll_link;
     std::string m_wrist_flex_joint;
+#endif
 
     bool computeUnrestrictedIK(
         const std::vector<double>& pose,

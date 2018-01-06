@@ -27,7 +27,6 @@ find_package(
         smpl
         smpl_ros
         sbpl_collision_checking
-        sbpl_pr2_robot_model
         sensor_msgs
         pluginlib
         visualization_msgs)
@@ -42,7 +41,6 @@ catkin_package(
         smpl
         smpl_ros
         sbpl_collision_checking
-        sbpl_pr2_robot_model
         roscpp
     DEPENDS)
 
