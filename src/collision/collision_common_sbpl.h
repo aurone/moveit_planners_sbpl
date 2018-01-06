@@ -46,11 +46,12 @@
 #include <moveit/robot_model/robot_model.h>
 #include <moveit/robot_state/robot_state.h>
 #include <moveit_msgs/CollisionObject.h>
+#include <sbpl_collision_checking/allowed_collisions_interface.h>
 #include <sbpl_collision_checking/attached_bodies_collision_model.h>
 #include <sbpl_collision_checking/attached_bodies_collision_state.h>
 #include <sbpl_collision_checking/robot_collision_model.h>
 #include <sbpl_collision_checking/robot_collision_state.h>
-#include <sbpl_collision_checking/allowed_collisions_interface.h>
+#include <sbpl_collision_checking/shapes.h>
 
 namespace collision_detection {
 
@@ -226,6 +227,11 @@ bool WorldObjectToCollisionObjectMsgFull(
 bool WorldObjectToCollisionObjectMsgName(
     const World::Object& object,
     moveit_msgs::CollisionObject& collision_object);
+
+void ConvertObjectToCollisionObjectShallow(
+    const World::ObjectConstPtr& o,
+    std::vector<std::unique_ptr<sbpl::collision::CollisionShape>>& collision_shapes,
+    std::unique_ptr<sbpl::collision::CollisionObject>& collision_object);
 
 visualization_msgs::MarkerArray
 GetCollisionMarkers(sbpl::collision::RobotCollisionState& rcs, int gidx);

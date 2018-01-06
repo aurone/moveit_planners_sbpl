@@ -12,6 +12,7 @@
 
 // project includes
 #include "../collision/collision_world_sbpl.h"
+#include "../collision/collision_common_sbpl.h"
 
 static const char* PP_LOGGER = "planning";
 
@@ -632,14 +633,23 @@ bool SBPLPlanningContext::initHeuristicGrid(
 
     m_grid = std::make_shared<sbpl::OccupancyGrid>(hdf);
     m_grid->setReferenceFrame(scene.getPlanningFrame());
+
+    // temporary storage for collision shapes/objects
+    std::vector<std::unique_ptr<sbpl::collision::CollisionShape>> shapes;
+    std::vector<std::unique_ptr<sbpl::collision::CollisionObject>> collision_objects;
     sbpl::collision::WorldCollisionModel cmodel(m_grid.get());
 
     // insert world objects into the collision model
-    collision_detection::WorldConstPtr world = cworld->getWorld();
+    auto& world = cworld->getWorld();
     if (world) {
         int insert_count = 0;
         for (auto oit = world->begin(); oit != world->end(); ++oit) {
-            if (!cmodel.insertObject(oit->second)) {
+
+            collision_objects.push_back(std::unique_ptr<sbpl::collision::CollisionObject>());
+            ConvertObjectToCollisionObjectShallow(oit->second, shapes, collision_objects.back());
+            auto& collision_object = collision_objects.back();
+
+            if (!cmodel.insertObject(collision_object.get())) {
                 ROS_WARN_NAMED(PP_LOGGER, "Failed to insert object '%s' into heuristic grid", oit->first.c_str());
             }
             else {

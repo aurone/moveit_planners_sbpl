@@ -45,6 +45,7 @@
 #include <ros/ros.h>
 #include <sbpl_collision_checking/collision_space.h>
 #include <sbpl_collision_checking/collision_model_config.h>
+#include <sbpl_collision_checking/shapes.h>
 #include <sbpl_collision_checking/world_collision_detector.h>
 #include <smpl/occupancy_grid.h>
 
@@ -69,61 +70,81 @@ public:
 
     /// \name Reimplemented Public Functions
     ///@{
-    virtual void checkRobotCollision(
+    void checkRobotCollision(
         const CollisionRequest& req,
         CollisionResult& res,
         const CollisionRobot& robot,
-        const robot_state::RobotState& state) const;
+        const robot_state::RobotState& state) const override;
 
-    virtual void checkRobotCollision(
+    void checkRobotCollision(
         const CollisionRequest& req,
         CollisionResult& res,
         const CollisionRobot& robot,
         const robot_state::RobotState& state,
-        const AllowedCollisionMatrix& acm) const;
+        const AllowedCollisionMatrix& acm) const override;
 
-    virtual void checkRobotCollision(
+    void checkRobotCollision(
         const CollisionRequest& req,
         CollisionResult& res,
         const CollisionRobot& robot,
         const robot_state::RobotState& state1,
-        const robot_state::RobotState& state2) const;
+        const robot_state::RobotState& state2) const override;
 
-    virtual void checkRobotCollision(
+    void checkRobotCollision(
         const CollisionRequest& req,
         CollisionResult& res,
         const CollisionRobot& robot,
         const robot_state::RobotState& state1,
         const robot_state::RobotState& state2,
-        const AllowedCollisionMatrix& acm) const;
+        const AllowedCollisionMatrix& acm) const override;
 
-    virtual void checkWorldCollision(
+    void checkWorldCollision(
         const CollisionRequest& req,
         CollisionResult& res,
-        const CollisionWorld& other_world) const;
+        const CollisionWorld& other_world) const override;
 
-    virtual void checkWorldCollision(
+    void checkWorldCollision(
         const CollisionRequest& req,
         CollisionResult& res,
         const CollisionWorld& other_world,
-        const AllowedCollisionMatrix& acm) const;
+        const AllowedCollisionMatrix& acm) const override;
 
-    virtual double distanceRobot(
+    double distanceRobot(
         const CollisionRobot& robot,
         const robot_state::RobotState& state) const;
 
-    virtual double distanceRobot(
+    double distanceRobot(
         const CollisionRobot& robot,
         const robot_state::RobotState& state,
         const AllowedCollisionMatrix& acm) const;
 
-    virtual double distanceWorld(const CollisionWorld& world) const;
+    double distanceWorld(const CollisionWorld& world) const;
 
-    virtual double distanceWorld(
+    double distanceWorld(
         const CollisionWorld& world,
         const AllowedCollisionMatrix& acm) const;
 
-    virtual void setWorld(const WorldPtr& world);
+    double distanceRobot(
+        const CollisionRobot& robot,
+        const robot_state::RobotState& state,
+        bool verbose = false) const;
+
+    double distanceRobot(
+        const CollisionRobot& robot,
+        const robot_state::RobotState& state,
+        const AllowedCollisionMatrix& acm,
+        bool verbose = false) const;
+
+    double distanceWorld(
+        const CollisionWorld& world,
+        bool verbose = false) const;
+
+    double distanceWorld(
+        const CollisionWorld& world,
+        const AllowedCollisionMatrix& acm,
+        bool verbose = false) const;
+
+    void setWorld(const WorldPtr& world) override;
     ///@}
 
 private:
@@ -144,9 +165,28 @@ private:
 
     World::ObserverHandle m_observer_handle;
 
+    struct ObjectRepPair {
+        // originating world object. hold onto it here so we are guaranteed to
+        // maintain valid references to shared data e.g. octomap, mesh data,
+        // and don't have to make copies.
+        World::ObjectConstPtr world_object;
+
+        // CollisionShapes matching world object's shapes
+        std::vector<std::unique_ptr<sbpl::collision::CollisionShape>> shapes;
+
+        // CollisionObject matching world object
+        std::unique_ptr<sbpl::collision::CollisionObject> collision_object;
+    };
+
+    // TODO: test the semantics of this during copy-on-write
+    std::vector<ObjectRepPair> m_collision_objects;
+
     void construct();
 
     void copyOnWrite();
+
+    auto FindObjectRepPair(const World::ObjectConstPtr& object)
+        -> std::vector<ObjectRepPair>::iterator;
 
     sbpl::OccupancyGridPtr createGridFor(
         const CollisionGridConfig& config) const;
@@ -199,11 +239,11 @@ private:
     void processWorldUpdateAddShape(const World::ObjectConstPtr& object);
     void processWorldUpdateRemoveShape(const World::ObjectConstPtr& object);
 
-    visualization_msgs::MarkerArray
-    getCollisionRobotVisualization(
+    auto getCollisionRobotVisualization(
         sbpl::collision::RobotCollisionState& rcs,
         sbpl::collision::AttachedBodiesCollisionState& abcs,
-        int gidx) const;
+        int gidx) const
+        -> visualization_msgs::MarkerArray;
 };
 
 } // namespace collision_detection
