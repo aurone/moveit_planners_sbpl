@@ -6,6 +6,7 @@
 #include <vector>
 
 #include <Eigen/Dense>
+#include <geometric_shapes/shapes.h>
 #include <moveit/robot_model/robot_model.h>
 #include <moveit_msgs/MoveItErrorCodes.h>
 
