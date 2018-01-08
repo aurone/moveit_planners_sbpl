@@ -517,8 +517,15 @@ void ConvertObjectToCollisionObjectShallow(
     collision_object->shape_poses = std::move(shape_poses);
 }
 
-visualization_msgs::MarkerArray
-GetCollisionMarkers(sbpl::collision::RobotCollisionState& rcs, int gidx)
+auto GetCollisionMarkers(sbpl::collision::RobotCollisionState& rcs)
+    -> visualization_msgs::MarkerArray
+{
+    rcs.updateSphereStates();
+    return rcs.getVisualization();
+}
+
+auto GetCollisionMarkers(sbpl::collision::RobotCollisionState& rcs, int gidx)
+    -> visualization_msgs::MarkerArray
 {
     // update the spheres within the group
     for (int ssidx : rcs.groupSpheresStateIndices(gidx)) {
@@ -528,10 +535,10 @@ GetCollisionMarkers(sbpl::collision::RobotCollisionState& rcs, int gidx)
     return ma;
 }
 
-visualization_msgs::MarkerArray
-GetCollisionMarkers(
+auto GetCollisionMarkers(
     sbpl::collision::AttachedBodiesCollisionState& abcs,
     int gidx)
+    -> visualization_msgs::MarkerArray
 {
     for (int ssidx : abcs.groupSpheresStateIndices(gidx)) {
         abcs.updateSphereStates(ssidx);
@@ -539,11 +546,11 @@ GetCollisionMarkers(
     return abcs.getVisualization(gidx);
 }
 
-visualization_msgs::MarkerArray
-GetCollisionMarkers(
+auto GetCollisionMarkers(
     sbpl::collision::RobotCollisionState& rcs,
     sbpl::collision::AttachedBodiesCollisionState& abcs,
     int gidx)
+    -> visualization_msgs::MarkerArray
 {
     auto ma = GetCollisionMarkers(rcs, gidx);
     auto abma = GetCollisionMarkers(abcs, gidx);

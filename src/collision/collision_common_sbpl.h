@@ -233,19 +233,22 @@ void ConvertObjectToCollisionObjectShallow(
     std::vector<std::unique_ptr<sbpl::collision::CollisionShape>>& collision_shapes,
     std::unique_ptr<sbpl::collision::CollisionObject>& collision_object);
 
-visualization_msgs::MarkerArray
-GetCollisionMarkers(sbpl::collision::RobotCollisionState& rcs, int gidx);
+auto GetCollisionMarkers(sbpl::collision::RobotCollisionState& rcs)
+    -> visualization_msgs::MarkerArray;
 
-visualization_msgs::MarkerArray
-GetCollisionMarkers(
+auto GetCollisionMarkers(sbpl::collision::RobotCollisionState& rcs, int gidx)
+    -> visualization_msgs::MarkerArray;
+
+auto GetCollisionMarkers(
     sbpl::collision::AttachedBodiesCollisionState& abcs,
-    int gidx);
+    int gidx)
+    -> visualization_msgs::MarkerArray;
 
-visualization_msgs::MarkerArray
-GetCollisionMarkers(
+auto GetCollisionMarkers(
     sbpl::collision::RobotCollisionState& rcs,
     sbpl::collision::AttachedBodiesCollisionState& abcs,
-    int gidx);
+    int gidx)
+    -> visualization_msgs::MarkerArray;
 
 } // namespace collision_detection
 

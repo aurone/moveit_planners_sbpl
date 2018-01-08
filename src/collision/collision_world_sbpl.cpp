@@ -508,8 +508,8 @@ void CollisionWorldSBPL::checkRobotCollisionMutable(
     }
 
     auto jgcgit = m_jcgm_map.find(req.group_name);
-    const std::string& collision_group_name =
-            jgcgit == m_jcgm_map.end() ? req.group_name : jgcgit->second;
+    auto& collision_group_name = jgcgit == end(m_jcgm_map) ?
+            req.group_name : jgcgit->second;
 
     if (!rcm->hasGroup(collision_group_name)) {
         ROS_ERROR_NAMED(LOG, "No group '%s' found in the Robot Collision Model", collision_group_name.c_str());
