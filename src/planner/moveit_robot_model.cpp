@@ -441,20 +441,12 @@ bool MoveItRobotModel::checkJointLimits(
 //    return m_joint_group->satisfiesPositionBounds(angles_copy.data());
 }
 
-bool MoveItRobotModel::computeFK(
-    const std::vector<double>& angles,
-    const std::string& name,
-    std::vector<double>& pose)
+Eigen::Affine3d MoveItRobotModel::computeFK(
+    const sbpl::motion::RobotState& angles,
+    const std::string& name)
 {
-    if (!initialized()) {
-        ROS_ERROR("MoveIt! Robot Model is uninitialized");
-        return false;
-    }
-
-    if (angles.size() != m_active_var_count) {
-        ROS_WARN("Incorrect number of joint variables: expected = %d, actual = %zu", m_active_var_count, angles.size());
-        return false;
-    }
+    assert(initialized() && "MoveItRobotModel is uninitialized");
+    assert(angles.size() == m_active_var_count && "Incorrect number of joint variables");
 
     // update all the variables in the robot state
     for (size_t vind = 0; vind < angles.size(); ++vind) {
@@ -472,49 +464,29 @@ bool MoveItRobotModel::computeFK(
     auto T_model_link = m_robot_state->getGlobalLinkTransform(name);
 
     if (!transformToPlanningFrame(T_model_link)) {
-        return false; // errors printed within
+        return Eigen::Affine3d::Identity(); // errors printed within
     }
 
     const auto& T_planning_link = T_model_link; // rebrand
-
-    // convert to tf for its conversions to euler angles
-    tf::Transform tf_planning_link;
-    tf::transformEigenToTF(T_planning_link, tf_planning_link);
-
-    double x, y, z, yaw, pitch, roll;
-    x = tf_planning_link.getOrigin().x();
-    y = tf_planning_link.getOrigin().y();
-    z = tf_planning_link.getOrigin().z();
-    tf_planning_link.getBasis().getEulerYPR(yaw, pitch, roll);
-    pose = { x, y, z, roll, pitch, yaw };
-    return true;
+    return T_planning_link;
 }
 
-bool MoveItRobotModel::computePlanningLinkFK(
-    const std::vector<double>& angles,
-    std::vector<double>& pose)
+auto MoveItRobotModel::computeFK(const sbpl::motion::RobotState& angles)
+    -> Eigen::Affine3d
 {
     // how do we know what the planning link is for an arbitrary model? This
     // will have to be set from above when a motion plan request comes in with
     // goal constraints for one link
 
-    if (!initialized()) {
-        ROS_ERROR("MoveIt! Robot Model is uninitialized");
-        return false;
-    }
-
-    if (!m_tip_link) {
-        return false;
-    }
-    else {
-        return computeFK(angles, m_tip_link->getName(), pose);
-    }
+    assert(initialized());
+    assert(m_tip_link);
+    return computeFK(angles, m_tip_link->getName());
 }
 
 bool MoveItRobotModel::computeIK(
-    const std::vector<double>& pose,
-    const std::vector<double>& start,
-    std::vector<double>& solution,
+    const Eigen::Affine3d& pose,
+    const sbpl::motion::RobotState& start,
+    sbpl::motion::RobotState& solution,
     sbpl::motion::ik_option::IkOption option)
 {
     if (!initialized()) {
@@ -611,16 +583,16 @@ moveit::core::RobotModelConstPtr MoveItRobotModel::moveitRobotModel() const
 }
 
 bool MoveItRobotModel::computeIK(
-    const std::vector<double>& pose,
-    const std::vector<double>& start,
-    std::vector<std::vector<double>>& solutions,
+    const Eigen::Affine3d& pose,
+    const sbpl::motion::RobotState& start,
+    std::vector<sbpl::motion::RobotState>& solutions,
     sbpl::motion::ik_option::IkOption option)
 {
     // TODO: the indigo version of moveit currently does not support returning
     // multiple ik solutions, so instead we just return the only solution moveit
     // offers; for later versions of moveit, this will need to be implemented
     // properly
-    std::vector<double> solution;
+    sbpl::motion::RobotState solution;
     if (!computeIK(pose, start, solution, option)) {
         return false;
     }
@@ -641,9 +613,9 @@ const int MoveItRobotModel::redundantVariableIndex(int rvidx) const
 }
 
 bool MoveItRobotModel::computeFastIK(
-    const std::vector<double>& pose,
-    const std::vector<double>& start,
-    std::vector<double>& solution)
+    const Eigen::Affine3d& pose,
+    const sbpl::motion::RobotState& start,
+    sbpl::motion::RobotState& solution)
 {
     if (!initialized()) {
         ROS_ERROR("MoveIt! Robot Model is uninitialized");
@@ -660,12 +632,12 @@ bool MoveItRobotModel::computeFastIK(
 }
 
 bool MoveItRobotModel::computeUnrestrictedIK(
-    const std::vector<double>& pose,
-    const std::vector<double>& start,
-    std::vector<double>& solution,
+    const Eigen::Affine3d& pose,
+    const sbpl::motion::RobotState& start,
+    sbpl::motion::RobotState& solution,
     bool lock_redundant_joints)
 {
-    Eigen::Affine3d T_planning_link = poseVectorToAffine(pose);
+    auto T_planning_link = pose;
 
     // get the transform in the model frame
     if (!transformToModelFrame(T_planning_link)) {
@@ -695,7 +667,6 @@ bool MoveItRobotModel::computeUnrestrictedIK(
             T_model_link, m_tip_link->getName(),
             num_attempts, timeout, fn, ops))
     {
-        ROS_DEBUG_STREAM("IK to pose " << pose << " Failed");
         return false;
     }
 
@@ -744,9 +715,9 @@ bool MoveItRobotModel::computeUnrestrictedIK(
 }
 
 bool MoveItRobotModel::computeWristIK(
-    const std::vector<double>& pose,
-    const std::vector<double>& start,
-    std::vector<double>& solution)
+    const Eigen::Affine3d& pose,
+    const sbpl::motion::RobotState& start,
+    sbpl::motion::RobotState& solution)
 {
 #ifdef PR2_WRIST_IK
     for (size_t sind = 0; sind < start.size(); ++sind) {
@@ -788,15 +759,6 @@ bool MoveItRobotModel::computeWristIK(
 #else
     return false;
 #endif
-}
-
-Eigen::Affine3d MoveItRobotModel::poseVectorToAffine(
-    const std::vector<double>& pose) const
-{
-    return Eigen::Translation3d(pose[0], pose[1], pose[2]) *
-            Eigen::AngleAxisd(pose[5], Eigen::Vector3d::UnitZ()) *
-            Eigen::AngleAxisd(pose[4], Eigen::Vector3d::UnitY()) *
-            Eigen::AngleAxisd(pose[3], Eigen::Vector3d::UnitX());
 }
 
 bool MoveItRobotModel::transformToPlanningFrame(Eigen::Affine3d& T_model_link) const
