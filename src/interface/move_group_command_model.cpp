@@ -789,7 +789,12 @@ bool MoveGroupCommandModel::fillPoseGoalConstraints(
     }
 
     auto solver = jmg->getSolverInstance();
-    const std::string& tip_link = solver->getTipFrames().front();
+    if (solver->getTipFrames().empty()) {
+        ROS_ERROR("Unable to plan to pose for joint group '%s'. No tip link available", jmg->getName().c_str());
+        return false;
+    }
+
+    auto& tip_link = solver->getTipFrames().front();
     ROS_INFO("Planning for pose of tip link '%s' of kinematic chain", tip_link.c_str());
 
     auto* robot_state = m_robot_command_model.getRobotState();
