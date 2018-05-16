@@ -46,8 +46,8 @@ namespace sbpl_interface {
 
 static const char* LOG = "model";
 
-/// \brief Initialize the MoveItRobotModel for the given MoveIt! Robot Model and
-///     the group being planned for
+/// Initialize the MoveItRobotModel for the given MoveIt! Robot Model and the
+/// group being planned for.
 bool MoveItRobotModel::init(
     const robot_model::RobotModelConstPtr& robot_model,
     const std::string& group_name)
@@ -68,18 +68,24 @@ bool MoveItRobotModel::init(
     m_group_name = group_name;
     m_robot_state.reset(new moveit::core::RobotState(robot_model));
     m_robot_state->setToDefaultValues();
+
     m_joint_group = robot_model->getJointModelGroup(group_name);
 
     auto active_joints = m_joint_group->getActiveJointModels();
 
-    // cache the number, names, and index within robot state of all active
-    // variables in this group
+    ROS_DEBUG_NAMED(LOG, "  Joint group has %zu active joints", active_joints.size());
+
+    /////////////////////////////////////////////////////////////////////////
+    // cache the number, names, and index within robot state of all active //
+    // variables in this group                                             //
+    /////////////////////////////////////////////////////////////////////////
+
     m_active_var_count = 0;
     m_active_var_names.clear();
     m_active_var_indices.clear();
-    for (const moveit::core::JointModel* joint : active_joints) {
+    for (auto* joint : active_joints) {
         m_active_var_count += joint->getVariableCount();
-        for (const std::string& var_name : joint->getVariableNames()) {
+        for (auto& var_name : joint->getVariableNames()) {
             m_active_var_names.push_back(var_name);
             m_active_var_indices.push_back(robot_model->getVariableIndex(var_name));
         }
@@ -95,11 +101,11 @@ bool MoveItRobotModel::init(
     // floating joints
     std::vector<std::string> planning_joints;
     planning_joints.reserve(m_active_var_count);
-    for (const moveit::core::JointModel* joint : active_joints) {
+    for (auto* joint : active_joints) {
         planning_joints.insert(
                 planning_joints.end(),
-                joint->getVariableNames().begin(),
-                joint->getVariableNames().end());
+                begin(joint->getVariableNames()),
+                end(joint->getVariableNames()));
     }
     setPlanningJoints(planning_joints);
     ROS_DEBUG_NAMED(LOG, "Planning Joints: %s", to_string(getPlanningJoints()).c_str());
@@ -110,11 +116,10 @@ bool MoveItRobotModel::init(
     m_var_continuous.reserve(m_active_var_count);
     m_var_vel_limits.reserve(m_active_var_count);
     m_var_acc_limits.reserve(m_active_var_count);
-    for (const std::string& var_name : m_active_var_names) {
-        const int vidx = m_robot_model->getVariableIndex(var_name);
-        const auto& var_bounds = m_robot_model->getVariableBounds(var_name);
-        const moveit::core::JointModel* jm =
-                m_robot_model->getJointOfVariable(vidx);
+    for (auto& var_name : m_active_var_names) {
+        int vidx = m_robot_model->getVariableIndex(var_name);
+        auto& var_bounds = m_robot_model->getVariableBounds(var_name);
+        auto* jm = m_robot_model->getJointOfVariable(vidx);
         switch (jm->getType()) {
         case moveit::core::JointModel::UNKNOWN:
         case moveit::core::JointModel::JointType::FIXED:
@@ -209,15 +214,13 @@ bool MoveItRobotModel::init(
 
         if (var_bounds.velocity_bounded_) {
             m_var_vel_limits.push_back(var_bounds.max_velocity_);
-        }
-        else {
+        } else {
             m_var_vel_limits.push_back(0.0);
         }
 
         if (var_bounds.acceleration_bounded_) {
             m_var_acc_limits.push_back(var_bounds.max_acceleration_);
-        }
-        else {
+        } else {
             m_var_acc_limits.push_back(0.0);
         }
     }
@@ -226,14 +229,29 @@ bool MoveItRobotModel::init(
     ROS_DEBUG_NAMED(LOG, "Max Limits: %s", to_string(m_var_max_limits).c_str());
     ROS_DEBUG_NAMED(LOG, "Continuous: %s", to_string(m_var_continuous).c_str());
 
-    // identify a default tip link to use for forward and inverse kinematics
-    // TODO: better default planning link (first tip link)
-    if (m_joint_group->isChain()) {
+    ///////////////////////////////////////////////////////////////////////////
+    // identify a default tip link to use for forward and inverse kinematics //
+    // TODO: better default planning link (first tip link)                   //
+    ///////////////////////////////////////////////////////////////////////////
+
+    ROS_DEBUG_NAMED(LOG, "Look for planning link");
+
+    // TODO:
+    // 1. Check whether the full group can be used for forward or inverse
+    //    kinematics
+    // 2. If the full group cannot be used for forward/inverse kinematics
+    // 3.   Find a reasonable subgroup to use if no solver exists for this
+    //      group
+    auto subgroup_name = "right_arm";
+    m_kinematics_group = robot_model->getJointModelGroup(subgroup_name);
+
+    if (m_kinematics_group->isChain()) {
         std::vector<const moveit::core::LinkModel*> tips;
-        m_joint_group->getEndEffectorTips(tips);
-        for (const moveit::core::LinkModel* tip : tips) {
-            if (m_joint_group->canSetStateFromIK(tip->getName())) {
+        m_kinematics_group->getEndEffectorTips(tips);
+        for (auto* tip : tips) {
+            if (m_kinematics_group->canSetStateFromIK(tip->getName())) {
                 m_tip_link = tip;
+                ROS_DEBUG_NAMED(LOG, "  Found planning link '%s'", m_tip_link->getName().c_str());
                 setPlanningLink(tip->getName());
                 break;
             }
@@ -242,31 +260,60 @@ bool MoveItRobotModel::init(
         if (!m_tip_link) {
             if (tips.empty()) {
                 ROS_WARN_ONCE("No end effector tip link present");
-            }
-            else {
+            } else {
                 ROS_WARN_ONCE("Cannot set state from ik with respect to any available end effector tip links");
             }
         }
     }
 
-    auto solver = m_joint_group->getSolverInstance();
+    auto solver = m_kinematics_group->getSolverInstance();
     if (solver) {
         std::vector<unsigned> redundant_joint_indices;
         solver->getRedundantJoints(redundant_joint_indices);
         m_redundant_var_count = (int)redundant_joint_indices.size();
-        for (unsigned rvidx : redundant_joint_indices) {
-            const std::string& joint_name = solver->getJointNames()[rvidx];
-            auto it = std::find(m_active_var_names.begin(), m_active_var_names.end(), joint_name);
+        for (auto rvidx : redundant_joint_indices) {
+            auto& joint_name = solver->getJointNames()[rvidx];
+            auto it = std::find(begin(m_active_var_names), end(m_active_var_names), joint_name);
             if (it != m_active_var_names.end()) {
-                m_redundant_var_indices.push_back(std::distance(m_active_var_names.begin(), it));
+                m_redundant_var_indices.push_back(std::distance(begin(m_active_var_names), it));
             }
             // else hmm...
         }
-    }
-    else {
+    } else {
         m_redundant_var_count = 0;
         m_redundant_var_indices.clear();
     }
+
+    // Find variables in the joint group that are not in the subgroup and
+    // add those as the redundant variables
+
+    auto full_group_variables = m_joint_group->getVariableNames();
+    std::sort(begin(full_group_variables), end(full_group_variables));
+    auto sub_group_variables = m_kinematics_group->getVariableNames();
+    std::sort(begin(sub_group_variables), end(sub_group_variables));
+
+    std::vector<std::string> full_group_only_variables;
+    std::set_difference(
+            begin(full_group_variables), end(full_group_variables),
+            begin(sub_group_variables), end(sub_group_variables),
+            std::back_inserter(full_group_only_variables));
+
+    ROS_DEBUG_NAMED(LOG, "%zu variables outside of the sub-group", full_group_only_variables.size());
+    for (auto& variable : full_group_only_variables) {
+        ROS_DEBUG_NAMED(LOG, "  %s", variable.c_str());
+        ++m_redundant_var_count;
+
+        auto it = std::find(begin(m_active_var_names), end(m_active_var_names), variable);
+        if (it == end(m_active_var_names)) {
+            ROS_WARN("For some reason %s...", variable.c_str());
+            continue;
+        }
+
+        m_redundant_var_indices.push_back(std::distance(begin(m_active_var_names), it));
+    }
+
+    ROS_DEBUG_NAMED(LOG, "Found %d redundancy variables", m_redundant_var_count);
+    ROS_DEBUG_NAMED(LOG, "Redundant variable indices: %s", to_string(m_redundant_var_indices).c_str());
 
     // TODO: check that we can translate the planning frame to the kinematics
     // frame and vice versa
@@ -285,8 +332,7 @@ bool MoveItRobotModel::init(
             m_wrist_flex_link = "r_wrist_flex_link";
             m_wrist_roll_link = "r_wrist_roll_link";
             m_wrist_flex_joint = "r_wrist_flex_joint";
-        }
-        else if (group_name == "left_arm") {
+        } else if (group_name == "left_arm") {
             m_forearm_roll_link = "l_forearm_roll_link";
             m_wrist_flex_link = "l_wrist_flex_link";
             m_wrist_roll_link = "l_wrist_roll_link";
@@ -295,8 +341,7 @@ bool MoveItRobotModel::init(
     }
 
     if (!m_wrist_flex_joint.empty()) {
-        const auto& var_bounds =
-                m_robot_model->getVariableBounds(m_wrist_flex_joint);
+        auto& var_bounds = m_robot_model->getVariableBounds(m_wrist_flex_joint);
 
         double wrist_pitch_min = var_bounds.min_position_;
         double wrist_pitch_max = var_bounds.max_position_;
@@ -353,8 +398,7 @@ sbpl::motion::Extension* MoveItRobotModel::getExtension(size_t class_code)
         class_code == sbpl::motion::GetClassCode<sbpl::motion::RedundantManipulatorInterface>())
     {
         return this;
-    }
-    else {
+    } else {
         return nullptr;
     }
 }
@@ -424,7 +468,7 @@ bool MoveItRobotModel::checkJointLimits(
 
     for (int vidx = 0; vidx < activeVariableCount(); ++vidx) {
         const std::string& var_name = planningVariableNames()[vidx];
-        const auto& bounds = m_robot_model->getVariableBounds(var_name);
+        auto& bounds = m_robot_model->getVariableBounds(var_name);
         if (bounds.position_bounded_) {
             if (angles[vidx] < bounds.min_position_ ||
                 angles[vidx] > bounds.max_position_)
@@ -467,7 +511,7 @@ Eigen::Affine3d MoveItRobotModel::computeFK(
         return Eigen::Affine3d::Identity(); // errors printed within
     }
 
-    const auto& T_planning_link = T_model_link; // rebrand
+    auto& T_planning_link = T_model_link; // rebrand
     return T_planning_link;
 }
 
@@ -494,7 +538,7 @@ bool MoveItRobotModel::computeIK(
         return false;
     }
 
-    if (!m_tip_link || !m_joint_group->canSetStateFromIK(m_tip_link->getName())) {
+    if (!m_tip_link || !m_kinematics_group->canSetStateFromIK(m_tip_link->getName())) {
         ROS_WARN_ONCE("computeIK not available for this Robot Model");
         return false;
     }
@@ -595,8 +639,7 @@ bool MoveItRobotModel::computeIK(
     sbpl::motion::RobotState solution;
     if (!computeIK(pose, start, solution, option)) {
         return false;
-    }
-    else {
+    } else {
         solutions.push_back(std::move(solution));
         return true;
     }
@@ -622,7 +665,7 @@ bool MoveItRobotModel::computeFastIK(
         return false;
     }
 
-    if (!m_tip_link || !m_joint_group->canSetStateFromIK(m_tip_link->getName())) {
+    if (!m_tip_link || !m_kinematics_group->canSetStateFromIK(m_tip_link->getName())) {
         ROS_WARN_ONCE("computeIK not available for this Robot Model");
         return false;
     }
@@ -643,8 +686,9 @@ bool MoveItRobotModel::computeUnrestrictedIK(
     if (!transformToModelFrame(T_planning_link)) {
         return false; // errors printed within
     }
-    const auto& T_model_link = T_planning_link; // rebrand
+    auto& T_model_link = T_planning_link; // rebrand
 
+    ROS_INFO_STREAM("start: " << start);
     for (size_t sind = 0; sind < start.size(); ++sind) {
         int avind = m_active_var_indices[sind];
         m_robot_state->setVariablePosition(avind, start[sind]);
@@ -657,16 +701,31 @@ bool MoveItRobotModel::computeUnrestrictedIK(
     // solver more deterministic, at the cost of some robustness, which is
     // required for sbpl environments that don't cache successors as they are
     // generated. TODO: does num_attempts have any value for analytical solvers?
-    const int num_attempts = 1;
-    const double timeout = 0.0;
+    auto num_attempts = 1;
+    auto timeout = 0.0;
     moveit::core::GroupStateValidityCallbackFn fn;
     kinematics::KinematicsQueryOptions ops;
-    ops.lock_redundant_joints = lock_redundant_joints;
+#warning "Remember to do this correctly...looks like we need to distinguish between redundant from a full group and from a kinematics group perspective"
+    ops.lock_redundant_joints = false; //lock_redundant_joints;
     if (!m_robot_state->setFromIK(
-            m_joint_group,
-            T_model_link, m_tip_link->getName(),
-            num_attempts, timeout, fn, ops))
+            m_kinematics_group,
+            T_model_link,
+            m_tip_link->getName(),
+            num_attempts,
+            timeout,
+            fn,
+            ops))
     {
+        Eigen::Quaterniond q(T_model_link.rotation());
+        ROS_INFO("Failed to set from ik to pose (%f, %f, %f, %f, %f, %f, %f)",
+                T_model_link.translation().x(),
+                T_model_link.translation().y(),
+                T_model_link.translation().z(),
+                q.x(),
+                q.y(),
+                q.z(),
+                q.w());
+
         return false;
     }
 
@@ -780,10 +839,8 @@ bool MoveItRobotModel::transformToPlanningFrame(Eigen::Affine3d& T_model_link) c
         return false;
     }
 
-    const Eigen::Affine3d& T_scene_planning =
-            m_planning_scene->getFrameTransform(m_planning_frame);
-    const Eigen::Affine3d& T_scene_model =
-            m_planning_scene->getFrameTransform(m_robot_model->getModelFrame());
+    auto& T_scene_planning = m_planning_scene->getFrameTransform(m_planning_frame);
+    auto& T_scene_model = m_planning_scene->getFrameTransform(m_robot_model->getModelFrame());
 
     T_model_link = T_scene_planning.inverse() * T_scene_model * T_model_link;
     return true;
@@ -807,10 +864,8 @@ bool MoveItRobotModel::transformToModelFrame(Eigen::Affine3d& T_planning_link) c
         return false;
     }
 
-    const Eigen::Affine3d& T_scene_planning =
-            m_planning_scene->getFrameTransform(m_planning_frame);
-    const Eigen::Affine3d& T_scene_model =
-            m_planning_scene->getFrameTransform(m_robot_model->getModelFrame());
+    auto& T_scene_planning = m_planning_scene->getFrameTransform(m_planning_frame);
+    auto& T_scene_model = m_planning_scene->getFrameTransform(m_robot_model->getModelFrame());
 
     T_planning_link = T_scene_model.inverse() * T_scene_planning * T_planning_link;
     return true;

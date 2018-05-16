@@ -159,6 +159,7 @@ private:
 
     std::string m_group_name;
     const moveit::core::JointModelGroup* m_joint_group = nullptr;
+    const moveit::core::JointModelGroup* m_kinematics_group = nullptr;
 
     int m_active_var_count = 0;
     std::vector<std::string> m_active_var_names;
