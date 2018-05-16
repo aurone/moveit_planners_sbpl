@@ -781,14 +781,36 @@ bool MoveGroupCommandModel::fillPoseGoalConstraints(
     moveit_msgs::Constraints goal_constraints;
     goal_constraints.name = "goal_constraints";
 
-    const moveit::core::JointModelGroup* jmg =
-            robotModel()->getJointModelGroup(group_name);
+    auto* jmg = robotModel()->getJointModelGroup(group_name);
+    auto solver = jmg->getSolverInstance();
+    if (!solver || solver->getTipFrames().empty()) {
+        ROS_INFO("Maybe use one of these subgroups instead");
+        for (auto& subgroup : jmg->getSubgroupNames()) {
+            ROS_INFO("  %s", subgroup.c_str());
+        }
+
+        auto subgroup_name = "right_arm";
+        jmg = robotModel()->getJointModelGroup(subgroup_name);
+        if (!jmg) {
+            return false;
+        }
+
+        solver = jmg->getSolverInstance();
+        if (!solver || solver->getTipFrames().empty()) {
+            return false;
+        }
+    }
+
     if (!jmg->isChain()) {
         ROS_INFO("Planning for joint groups that are not kinematic chains is not supported");
         return false;
     }
 
-    auto solver = jmg->getSolverInstance();
+    if (!solver) {
+        ROS_ERROR("Unable to plan to pose for joint group '%s'. No tip link available", jmg->getName().c_str());
+        return false;
+    }
+
     if (solver->getTipFrames().empty()) {
         ROS_ERROR("Unable to plan to pose for joint group '%s'. No tip link available", jmg->getName().c_str());
         return false;
@@ -801,8 +823,7 @@ bool MoveGroupCommandModel::fillPoseGoalConstraints(
 
     const Eigen::Vector3d target_offset(0.0, 0.0, 0.0);
     auto& T_model_tip = robot_state->getGlobalLinkTransform(tip_link);
-    const Eigen::Affine3d& T_model_tgtoff =
-            T_model_tip * Eigen::Translation3d(target_offset);
+    Eigen::Affine3d T_model_tgtoff = T_model_tip * Eigen::Translation3d(target_offset);
     geometry_msgs::Pose tip_link_pose;
     tf::poseEigenToMsg(T_model_tip, tip_link_pose);
 
