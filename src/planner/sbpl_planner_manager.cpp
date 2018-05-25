@@ -111,8 +111,8 @@ planning_interface::PlanningContextPtr SBPLPlannerManager::getPlanningContext(
     // Setup SBPL Robot Model
     ///////////////////////////
 
-    SBPLPlannerManager* mutable_me = const_cast<SBPLPlannerManager*>(this);
-    MoveItRobotModel* sbpl_model = mutable_me->getModelForGroup(req.group_name);
+    auto* mutable_me = const_cast<SBPLPlannerManager*>(this);
+    auto* sbpl_model = mutable_me->getModelForGroup(req.group_name);
     if (!sbpl_model) {
         ROS_WARN_NAMED(PP_LOGGER, "No SBPL Robot Model available for group '%s'", req.group_name.c_str());
         return context;
@@ -145,19 +145,19 @@ planning_interface::PlanningContextPtr SBPLPlannerManager::getPlanningContext(
 //    logPlanningScene(*planning_scene);
     logMotionPlanRequest(req);
 
-    SBPLPlanningContext* sbpl_context = new SBPLPlanningContext(
+    auto* sbpl_context = new SBPLPlanningContext(
             sbpl_model, "sbpl_planning_context", req.group_name);
 
     // find a configuration for this group + planner_id
-    const planning_interface::PlannerConfigurationMap& pcm = getPlannerConfigurations();
+    auto& pcm = getPlannerConfigurations();
 
     // merge parameters from global group parameters and parameters for the
     // selected planning configuration
     std::map<std::string, std::string> all_params;
     for (auto it = pcm.begin(); it != pcm.end(); ++it) {
-        const std::string& name = it->first;
-        const planning_interface::PlannerConfigurationSettings& pcs = it->second;
-        const std::string& group_name = req.group_name;
+        auto& name = it->first;
+        auto& pcs = it->second;
+        auto& group_name = req.group_name;
         if (name == group_name) {
             all_params.insert(pcs.config.begin(), pcs.config.end());
         } else if (name == req.planner_id) {
@@ -677,7 +677,7 @@ MoveItRobotModel* SBPLPlannerManager::getModelForGroup(
         auto ent = m_sbpl_models.insert(
                 std::make_pair(group_name, std::make_shared<MoveItRobotModel>()));
         assert(ent.second);
-        MoveItRobotModel* sbpl_model = ent.first->second.get();
+        auto* sbpl_model = ent.first->second.get();
         if (!sbpl_model->init(m_robot_model, group_name)) {
             m_sbpl_models.erase(ent.first);
             ROS_WARN_NAMED(PP_LOGGER, "Failed to initialize SBPL Robot Model");
@@ -700,19 +700,18 @@ std::string SBPLPlannerManager::selectPlanningLink(
         return std::string(); // doesn't matter, we'll bail out soon
     }
 
-    const auto& goal_constraint = req.goal_constraints.front();
+    auto& goal_constraint = req.goal_constraints.front();
     // should've received one pose constraint for a single link, o/w
     // canServiceRequest would have complained
     if (!goal_constraint.position_constraints.empty()) {
-        const auto& position_constraint = goal_constraint.position_constraints.front();
+        auto& position_constraint = goal_constraint.position_constraints.front();
         return position_constraint.link_name;
     }
 
     // it's still useful to have a planning link for obstacle-based
     // heuristic information...inspect the joint model group
 
-    const moveit::core::JointModelGroup* jmg =
-            m_robot_model->getJointModelGroup(req.group_name);
+    auto* jmg = m_robot_model->getJointModelGroup(req.group_name);
 
     std::vector<std::string> ee_tips;
     if (jmg->getEndEffectorTips(ee_tips) && !ee_tips.empty()) {
