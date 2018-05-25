@@ -102,7 +102,7 @@ bool MoveItCollisionChecker::init(
     m_robot_model = robot_model;
 
     m_var_incs.reserve(m_robot_model->getPlanningJoints().size());
-    for (const std::string& joint_name : m_robot_model->getPlanningJoints()) {
+    for (auto& joint_name : m_robot_model->getPlanningJoints()) {
         m_var_incs.push_back(sbpl::angles::to_radians(2.0));
     }
     ROS_INFO("Increments: %s", to_string(m_var_incs).c_str());
@@ -222,7 +222,7 @@ auto MoveItCollisionChecker::checkInterpolatedPathCollision(
     }
 
     for (int widx = 0; widx < waypoint_count; ++widx) {
-        const smpl::RobotState& p = m_waypoint_path[widx];
+        auto& p = m_waypoint_path[widx];
         if (!isStateValid(p, false)) {
             return false;
         }

@@ -103,7 +103,7 @@ bool MoveItRobotModel::init(
     planning_joints.reserve(m_active_var_count);
     for (auto* joint : active_joints) {
         planning_joints.insert(
-                planning_joints.end(),
+                end(planning_joints),
                 begin(joint->getVariableNames()),
                 end(joint->getVariableNames()));
     }
@@ -114,6 +114,7 @@ bool MoveItRobotModel::init(
     m_var_min_limits.reserve(m_active_var_count);
     m_var_max_limits.reserve(m_active_var_count);
     m_var_continuous.reserve(m_active_var_count);
+    m_var_bounded.reserve(m_active_var_count);
     m_var_vel_limits.reserve(m_active_var_count);
     m_var_acc_limits.reserve(m_active_var_count);
     for (auto& var_name : m_active_var_names) {
@@ -403,34 +404,34 @@ sbpl::motion::Extension* MoveItRobotModel::getExtension(size_t class_code)
     }
 }
 
-double MoveItRobotModel::minPosLimit(int jidx) const
+double MoveItRobotModel::minPosLimit(int vidx) const
 {
-    return m_var_min_limits[jidx];
+    return m_var_min_limits[vidx];
 }
 
-double MoveItRobotModel::maxPosLimit(int jidx) const
+double MoveItRobotModel::maxPosLimit(int vidx) const
 {
-    return m_var_max_limits[jidx];
+    return m_var_max_limits[vidx];
 }
 
-bool MoveItRobotModel::hasPosLimit(int jidx) const
+bool MoveItRobotModel::hasPosLimit(int vidx) const
 {
-    return m_var_bounded[jidx];
+    return m_var_bounded[vidx];
 }
 
-bool MoveItRobotModel::isContinuous(int jidx) const
+bool MoveItRobotModel::isContinuous(int vidx) const
 {
-    return m_var_continuous[jidx];
+    return m_var_continuous[vidx];
 }
 
-double MoveItRobotModel::velLimit(int jidx) const
+double MoveItRobotModel::velLimit(int vidx) const
 {
-    return m_var_vel_limits[jidx];
+    return m_var_vel_limits[vidx];
 }
 
-double MoveItRobotModel::accLimit(int jidx) const
+double MoveItRobotModel::accLimit(int vidx) const
 {
-    return m_var_acc_limits[jidx];
+    return m_var_acc_limits[vidx];
 }
 
 /// \brief Set the link for which default forward kinematics is computed.
@@ -453,7 +454,7 @@ bool MoveItRobotModel::setPlanningLink(const std::string& name)
 }
 
 bool MoveItRobotModel::checkJointLimits(
-    const std::vector<double>& angles,
+    const sbpl::motion::RobotState& state,
     bool verbose)
 {
     if (!initialized()) {
@@ -577,18 +578,19 @@ auto MoveItRobotModel::planningJointGroup() const
     return m_joint_group;
 }
 
-const std::string& MoveItRobotModel::planningFrame() const
+auto MoveItRobotModel::planningFrame() const -> const std::string&
 {
     return m_planning_frame;
 }
 
-const moveit::core::LinkModel* MoveItRobotModel::planningTipLink() const
+auto MoveItRobotModel::planningTipLink() const
+    -> const moveit::core::LinkModel*
 {
     return m_tip_link;
 }
 
-/// \brief Return the names of the variables being planned for.
-const std::vector<std::string>& MoveItRobotModel::planningVariableNames() const
+auto MoveItRobotModel::planningVariableNames() const
+    -> const std::vector<std::string>&
 {
     return m_active_var_names;
 }
@@ -601,27 +603,27 @@ int MoveItRobotModel::activeVariableCount() const
 
 /// \brief Return the indices into the moveit::core::RobotState joint
 ///     variable vector of the planning variables.
-const std::vector<int>& MoveItRobotModel::activeVariableIndices() const
+auto MoveItRobotModel::activeVariableIndices() const -> const std::vector<int>&
 {
     return m_active_var_indices;
 }
 
-const std::vector<double>& MoveItRobotModel::variableMinLimits() const
+auto MoveItRobotModel::variableMinLimits() const -> const std::vector<double>&
 {
     return m_var_min_limits;
 }
 
-const std::vector<double>& MoveItRobotModel::variableMaxLimits() const
+auto MoveItRobotModel::variableMaxLimits() const -> const std::vector<double>&
 {
     return m_var_max_limits;
 }
 
-const std::vector<bool>& MoveItRobotModel::variableContinuous() const
+auto MoveItRobotModel::variableContinuous() const -> const std::vector<bool>&
 {
     return m_var_continuous;
 }
 
-moveit::core::RobotModelConstPtr MoveItRobotModel::moveitRobotModel() const
+auto MoveItRobotModel::moveitRobotModel() const -> moveit::core::RobotModelConstPtr
 {
     return m_robot_model;
 }
@@ -749,7 +751,7 @@ bool MoveItRobotModel::computeUnrestrictedIK(
 
         // set it as the solution
         m_robot_state->setVariablePosition(avind, npos);
-        const moveit::core::JointModel* j = m_robot_model->getJointOfVariable(avind);
+        auto* j = m_robot_model->getJointOfVariable(avind);
         if (!m_robot_state->satisfiesBounds(j)) {
             // revert to solution
             m_robot_state->setVariablePosition(avind, spos);

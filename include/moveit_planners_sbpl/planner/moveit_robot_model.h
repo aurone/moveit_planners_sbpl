@@ -114,7 +114,7 @@ public:
     double accLimit(int jidx) const override;
 
     bool checkJointLimits(
-        const std::vector<double>& angles,
+        const sbpl::motion::RobotState& state,
         bool verbose = false) override;
     ///@}
 
