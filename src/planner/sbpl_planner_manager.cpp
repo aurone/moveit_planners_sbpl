@@ -74,7 +74,7 @@ bool SBPLPlannerManager::initialize(
     return true;
 }
 
-std::string SBPLPlannerManager::getDescription() const
+auto SBPLPlannerManager::getDescription() const -> std::string
 {
     return "Search-Based Planning Algorithms";
 }
@@ -88,10 +88,11 @@ void SBPLPlannerManager::getPlanningAlgorithms(
     }
 }
 
-planning_interface::PlanningContextPtr SBPLPlannerManager::getPlanningContext(
+auto SBPLPlannerManager::getPlanningContext(
     const planning_scene::PlanningSceneConstPtr& planning_scene,
     const planning_interface::MotionPlanRequest& req,
     moveit_msgs::MoveItErrorCodes& error_code) const
+    -> planning_interface::PlanningContextPtr
 {
     ROS_DEBUG_NAMED(PP_LOGGER, "Get SBPL Planning Context");
 
@@ -111,14 +112,14 @@ planning_interface::PlanningContextPtr SBPLPlannerManager::getPlanningContext(
     // Setup SBPL Robot Model
     ///////////////////////////
 
-    SBPLPlannerManager* mutable_me = const_cast<SBPLPlannerManager*>(this);
-    MoveItRobotModel* sbpl_model = mutable_me->getModelForGroup(req.group_name);
+    auto* mutable_me = const_cast<SBPLPlannerManager*>(this);
+    auto* sbpl_model = mutable_me->getModelForGroup(req.group_name);
     if (!sbpl_model) {
         ROS_WARN_NAMED(PP_LOGGER, "No SBPL Robot Model available for group '%s'", req.group_name.c_str());
         return context;
     }
 
-    std::string planning_link = selectPlanningLink(req);
+    auto planning_link = selectPlanningLink(req);
     if (planning_link.empty()) {
         ROS_INFO_NAMED(PP_LOGGER, "Clear the planning link");
     } else {
@@ -142,39 +143,40 @@ planning_interface::PlanningContextPtr SBPLPlannerManager::getPlanningContext(
     // Initialize a new SBPL Planning Context
     ///////////////////////////////////////////
 
-//    logPlanningScene(*planning_scene);
+#if 0
+    logPlanningScene(*planning_scene);
+#endif
     logMotionPlanRequest(req);
 
-    SBPLPlanningContext* sbpl_context = new SBPLPlanningContext(
-            sbpl_model, "sbpl_planning_context", req.group_name);
+    auto sbpl_context = std::unique_ptr<SBPLPlanningContext>();
+    sbpl_context.reset(new SBPLPlanningContext(sbpl_model, "sbpl_planning_context", req.group_name));
 
     // find a configuration for this group + planner_id
-    const planning_interface::PlannerConfigurationMap& pcm = getPlannerConfigurations();
+    auto& configs = getPlannerConfigurations();
 
     // merge parameters from global group parameters and parameters for the
     // selected planning configuration
     std::map<std::string, std::string> all_params;
-    for (auto it = pcm.begin(); it != pcm.end(); ++it) {
-        const std::string& name = it->first;
-        const planning_interface::PlannerConfigurationSettings& pcs = it->second;
-        const std::string& group_name = req.group_name;
+    for (auto it = begin(configs); it != end(configs); ++it) {
+        auto& name = it->first;
+        auto& settings = it->second;
+        auto& group_name = req.group_name;
         if (name == group_name) {
-            all_params.insert(pcs.config.begin(), pcs.config.end());
+            all_params.insert(begin(settings.config), end(settings.config));
         } else if (name == req.planner_id) {
-            all_params.insert(pcs.config.begin(), pcs.config.end());
+            all_params.insert(begin(settings.config), end(settings.config));
         }
     }
 
     if (!sbpl_context->init(all_params)) {
         ROS_ERROR_NAMED(PP_LOGGER, "Failed to initialize SBPL Planning Context");
-        delete sbpl_context;
         return context;
     }
 
     sbpl_context->setPlanningScene(planning_scene);
     sbpl_context->setMotionPlanRequest(req);
 
-    context.reset(sbpl_context);
+    context = std::move(sbpl_context);
     return context;
 }
 
@@ -279,6 +281,7 @@ void SBPLPlannerManager::logPlanningScene(
     const planning_scene::PlanningScene& scene) const
 {
     ROS_INFO_NAMED(PP_LOGGER, "Planning Scene");
+    ROS_INFO_NAMED(PP_LOGGER, "  Ptr: %p", &scene);
     ROS_INFO_NAMED(PP_LOGGER, "  Name: %s", scene.getName().c_str());
     ROS_INFO_NAMED(PP_LOGGER, "  Has Parent: %s", scene.getParent() ? "true" : "false");
     ROS_INFO_NAMED(PP_LOGGER, "  Has Robot Model: %s", scene.getRobotModel() ? "true" : "false");
@@ -288,10 +291,10 @@ void SBPLPlannerManager::logPlanningScene(
     if (scene.getWorld()) {
         ROS_INFO_NAMED(PP_LOGGER, "    size:  %zu", scene.getWorld()->size());
         ROS_INFO_NAMED(PP_LOGGER, "    Object IDs: %zu", scene.getWorld()->getObjectIds().size());
-        for (auto oit = scene.getWorld()->begin();
-            oit != scene.getWorld()->end(); ++oit)
-        {
-            const std::string& object_id = oit->first;
+        auto wbegin = scene.getWorld()->begin();
+        auto wend = scene.getWorld()->end();
+        for (auto oit = wbegin; oit != wend; ++oit) {
+            auto& object_id = oit->first;
             ROS_INFO_NAMED(PP_LOGGER, "      %s", object_id.c_str());
         }
     }
@@ -299,7 +302,7 @@ void SBPLPlannerManager::logPlanningScene(
     ROS_INFO_NAMED(PP_LOGGER, "  Has Collision Robot: %s", scene.getCollisionRobot() ? "true" : "false");
     ROS_INFO_NAMED(PP_LOGGER, "  Current State:");
 
-    const moveit::core::RobotState& current_state = scene.getCurrentState();
+    auto& current_state = scene.getCurrentState();
     for (size_t vind = 0; vind < current_state.getVariableCount(); ++vind) {
         ROS_INFO_NAMED(PP_LOGGER, "    %s: %0.3f", current_state.getVariableNames()[vind].c_str(), current_state.getVariablePosition(vind));
     }
@@ -456,7 +459,7 @@ bool SBPLPlannerManager::loadPlannerConfigurationMapping(
 
     const char* req_group_params[] = { };
 
-    for (const std::string& group_name : model.getJointModelGroupNames()) {
+    for (auto& group_name : model.getJointModelGroupNames()) {
         if (!nh.hasParam(group_name)) {
             ROS_WARN_NAMED(PP_LOGGER, "No planning configuration for joint group '%s'", group_name.c_str());
             continue;
@@ -484,17 +487,17 @@ bool SBPLPlannerManager::loadPlannerConfigurationMapping(
             continue;
         }
 
-        XmlRpc::XmlRpcValue& planner_configs_cfg = joint_group_cfg["planner_configs"];
+        auto& planner_configs_cfg = joint_group_cfg["planner_configs"];
         if (planner_configs_cfg.getType() != XmlRpc::XmlRpcValue::TypeStruct) {
-            ROS_ERROR_NAMED(PP_LOGGER, "'planner_configs' should be a map of names to planner configurations (actual: %s)", xmlTypeToString(planner_configs_cfg.getType()));
+            ROS_ERROR_NAMED(PP_LOGGER, "'planner_configs' element of '%s' should be a map of names to planner configurations (actual: %s)", group_name.c_str(), xmlTypeToString(planner_configs_cfg.getType()));
             return false;
         }
 
         for (auto pcit = planner_configs_cfg.begin(); pcit != planner_configs_cfg.end(); ++pcit) {
-            const std::string& pc_name = pcit->first;
-            XmlRpc::XmlRpcValue& planner_config = pcit->second;
+            auto& pc_name = pcit->first;
+            auto& planner_config = pcit->second;
             if (planner_config.getType() != XmlRpc::XmlRpcValue::TypeStruct) {
-                ROS_ERROR_NAMED(PP_LOGGER, "planner config should be a map from config type to config");
+                ROS_ERROR_NAMED(PP_LOGGER, "planner config should be a map from configuration name to configuration");
                 return false;
             }
 
@@ -669,8 +672,9 @@ bool SBPLPlannerManager::loadSettingsMap(
     return true;
 }
 
-MoveItRobotModel* SBPLPlannerManager::getModelForGroup(
+auto SBPLPlannerManager::getModelForGroup(
     const std::string& group_name)
+    -> MoveItRobotModel*
 {
     auto it = m_sbpl_models.find(group_name);
     if (it == m_sbpl_models.end()) {
@@ -693,8 +697,9 @@ MoveItRobotModel* SBPLPlannerManager::getModelForGroup(
     }
 }
 
-std::string SBPLPlannerManager::selectPlanningLink(
+auto SBPLPlannerManager::selectPlanningLink(
     const planning_interface::MotionPlanRequest& req) const
+    -> std::string
 {
     if (req.goal_constraints.empty()) {
         return std::string(); // doesn't matter, we'll bail out soon

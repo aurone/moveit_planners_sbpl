@@ -72,31 +72,22 @@ private:
     std::map<std::string, std::string> m_config;
     sbpl::motion::PlanningParams m_pp;
 
+    // The smpl-ized planner id ((search, heuristic, graph) triple)
     std::string m_planner_id;
 
-    bool m_use_bfs;
-    double m_bfs_res_x;
-    double m_bfs_res_y;
-    double m_bfs_res_z;
+    bool m_use_grid;
+    double m_grid_res_x;
+    double m_grid_res_y;
+    double m_grid_res_z;
 
     /// \brief Initialize SBPL constructs
     /// \param[out] Reason for failure if initialization is unsuccessful
     /// \return true if successful; false otherwise
-    bool initSBPL(std::string& why);
-
-    bool translateRequest(moveit_msgs::MotionPlanRequest& req);
-
-    bool getPlanningFrameWorkspaceAABB(
+    bool initSBPL(
+        const planning_scene::PlanningSceneConstPtr& scene,
+        const moveit::core::RobotState& start_state,
         const moveit_msgs::WorkspaceParameters& workspace,
-        const planning_scene::PlanningScene& scene,
-        moveit_msgs::OrientedBoundingBox& aabb);
-
-    bool initHeuristicGrid(
-        const planning_scene::PlanningScene& scene,
-        const moveit_msgs::WorkspaceParameters& workspace);
-    void copyDistanceField(
-        const sbpl::DistanceMapInterface& dfin,
-        sbpl::DistanceMapInterface& dfout) const;
+        std::string& why);
 };
 
 MOVEIT_CLASS_FORWARD(SBPLPlanningContext);

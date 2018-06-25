@@ -20,7 +20,7 @@ namespace smpl = sbpl::motion;
 
 namespace moveit_msgs {
 
-static std::string to_string(moveit_msgs::MoveItErrorCodes code)
+static const char* to_cstring(moveit_msgs::MoveItErrorCodes code)
 {
     switch (code.val) {
     case moveit_msgs::MoveItErrorCodes::SUCCESS:
@@ -87,6 +87,53 @@ static std::string to_string(moveit_msgs::MoveItErrorCodes code)
 
 namespace sbpl_interface {
 
+template <class T, class... Args>
+auto make_unique(Args&&... args) -> std::unique_ptr<T> {
+    return std::unique_ptr<T>(new T(args...));
+}
+
+static
+bool InitPlanningParams(
+    const std::string& planning_frame,
+    const std::map<std::string, std::string>& config,
+    smpl::PlanningParams* pp);
+
+static
+bool InitGridParams(
+    const std::map<std::string, std::string>& config,
+    double* grid_res_x,
+    double* grid_res_y,
+    double* grid_res_z,
+    smpl::PlanningParams* params);
+
+static
+bool TranslateRequest(
+    const planning_interface::MotionPlanRequest& req_in,
+    const std::string& planner_id,
+    moveit_msgs::MotionPlanRequest& req);
+
+static
+auto CreateHeuristicGrid(
+    const planning_scene::PlanningScene& scene,
+    const moveit_msgs::WorkspaceParameters& workspace,
+    const std::string& group_name,
+    double res_y,
+    double res_x,
+    double res_z,
+    double max_distance)
+    -> std::unique_ptr<sbpl::OccupancyGrid>;
+
+static
+bool GetPlanningFrameWorkspaceAABB(
+    const moveit_msgs::WorkspaceParameters& workspace,
+    const planning_scene::PlanningScene& scene,
+    moveit_msgs::OrientedBoundingBox& aabb);
+
+static
+void CopyDistanceField(
+    const sbpl::DistanceMapInterface& dfin,
+    sbpl::DistanceMapInterface& dfout);
+
 SBPLPlanningContext::SBPLPlanningContext(
     MoveItRobotModel* robot_model,
     const std::string& name,
@@ -108,27 +155,30 @@ SBPLPlanningContext::~SBPLPlanningContext()
 
 bool SBPLPlanningContext::solve(planning_interface::MotionPlanResponse& res)
 {
-    planning_scene::PlanningSceneConstPtr scene = getPlanningScene();
+    auto& scene = getPlanningScene();
     assert(scene);
-    moveit::core::RobotModelConstPtr robot = scene->getRobotModel();
+
+    auto robot = scene->getRobotModel();
     assert(robot);
-    const planning_interface::MotionPlanRequest& req = getMotionPlanRequest();
+
+    auto& req = getMotionPlanRequest();
 
     moveit_msgs::MotionPlanRequest req_msg;
-    if (!translateRequest(req_msg)) {
+    if (!TranslateRequest(req, m_planner_id, req_msg)) {
         ROS_WARN_NAMED(PP_LOGGER, "Unable to translate Motion Plan Request to SBPL Motion Plan Request");
         return false;
     }
 
-    // apply requested deltas/overrides to the current start state
-    robot_state::RobotStateConstPtr start_state;
-    start_state = scene->getCurrentStateUpdated(req_msg.start_state);
+    // Apply requested deltas/overrides to the current start state for a
+    // complete start state
+    auto start_state = scene->getCurrentStateUpdated(req_msg.start_state);
     if (!start_state) {
         ROS_WARN_NAMED(PP_LOGGER, "Unable to update start state with requested start state overrides");
         return false;
     }
     moveit::core::robotStateToRobotStateMsg(*start_state, req_msg.start_state);
 
+    // Terminate early if there are no goal constraints
     if (req_msg.goal_constraints.empty()) {
         // :3
         res.trajectory_.reset(
@@ -140,7 +190,7 @@ bool SBPLPlanningContext::solve(planning_interface::MotionPlanResponse& res)
     }
 
     std::string why;
-    if (!initSBPL(why)) {
+    if (!initSBPL(scene, *start_state, req.workspace_parameters, why)) {
         ROS_WARN_NAMED(PP_LOGGER, "Failed to initialize SBPL (%s)", why.c_str());
         res.planning_time_ = 0.0;
         res.error_code_.val = moveit_msgs::MoveItErrorCodes::PLANNING_FAILED;
@@ -177,7 +227,7 @@ bool SBPLPlanningContext::solve(planning_interface::MotionPlanResponse& res)
     ROS_INFO_NAMED(PP_LOGGER, "Motion Plan Response:");
     ROS_INFO_NAMED(PP_LOGGER, "  Trajectory: %zu points", traj->getWayPointCount());
     ROS_INFO_NAMED(PP_LOGGER, "  Planning Time: %0.3f seconds", res_msg.planning_time);
-    ROS_INFO_NAMED(PP_LOGGER, "  Error Code: %d (%s)", res_msg.error_code.val, to_string(res_msg.error_code).c_str());
+    ROS_INFO_NAMED(PP_LOGGER, "  Error Code: %d (%s)", res_msg.error_code.val, to_cstring(res_msg.error_code));
 
     res.trajectory_ = traj;
     res.planning_time_ = res_msg.planning_time;
@@ -229,7 +279,7 @@ bool SBPLPlanningContext::init(const std::map<std::string, std::string>& config)
     // "graph", and "shortcutter"...reframe PlanningParams to take the
     // key/value parameter mapping and determine whether it contains sufficient
     // parameters for initialization
-    const std::vector<std::string>& required_params =
+    auto required_params =
     {
         "search",
         "heuristic",
@@ -242,75 +292,105 @@ bool SBPLPlanningContext::init(const std::map<std::string, std::string>& config)
     };
 
     // check for all required parameters
-    for (const std::string& req_param : required_params) {
-        if (config.find(req_param) == config.end()) {
-            ROS_ERROR_NAMED(PP_LOGGER, "Missing parameter '%s'", req_param.c_str());
+    for (auto& req_param : required_params) {
+        if (config.find(req_param) == end(config)) {
+            ROS_ERROR_NAMED(PP_LOGGER, "Missing parameter '%s'", req_param);
             return false;
         }
     }
 
-    const std::string& search_name = config.at("search");
-    const std::string& heuristic_name = config.at("heuristic");
-    const std::string& graph_name = config.at("graph");
+    auto& search_name = config.at("search");
+    auto& heuristic_name = config.at("heuristic");
+    auto& graph_name = config.at("graph");
     m_planner_id = search_name + "." + heuristic_name + "." + graph_name;
     ROS_INFO("  Request planner '%s'", m_planner_id.c_str());
 
-    m_use_bfs = (heuristic_name == "bfs" || heuristic_name == "mfbfs" || heuristic_name == "bfs_egraph");
-
-    // check for all parameters required for bfs heuristic
-    if (m_use_bfs) {
-        const std::vector<std::string>& bfs_required_params =
-        {
-            "bfs_res_x",
-            "bfs_res_y",
-            "bfs_res_z",
-            "bfs_sphere_radius"
-        };
-
-        for (const std::string& req_param : bfs_required_params) {
-            if (config.find(req_param) == config.end()) {
-                ROS_ERROR_NAMED(PP_LOGGER, "Missing parameter '%s'", req_param.c_str());
-                return false;
-            }
-        }
-    }
+    m_use_grid = (heuristic_name == "bfs" || heuristic_name == "mfbfs" || heuristic_name == "bfs_egraph");
 
     ROS_DEBUG_NAMED(PP_LOGGER, " -> Required Parameters Found");
 
     smpl::PlanningParams pp;
+    double grid_res_x, grid_res_y, grid_res_z;
+
+    if (m_use_grid) {
+        if (!InitGridParams(config, &grid_res_x, &grid_res_y, &grid_res_z, &pp)) {
+            return false;
+        }
+    } else {
+        grid_res_x = grid_res_y = grid_res_z = 0.0;
+        pp.planning_link_sphere_radius = 0.0;
+    }
+
+    if (!InitPlanningParams(m_robot_model->planningFrame(), config, &pp)) {
+        return false;
+    }
+
+    m_config = config; // save config, for science
+    m_pp = pp; // save fully-initialized config
+
+    // these parameters are for us
+    m_grid_res_x = grid_res_x;
+    m_grid_res_y = grid_res_y;
+    m_grid_res_z = grid_res_z;
+
+    return true;
+}
+
+bool SBPLPlanningContext::initSBPL(
+    const planning_scene::PlanningSceneConstPtr& scene,
+    const moveit::core::RobotState& start_state,
+    const moveit_msgs::WorkspaceParameters& workspace,
+    std::string& why)
+{
+    // Update the collision checker interface to use the complete start state
+    // as the reference state
+    {
+        if (!m_collision_checker.init(m_robot_model, start_state, scene)) {
+            why = "Failed to initialize sbpl Collision Checker "
+                    "from Planning Scene and Robot Model";
+            return false;
+        }
+    }
+
+    // Create an occupancy grid (distance map) if required by the planner
+    if (m_use_grid) {
+        m_grid = CreateHeuristicGrid(
+                *scene,
+                workspace,
+                m_robot_model->planningGroupName(),
+                m_grid_res_x,
+                m_grid_res_y,
+                m_grid_res_z,
+                m_pp.planning_link_sphere_radius);
+        if (!m_grid) {
+            why = "Failed to initialize heuristic information";
+            return false;
+        }
+    }
+
+    m_planner = std::make_shared<smpl::PlannerInterface>(
+            m_robot_model, &m_collision_checker, m_grid.get());
+
+    if (!m_planner->init(m_pp)) {
+        why = "Failed to initialize Planner Interface";
+        return false;
+    }
+
+    return true;
+}
+
+bool InitPlanningParams(
+    const std::string& planning_frame,
+    const std::map<std::string, std::string>& config,
+    smpl::PlanningParams* pp)
+{
+    pp->planning_frame = planning_frame;
 
     //////////////////////////////////
     // parse state space parameters //
     //////////////////////////////////
 
-    pp.planning_frame = m_robot_model->planningFrame();
-
     // NOTE: default cost function parameters
-
-    ////////////////////////////////
-    // parse heuristic parameters //
-    ////////////////////////////////
-
-    double bfs_res_x = 0.0;
-    double bfs_res_y = 0.0;
-    double bfs_res_z = 0.0;
-    pp.planning_link_sphere_radius = 0.0;
-    if (m_use_bfs) {
-        try {
-            bfs_res_x = std::stod(config.at("bfs_res_x"));
-            bfs_res_y = std::stod(config.at("bfs_res_y"));
-            bfs_res_z = std::stod(config.at("bfs_res_z"));
-            pp.planning_link_sphere_radius = std::stod(config.at("bfs_sphere_radius"));
-
-            if (bfs_res_x != bfs_res_y || bfs_res_x != bfs_res_z) {
-                ROS_WARN_NAMED(PP_LOGGER, "Distance field currently only supports uniformly discretized grids. Using x resolution (%0.3f) as resolution for all dimensions", bfs_res_x);
-            }
-        }
-        catch (const std::logic_error& ex) { // thrown by std::stod
-            ROS_ERROR_NAMED(PP_LOGGER, "Failed to convert bfs resolutions to floating-point values");
-            return false;
-        }
-    }
 
     //////////////////////////////////////
     // parse post-processing parameters //
@@ -325,28 +405,28 @@ bool SBPLPlanningContext::init(const std::map<std::string, std::string>& config)
     };
     const std::string default_shortcut_type = "joint_space";
 
-    pp.shortcut_path = config.at("shortcut_path") == "true";
-    pp.shortcut_type = shortcut_name_to_value.at(default_shortcut_type);
-    if (pp.shortcut_path) {
+    pp->shortcut_path = config.at("shortcut_path") == "true";
+    pp->shortcut_type = shortcut_name_to_value.at(default_shortcut_type);
+    if (pp->shortcut_path) {
         auto it = config.find("shortcutter");
-        if (it != config.end()) {
+        if (it != end(config)) {
             auto svit = shortcut_name_to_value.find(it->second);
-            if (svit == shortcut_name_to_value.end()) {
+            if (svit == end(shortcut_name_to_value)) {
                 ROS_WARN_NAMED(PP_LOGGER, "parameter 'shortcutter' has unrecognized value. recognized values are:");
-                for (const auto& entry : shortcut_name_to_value) {
+                for (auto& entry : shortcut_name_to_value) {
                     ROS_WARN_NAMED(PP_LOGGER, "  %s", entry.first.c_str());
                 }
                 ROS_WARN_NAMED(PP_LOGGER, "defaulting to '%s'", default_shortcut_type.c_str());
             }
             else {
-                pp.shortcut_type = svit->second;
+                pp->shortcut_type = svit->second;
             }
         }
         else {
             ROS_WARN_NAMED(PP_LOGGER, "parameter 'shortcutter' not found. defaulting to '%s'", default_shortcut_type.c_str());
         }
     }
-    pp.interpolate_path = config.at("interpolate_path") == "true";
+    pp->interpolate_path = config.at("interpolate_path") == "true";
 
     //////////////////////////////
     // parse logging parameters //
@@ -354,10 +434,10 @@ bool SBPLPlanningContext::init(const std::map<std::string, std::string>& config)
 
     {
         auto it = config.find("plan_output_dir");
-        if (it != config.end()) {
-            pp.plan_output_dir = it->second;
+        if (it != end(config)) {
+            pp->plan_output_dir = it->second;
         } else {
-            pp.plan_output_dir.clear();
+            pp->plan_output_dir.clear();
         }
     }
 
@@ -365,79 +445,73 @@ bool SBPLPlanningContext::init(const std::map<std::string, std::string>& config)
     // initialize structures against parameters //
     //////////////////////////////////////////////
 
-    m_config = config; // save config, for science
-    for (const auto& entry : config) {
-        pp.addParam(entry.first, entry.second);
+    for (auto& entry : config) {
+        pp->addParam(entry.first, entry.second);
     }
-    m_pp = pp; // save fully-initialized config
-
-    // these parameters are for us
-    m_bfs_res_x = bfs_res_x;
-    m_bfs_res_y = bfs_res_y;
-    m_bfs_res_z = bfs_res_z;
 
     return true;
 }
 
-bool SBPLPlanningContext::initSBPL(std::string& why)
+bool InitGridParams(
+    const std::map<std::string, std::string>& config,
+    double* grid_res_x,
+    double* grid_res_y,
+    double* grid_res_z,
+    smpl::PlanningParams* params)
 {
-    planning_scene::PlanningSceneConstPtr scene = getPlanningScene();
-    if (!scene) {
-        why = "No Planning Scene available";
-        return false;
+    const std::vector<std::string>& grid_required_params =
+    {
+        "bfs_res_x",
+        "bfs_res_y",
+        "bfs_res_z",
+        "bfs_sphere_radius"
+    };
+
+    for (const std::string& req_param : grid_required_params) {
+        if (config.find(req_param) == end(config)) {
+            ROS_ERROR_NAMED(PP_LOGGER, "Missing parameter '%s'", req_param.c_str());
+            return false;
+        }
     }
 
-    const planning_interface::MotionPlanRequest& req = getMotionPlanRequest();
+    ////////////////////////////////
+    // parse heuristic parameters //
+    ////////////////////////////////
 
-    const std::string& planning_frame = scene->getPlanningFrame();
+    params->planning_link_sphere_radius = 0.0;
+    try {
+        *grid_res_x = std::stod(config.at("bfs_res_x"));
+        *grid_res_y = std::stod(config.at("bfs_res_y"));
+        *grid_res_z = std::stod(config.at("bfs_res_z"));
+        params->planning_link_sphere_radius = std::stod(config.at("bfs_sphere_radius"));
 
-    ////////////////////
-    // Collision Model
-    ////////////////////
-
-    moveit::core::RobotModelConstPtr robot = scene->getRobotModel();
-
-    auto start_state = scene->getCurrentStateUpdated(req.start_state);
-    if (!start_state) {
-        why = "Unable to update complete start state with start state deltas";
-        return false;
-    }
-
-    if (!m_collision_checker.init(m_robot_model, *start_state, scene)) {
-        why = "Failed to initialize sbpl Collision Checker "
-                "from Planning Scene and Robot Model";
-        return false;
-    }
-
-    if (!initHeuristicGrid(*scene, req.workspace_parameters)) {
-        why = "Failed to initialize heuristic information";
-        return false;
-    }
-
-    m_planner = std::make_shared<smpl::PlannerInterface>(
-            m_robot_model, &m_collision_checker, m_grid.get());
-
-    if (!m_planner->init(m_pp)) {
-        why = "Failed to initialize Planner Interface";
+        if (*grid_res_x != *grid_res_y || *grid_res_x != *grid_res_z) {
+            ROS_WARN_NAMED(PP_LOGGER, "Distance field currently only supp->rts uniformly discretized grids. Using x resolution (%0.3f) as resolution for all dimensions", *grid_res_x);
+        }
+    } catch (const std::logic_error& ex) { // thrown by std::stod
+        ROS_ERROR_NAMED(PP_LOGGER, "Failed to convert grid resolutions to floating-point values");
         return false;
     }
 
     return true;
 }
+
 
 // Make any necessary corrections to the motion plan request to conform to
 // smpl::PlannerInterface conventions
-bool SBPLPlanningContext::translateRequest(
+bool TranslateRequest(
+    const planning_interface::MotionPlanRequest& req_in,
+    const std::string& planner_id,
     moveit_msgs::MotionPlanRequest& req)
 {
     // TODO: translate goal position constraints into planning frame
     // TODO: translate goal orientation constraints into planning frame
-    req = getMotionPlanRequest();
-    req.planner_id = m_planner_id;
+    req = req_in;
+    req.planner_id = planner_id;
     return true;
 }
 
-bool SBPLPlanningContext::getPlanningFrameWorkspaceAABB(
+bool GetPlanningFrameWorkspaceAABB(
     const moveit_msgs::WorkspaceParameters& workspace,
     const planning_scene::PlanningScene& scene,
     moveit_msgs::OrientedBoundingBox& aabb)
@@ -451,10 +525,8 @@ bool SBPLPlanningContext::getPlanningFrameWorkspaceAABB(
         return false;
     }
 
-    const Eigen::Affine3d& T_scene_workspace =
-            scene.getFrameTransform(workspace.header.frame_id);
-    const Eigen::Affine3d& T_scene_planning =
-            scene.getFrameTransform(scene.getPlanningFrame());
+    auto& T_scene_workspace = scene.getFrameTransform(workspace.header.frame_id);
+    auto& T_scene_planning = scene.getFrameTransform(scene.getPlanningFrame());
 
     Eigen::Affine3d T_planning_workspace =
             T_scene_planning.inverse() * T_scene_workspace;
@@ -496,13 +568,13 @@ bool SBPLPlanningContext::getPlanningFrameWorkspaceAABB(
         max_planning.z() = std::max(max_planning.z(), cp[i].z());
     }
 
-    const double mid_x = 0.5 * (min_planning.x() + max_planning.x());
-    const double mid_y = 0.5 * (min_planning.y() + max_planning.y());
-    const double mid_z = 0.5 * (min_planning.z() + max_planning.z());
+    auto mid_x = 0.5 * (min_planning.x() + max_planning.x());
+    auto mid_y = 0.5 * (min_planning.y() + max_planning.y());
+    auto mid_z = 0.5 * (min_planning.z() + max_planning.z());
 
-    const double size_x = fabs(max_planning.x() - min_planning.x());
-    const double size_y = fabs(max_planning.y() - min_planning.y());
-    const double size_z = fabs(max_planning.z() - min_planning.z());
+    auto size_x = fabs(max_planning.x() - min_planning.x());
+    auto size_y = fabs(max_planning.y() - min_planning.y());
+    auto size_z = fabs(max_planning.z() - min_planning.z());
 
     aabb.pose.position.x = mid_x;
     aabb.pose.position.y = mid_y;
@@ -515,25 +587,27 @@ bool SBPLPlanningContext::getPlanningFrameWorkspaceAABB(
     return true;
 }
 
-bool SBPLPlanningContext::initHeuristicGrid(
+auto CreateHeuristicGrid(
     const planning_scene::PlanningScene& scene,
-    const moveit_msgs::WorkspaceParameters& workspace)
+    const moveit_msgs::WorkspaceParameters& workspace,
+    const std::string& group_name,
+    double res_y,
+    double res_x,
+    double res_z,
+    double max_distance)
+    -> std::unique_ptr<sbpl::OccupancyGrid>
 {
     // create a distance field in the planning frame that represents the
     // workspace boundaries
-
-    const auto& req = getMotionPlanRequest();
 
     /////////////////////////////////////////
     // Determine Distance Field Parameters //
     /////////////////////////////////////////
 
     moveit_msgs::OrientedBoundingBox workspace_aabb;
-    if (!getPlanningFrameWorkspaceAABB(
-            req.workspace_parameters, scene, workspace_aabb))
-    {
+    if (!GetPlanningFrameWorkspaceAABB(workspace, scene, workspace_aabb)) {
         ROS_ERROR_NAMED(PP_LOGGER, "Failed to get workspace boundaries in the planning frame");
-        return false;
+        return NULL;
     }
 
     ROS_DEBUG_NAMED(PP_LOGGER, "AABB of workspace in planning frame:");
@@ -544,17 +618,9 @@ bool SBPLPlanningContext::initHeuristicGrid(
     // TODO: block off sections of the aabb that do not include the original
     // workspace
 
-    const double size_x = workspace_aabb.extents.x;
-    const double size_y = workspace_aabb.extents.y;
-    const double size_z = workspace_aabb.extents.z;
-
-    const double default_bfs_res = 0.02;
-    const double res_x_m = m_use_bfs ? m_bfs_res_x : default_bfs_res;
-    const double res_y_m = m_use_bfs ? m_bfs_res_y : default_bfs_res;
-    const double res_z_m = m_use_bfs ? m_bfs_res_z : default_bfs_res;
-
-    const double max_distance = m_use_bfs ?
-            m_pp.planning_link_sphere_radius + res_x_m : res_x_m;
+    auto size_x = workspace_aabb.extents.x;
+    auto size_y = workspace_aabb.extents.y;
+    auto size_z = workspace_aabb.extents.z;
 
     Eigen::Affine3d T_planning_workspace;
     T_planning_workspace = Eigen::Translation3d(
@@ -568,7 +634,7 @@ bool SBPLPlanningContext::initHeuristicGrid(
     ROS_DEBUG_NAMED(PP_LOGGER, "  size_x: %0.3f", size_x);
     ROS_DEBUG_NAMED(PP_LOGGER, "  size_y: %0.3f", size_y);
     ROS_DEBUG_NAMED(PP_LOGGER, "  size_z: %0.3f", size_z);
-    ROS_DEBUG_NAMED(PP_LOGGER, "  res: %0.3f", res_x_m);
+    ROS_DEBUG_NAMED(PP_LOGGER, "  res: %0.3f", res_x);
     ROS_DEBUG_NAMED(PP_LOGGER, "  origin_x: %0.3f", workspace_pos_in_planning.x());
     ROS_DEBUG_NAMED(PP_LOGGER, "  origin_y: %0.3f", workspace_pos_in_planning.y());
     ROS_DEBUG_NAMED(PP_LOGGER, "  origin_z: %0.3f", workspace_pos_in_planning.z());
@@ -578,66 +644,54 @@ bool SBPLPlanningContext::initHeuristicGrid(
             workspace_pos_in_planning.y(),
             workspace_pos_in_planning.z(),
             size_x, size_y, size_z,
-            res_x_m,
+            res_x,
             max_distance);
 
-    if (!m_use_bfs) {
-        ROS_DEBUG_NAMED(PP_LOGGER, "Not using BFS heuristic (Skipping occupancy grid filling)");
-        m_grid = std::make_shared<sbpl::OccupancyGrid>(hdf);
-        return true;
-    }
-
-    /////////////////////////
-    // Fill Distance Field //
-    /////////////////////////
-
-    bool init_from_sbpl_cc = false;
-
-    using collision_detection::CollisionWorldSBPL;
+    ////////////////////////////////////////////////////////
+    // Try to Copy Distance Field from CollisionWorldSBPL //
+    ////////////////////////////////////////////////////////
 
     auto cworld = scene.getCollisionWorld();
-    const CollisionWorldSBPL* sbpl_cworld =
-            dynamic_cast<const CollisionWorldSBPL*>(cworld.get());
-    if (sbpl_cworld) {
+
+    using collision_detection::CollisionWorldSBPL;
+    auto* sbpl_cworld = dynamic_cast<const CollisionWorldSBPL*>(cworld.get());
+
+    if (sbpl_cworld != NULL) {
         ROS_DEBUG_NAMED(PP_LOGGER, "Use collision information from Collision World SBPL for heuristic!!!");
 
-        const sbpl::DistanceMapInterface* df = sbpl_cworld->distanceField(
-                    scene.getRobotModel()->getName(),
-                    m_robot_model->planningGroupName());
-        if (df) {
+        auto* df = sbpl_cworld->distanceField(scene.getRobotModel()->getName(), group_name);
+        if (df != NULL) {
             // copy the collision information
-            // TODO: the distance field at this point should contain the
-            // planning scene world but it will probably contain no or incorrect
-            // voxel information from voxels states...should probably add a
-            // force update function on collisionspace and collisionworldsbpl
-            // to set up the voxel grid for a given robot state here
+            // TODO: The distance field at this point should contain the
+            // planning scene world, but should probably add an explicit
+            // function to force an update
             ROS_DEBUG_NAMED(PP_LOGGER, "Copy collision information");
-            copyDistanceField(*df, *hdf);
+            CopyDistanceField(*df, *hdf);
 
-            m_grid = std::make_shared<sbpl::OccupancyGrid>(hdf);
-            init_from_sbpl_cc = true;
-        }
-        else {
+            ROS_INFO_NAMED(PP_LOGGER, "Successfully initialized heuristic grid from sbpl collision checker");
+            auto grid = make_unique<sbpl::OccupancyGrid>(hdf);
+            grid->setReferenceFrame(scene.getPlanningFrame());
+            return std::move(grid);
+        } else {
             ROS_WARN_NAMED(PP_LOGGER, "Just kidding! Collision World SBPL's distance field is uninitialized");
         }
     }
 
-    if (init_from_sbpl_cc) {
-        ROS_INFO_NAMED(PP_LOGGER, "Successfully initialized heuristic grid from sbpl collision checker");
-        return true;
-    }
+    ///////////////////////////////
+    // Create New Distance Field //
+    ///////////////////////////////
 
     // TODO: the collision checker might be mature enough to consider
     // instantiating a full cspace here and using available voxels state
     // information for a more accurate heuristic
 
-    m_grid = std::make_shared<sbpl::OccupancyGrid>(hdf);
-    m_grid->setReferenceFrame(scene.getPlanningFrame());
+    auto grid = make_unique<sbpl::OccupancyGrid>(hdf);
+    grid->setReferenceFrame(scene.getPlanningFrame());
 
     // temporary storage for collision shapes/objects
     std::vector<std::unique_ptr<sbpl::collision::CollisionShape>> shapes;
     std::vector<std::unique_ptr<sbpl::collision::CollisionObject>> collision_objects;
-    sbpl::collision::WorldCollisionModel cmodel(m_grid.get());
+    sbpl::collision::WorldCollisionModel cmodel(grid.get());
 
     // insert world objects into the collision model
     auto& world = cworld->getWorld();
@@ -665,12 +719,12 @@ bool SBPLPlanningContext::initHeuristicGrid(
     // note: collision world and going out of scope here will
     // not destroy the prepared distance field and occupancy grid
 
-    return true;
+    return std::move(grid);
 }
 
-void SBPLPlanningContext::copyDistanceField(
+void CopyDistanceField(
     const sbpl::DistanceMapInterface& dfin,
-    sbpl::DistanceMapInterface& dfout) const
+    sbpl::DistanceMapInterface& dfout)
 {
     std::vector<Eigen::Vector3d> points;
     for (int x = 0; x < dfout.numCellsX(); ++x) {
@@ -689,7 +743,7 @@ void SBPLPlanningContext::copyDistanceField(
     }
     }
 
-    ROS_DEBUG_NAMED(PP_LOGGER, "Add %zu points to the bfs distance field", points.size());
+    ROS_DEBUG_NAMED(PP_LOGGER, "Add %zu points to the distance field", points.size());
     dfout.addPointsToMap(points);
 }
 
