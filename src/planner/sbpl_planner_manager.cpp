@@ -82,9 +82,11 @@ auto SBPLPlannerManager::getDescription() const -> std::string
 void SBPLPlannerManager::getPlanningAlgorithms(
     std::vector<std::string>& algs) const
 {
-    const auto& pcm = getPlannerConfigurations();
-    for (const auto& entry : pcm) {
-        algs.push_back(entry.first);
+    auto& configs = getPlannerConfigurations();
+    for (auto& entry : configs) {
+        if (entry.first.find('[') != std::string::npos) {
+            algs.push_back(entry.first);
+        }
     }
 }
 
