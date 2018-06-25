@@ -416,6 +416,14 @@ bool SBPLPlannerManager::loadPlannerConfigurationMapping(
     const ros::NodeHandle& nh,
     const moveit::core::RobotModel& model)
 {
+    // New Behavior! Instead of requiring sane config, we'll instead warn on
+    // all errors and parse as many existing configurations as possible. This
+    // can be useful for debugging. It also allows restarting move_group using
+    // a different planner plugin without clearing parameters, which causes
+    // configurations from other planner plugins to persist on the param server
+    // if they do not exist for this plugin.
+    auto ignore_errors = true;
+
     PlannerSettingsMap search_settings;
     if (!loadSettingsMap(nh, "search_configs", search_settings)) {
         ROS_ERROR_NAMED(PP_LOGGER, "Failed to load search settings");
@@ -459,7 +467,8 @@ bool SBPLPlannerManager::loadPlannerConfigurationMapping(
         }
 
         if (joint_group_cfg.getType() != XmlRpc::XmlRpcValue::TypeStruct) {
-            ROS_ERROR_NAMED(PP_LOGGER, "'%s' should be a map of group names to group settings", group_name.c_str());
+            ROS_WARN_NAMED(PP_LOGGER, "'%s' should be a map of group names to group settings", group_name.c_str());
+            if (ignore_errors) continue; // next planning group
             return false;
         }
 
@@ -473,7 +482,8 @@ bool SBPLPlannerManager::loadPlannerConfigurationMapping(
 
         auto& planner_configs_cfg = joint_group_cfg["planner_configs"];
         if (planner_configs_cfg.getType() != XmlRpc::XmlRpcValue::TypeStruct) {
-            ROS_ERROR_NAMED(PP_LOGGER, "'planner_configs' element of '%s' should be a map of names to planner configurations (actual: %s)", group_name.c_str(), xmlTypeToString(planner_configs_cfg.getType()));
+            ROS_WARN_NAMED(PP_LOGGER, "'planner_configs' element of '%s' should be a map of names to planner configurations (actual: %s)", group_name.c_str(), xmlTypeToString(planner_configs_cfg.getType()));
+            if (ignore_errors) continue; // next planning group
             return false;
         }
 
@@ -481,7 +491,8 @@ bool SBPLPlannerManager::loadPlannerConfigurationMapping(
             auto& pc_name = pcit->first;
             auto& planner_config = pcit->second;
             if (planner_config.getType() != XmlRpc::XmlRpcValue::TypeStruct) {
-                ROS_ERROR_NAMED(PP_LOGGER, "planner config should be a map from configuration name to configuration");
+                ROS_WARN_NAMED(PP_LOGGER, "planner config should be a map from configuration name to configuration");
+                if (ignore_errors) continue; // next configuration
                 return false;
             }
 
@@ -501,11 +512,12 @@ bool SBPLPlannerManager::loadPlannerConfigurationMapping(
                         return !planner_config.hasMember(key);
                     }))
             {
-                ROS_ERROR("planner config lacks required keys");
+                ROS_WARN_NAMED(PP_LOGGER, "planner config lacks required keys");
                 for (int i = 0; i < sizeof(required_keys) / sizeof(const char*); ++i) {
                     const char* key = required_keys[i];
-                    ROS_ERROR("Has '%s': %s", key, planner_config.hasMember(key) ? "true" : "false");
+                    ROS_WARN_NAMED(PP_LOGGER, "Has '%s': %s", key, planner_config.hasMember(key) ? "true" : "false");
                 }
+                if (ignore_errors) continue; // next configuration
                 return false;
             }
 
