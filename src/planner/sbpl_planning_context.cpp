@@ -1,5 +1,8 @@
 #include "sbpl_planning_context.h"
 
+// standard includes
+#include <chrono>
+
 // system includes
 #include <moveit/collision_detection/world.h>
 #include <eigen_conversions/eigen_msg.h>
@@ -9,6 +12,8 @@
 #include <moveit_msgs/GetMotionPlan.h>
 #include <moveit_msgs/PlanningScene.h>
 #include <smpl/ros/propagation_distance_field.h>
+#include <sbpl_collision_checking/world_collision_model.h>
+#include <sbpl_collision_checking/voxelize_world_object.h>
 
 // project includes
 #include "../collision/collision_world_sbpl.h"
@@ -155,6 +160,8 @@ SBPLPlanningContext::~SBPLPlanningContext()
 
 bool SBPLPlanningContext::solve(planning_interface::MotionPlanResponse& res)
 {
+    auto then = std::chrono::high_resolution_clock::now();
+
     auto& scene = getPlanningScene();
     assert(scene);
 
@@ -189,20 +196,20 @@ bool SBPLPlanningContext::solve(planning_interface::MotionPlanResponse& res)
         return true;
     }
 
-    std::string why;
-    if (!initSBPL(scene, *start_state, req.workspace_parameters, why)) {
-        ROS_WARN_NAMED(PP_LOGGER, "Failed to initialize SBPL (%s)", why.c_str());
+    ROS_DEBUG_NAMED(PP_LOGGER, "Update planner modules");
+    if (!updatePlanner(scene, *start_state, req.workspace_parameters)) {
+        ROS_WARN_NAMED(PP_LOGGER, "Failed to update SBPL");
         res.planning_time_ = 0.0;
         res.error_code_.val = moveit_msgs::MoveItErrorCodes::PLANNING_FAILED;
         return false;
     }
 
-    ROS_DEBUG_NAMED(PP_LOGGER, "Successfully initialized SBPL");
-
+    ROS_DEBUG_NAMED(PP_LOGGER, "Convert planning scene to message type");
     // translate planning scene to planning scene message
     moveit_msgs::PlanningScene scene_msg;
     scene->getPlanningSceneMsg(scene_msg);
 
+    ROS_DEBUG_NAMED(PP_LOGGER, "Solve!");
     moveit_msgs::MotionPlanResponse res_msg;
     if (!m_planner->solve(scene_msg, req_msg, res_msg)) {
         res.trajectory_.reset();
@@ -211,7 +218,7 @@ bool SBPLPlanningContext::solve(planning_interface::MotionPlanResponse& res)
         return false;
     }
 
-    ROS_DEBUG_NAMED(PP_LOGGER, "Call to solve() succeeded");
+    ROS_DEBUG_NAMED(PP_LOGGER, "Found solution");
 
     ROS_DEBUG_NAMED(PP_LOGGER, "Create RobotTrajectory from path with %zu joint trajectory points and %zu multi-dof joint trajectory points",
             res_msg.trajectory.joint_trajectory.points.size(),
@@ -224,13 +231,16 @@ bool SBPLPlanningContext::solve(planning_interface::MotionPlanResponse& res)
     // reference state or res_msg.group_name in the above RobotTrajectory
     // constructor?
 
+    auto now = std::chrono::high_resolution_clock::now();
+    auto planning_time = std::chrono::duration<double>(now - then).count();
+
     ROS_INFO_NAMED(PP_LOGGER, "Motion Plan Response:");
     ROS_INFO_NAMED(PP_LOGGER, "  Trajectory: %zu points", traj->getWayPointCount());
-    ROS_INFO_NAMED(PP_LOGGER, "  Planning Time: %0.3f seconds", res_msg.planning_time);
+    ROS_INFO_NAMED(PP_LOGGER, "  Planning Time: %0.3f seconds", planning_time);
     ROS_INFO_NAMED(PP_LOGGER, "  Error Code: %d (%s)", res_msg.error_code.val, to_cstring(res_msg.error_code));
 
     res.trajectory_ = traj;
-    res.planning_time_ = res_msg.planning_time;
+    res.planning_time_ = planning_time;
     res.error_code_ = res_msg.error_code;
     return true;
 }
@@ -262,6 +272,7 @@ void SBPLPlanningContext::clear()
     ROS_INFO_NAMED(PP_LOGGER, "SBPLPlanningContext::clear()");
 }
 
+// Initialize an SBPLPlanningContext.
 bool SBPLPlanningContext::init(const std::map<std::string, std::string>& config)
 {
     ROS_DEBUG_NAMED(PP_LOGGER, "Initialize SBPL Planning Context");
@@ -303,7 +314,7 @@ bool SBPLPlanningContext::init(const std::map<std::string, std::string>& config)
     auto& heuristic_name = config.at("heuristic");
     auto& graph_name = config.at("graph");
     m_planner_id = search_name + "." + heuristic_name + "." + graph_name;
-    ROS_INFO("  Request planner '%s'", m_planner_id.c_str());
+    ROS_DEBUG_NAMED(PP_LOGGER, " -> Request planner '%s'", m_planner_id.c_str());
 
     m_use_grid = (heuristic_name == "bfs" || heuristic_name == "mfbfs" || heuristic_name == "bfs_egraph");
 
@@ -317,7 +328,7 @@ bool SBPLPlanningContext::init(const std::map<std::string, std::string>& config)
             return false;
         }
     } else {
-        grid_res_x = grid_res_y = grid_res_z = 0.0;
+        grid_res_x = grid_res_y = grid_res_z = 0.02;
         pp.planning_link_sphere_radius = 0.0;
     }
 
@@ -333,28 +344,75 @@ bool SBPLPlanningContext::init(const std::map<std::string, std::string>& config)
     m_grid_res_y = grid_res_y;
     m_grid_res_z = grid_res_z;
 
+    ROS_DEBUG_NAMED(PP_LOGGER, " -> Successfully initialized SBPL Planning Context");
     return true;
 }
 
-bool SBPLPlanningContext::initSBPL(
+bool SBPLPlanningContext::updatePlanner(
     const planning_scene::PlanningSceneConstPtr& scene,
     const moveit::core::RobotState& start_state,
-    const moveit_msgs::WorkspaceParameters& workspace,
-    std::string& why)
+    const moveit_msgs::WorkspaceParameters& workspace)
 {
+    ROS_DEBUG_NAMED(PP_LOGGER, "Update planner");
+
     // Update the collision checker interface to use the complete start state
     // as the reference state
-    {
-        if (!m_collision_checker.init(m_robot_model, start_state, scene)) {
-            why = "Failed to initialize sbpl Collision Checker "
-                    "from Planning Scene and Robot Model";
+    ROS_DEBUG_NAMED(PP_LOGGER, " -> Initialize collision checker interface");
+    m_collision_checker = make_unique<MoveItCollisionChecker>();
+    if (!m_collision_checker->init(m_robot_model, start_state, scene)) {
+        ROS_WARN_NAMED(PP_LOGGER, "Failed to initialize collision checker interface");
+        return false;
+    }
+
+    // Create an occupancy grid (distance map) if required by the planner
+    // TODO: this should be optional if a grid is not required by the planner
+    if (true || m_use_grid) {
+        ROS_DEBUG_NAMED(PP_LOGGER, " -> Update or create grid");
+        // TODO: difficult to make this function transactional, since it is
+        // preferred to modify the grid in place when possible
+        m_grid = updateOrCreateGrid(std::move(m_grid), scene, workspace);
+        if (!m_grid) {
+            ROS_WARN_NAMED(PP_LOGGER, "Failed to update or create grid");
             return false;
         }
     }
 
-    // Create an occupancy grid (distance map) if required by the planner
-    if (m_use_grid) {
-        m_grid = CreateHeuristicGrid(
+    ROS_DEBUG_NAMED(PP_LOGGER, " -> Initialize planner interface");
+    m_planner = std::make_shared<smpl::PlannerInterface>(
+            m_robot_model, m_collision_checker.get(), m_grid.get());
+    if (!m_planner->init(m_pp)) {
+        ROS_WARN_NAMED(PP_LOGGER, "Failed to initialize planner interface");
+        return false;
+    }
+
+    m_prev_scene = scene;
+    m_prev_workspace = workspace;
+    return true;
+}
+
+auto SBPLPlanningContext::updateOrCreateGrid(
+    std::unique_ptr<sbpl::OccupancyGrid> grid,
+    const planning_scene::PlanningSceneConstPtr& scene,
+    const moveit_msgs::WorkspaceParameters& workspace)
+    -> std::unique_ptr<sbpl::OccupancyGrid>
+{
+    // TODO: transforms may have changed that reposition the workspace within
+    // the planning frame
+    bool workspace_diff =
+            workspace.header.frame_id != m_prev_workspace.header.frame_id ||
+            workspace.min_corner.x != m_prev_workspace.min_corner.x ||
+            workspace.min_corner.y != m_prev_workspace.min_corner.y ||
+            workspace.min_corner.z != m_prev_workspace.min_corner.z ||
+            workspace.max_corner.x != m_prev_workspace.max_corner.x ||
+            workspace.max_corner.y != m_prev_workspace.max_corner.y ||
+            workspace.max_corner.z != m_prev_workspace.max_corner.z;
+
+    if (scene != m_prev_scene || workspace_diff) {
+        ROS_DEBUG_NAMED(PP_LOGGER, "   -> Scene or workspace changed (scene: %p -> %p)", m_prev_scene.get(), scene.get());
+        {
+            auto g = std::move(grid); // for lack of a swap or destroy
+        }
+        return CreateHeuristicGrid(
                 *scene,
                 workspace,
                 m_robot_model->planningGroupName(),
@@ -362,21 +420,69 @@ bool SBPLPlanningContext::initSBPL(
                 m_grid_res_y,
                 m_grid_res_z,
                 m_pp.planning_link_sphere_radius);
-        if (!m_grid) {
-            why = "Failed to initialize heuristic information";
-            return false;
+    } else {
+        ROS_DEBUG_NAMED(PP_LOGGER, "   -> Update persistent grid");
+        auto voxelize = [&](const collision_detection::World::Object& object)
+        {
+            std::vector<std::vector<Eigen::Vector3d>> voxelses; // , my precious
+            Eigen::Vector3d grid_origin;
+            grid_origin.x() = grid->originX();
+            grid_origin.y() = grid->originY();
+            grid_origin.z() = grid->originZ();
+            sbpl::collision::VoxelizeObject(
+                    object,
+                    grid->resolution(),
+                    grid_origin,
+                    voxelses);
+            return voxelses;
+        };
+
+        auto remove_object = [&](const collision_detection::World::Object& object)
+        {
+            auto voxelses = voxelize(object);
+            for (auto& voxels : voxelses) {
+                grid->removePointsFromField(voxels);
+            }
+        };
+
+        auto insert_object = [&](const collision_detection::World::Object& object)
+        {
+            auto voxelses = voxelize(object);
+            for (auto& voxels : voxelses) {
+                grid->addPointsToField(voxels);
+            }
+        };
+
+        auto wnew_begin = scene->getWorld()->begin();
+        auto wnew_end = scene->getWorld()->end();
+
+        auto wold_begin = m_prev_scene->getWorld()->begin();
+        auto wold_end = m_prev_scene->getWorld()->end();
+
+        // Remove objects that are in prev_scene but not in scene
+        for (auto it = wold_begin; it != wold_end; ++it) {
+            if (!scene->getWorld()->hasObject(it->first)) {
+                remove_object(*it->second);
+            }
         }
+
+        // Update objects that are in both scenes but whose properties have changed
+        for (auto it = wold_begin; it != wold_end; ++it) {
+            if (scene->getWorld()->hasObject(it->first)) {
+                remove_object(*it->second);
+                insert_object(*scene->getWorld()->getObject(it->first));
+            }
+        }
+
+        // Add objects that are in scene but not in prev_scene
+        for (auto it = wnew_begin; it != wnew_end; ++it) {
+            if (!m_prev_scene->getWorld()->hasObject(it->first)) {
+                insert_object(*it->second);
+            }
+        }
+
+        return std::move(grid);
     }
-
-    m_planner = std::make_shared<smpl::PlannerInterface>(
-            m_robot_model, &m_collision_checker, m_grid.get());
-
-    if (!m_planner->init(m_pp)) {
-        why = "Failed to initialize Planner Interface";
-        return false;
-    }
-
-    return true;
 }
 
 bool InitPlanningParams(

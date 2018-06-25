@@ -63,9 +63,9 @@ private:
 
     // sbpl planner components
     MoveItRobotModel* m_robot_model;
-    MoveItCollisionChecker m_collision_checker;
+    std::unique_ptr<MoveItCollisionChecker> m_collision_checker;
 
-    sbpl::OccupancyGridPtr m_grid;
+    std::unique_ptr<sbpl::OccupancyGrid> m_grid;
 
     sbpl::motion::PlannerInterfacePtr m_planner;
 
@@ -80,14 +80,22 @@ private:
     double m_grid_res_y;
     double m_grid_res_z;
 
+    moveit_msgs::WorkspaceParameters m_prev_workspace;
+    planning_scene::PlanningSceneConstPtr m_prev_scene;
+
     /// \brief Initialize SBPL constructs
     /// \param[out] Reason for failure if initialization is unsuccessful
     /// \return true if successful; false otherwise
-    bool initSBPL(
+    bool updatePlanner(
         const planning_scene::PlanningSceneConstPtr& scene,
         const moveit::core::RobotState& start_state,
-        const moveit_msgs::WorkspaceParameters& workspace,
-        std::string& why);
+        const moveit_msgs::WorkspaceParameters& workspace);
+
+    auto updateOrCreateGrid(
+        std::unique_ptr<sbpl::OccupancyGrid> grid,
+        const planning_scene::PlanningSceneConstPtr& scene,
+        const moveit_msgs::WorkspaceParameters& workspace)
+        -> std::unique_ptr<sbpl::OccupancyGrid>;
 };
 
 MOVEIT_CLASS_FORWARD(SBPLPlanningContext);

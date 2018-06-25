@@ -37,6 +37,11 @@ namespace sbpl_interface {
 // pp = planning plugin
 static const char* PP_LOGGER = "planning";
 
+template <class T, class... Args>
+auto make_unique(Args&&... args) -> std::unique_ptr<T> {
+    return std::unique_ptr<T>(new T(args...));
+}
+
 SBPLPlannerManager::SBPLPlannerManager() :
     Base(),
     m_robot_model(),
@@ -98,27 +103,27 @@ auto SBPLPlannerManager::getPlanningContext(
 {
     ROS_DEBUG_NAMED(PP_LOGGER, "Get SBPL Planning Context");
 
-    planning_interface::PlanningContextPtr context;
+    planning_interface::PlanningContextPtr null_context;
 
     if (!canServiceRequest(req)) {
         ROS_WARN_NAMED(PP_LOGGER, "Unable to service request");
-        return context;
+        return null_context;
     }
 
     if (!planning_scene) {
         ROS_WARN_NAMED(PP_LOGGER, "Planning Scene is null");
-        return context;
+        return null_context;
     }
 
-    ///////////////////////////
-    // Setup SBPL Robot Model
-    ///////////////////////////
+    ////////////////////////////////////////
+    // Initialize/Update SBPL Robot Model //
+    ////////////////////////////////////////
 
     auto* mutable_me = const_cast<SBPLPlannerManager*>(this);
     auto* sbpl_model = mutable_me->getModelForGroup(req.group_name);
     if (!sbpl_model) {
         ROS_WARN_NAMED(PP_LOGGER, "No SBPL Robot Model available for group '%s'", req.group_name.c_str());
-        return context;
+        return null_context;
     }
 
     auto planning_link = selectPlanningLink(req);
@@ -130,7 +135,7 @@ auto SBPLPlannerManager::getPlanningContext(
 
     if (!sbpl_model->setPlanningLink(planning_link)) {
         ROS_ERROR_NAMED(PP_LOGGER, "Failed to set planning link to '%s'", planning_link.c_str());
-        return context;
+        return null_context;
     }
 
     bool res = true;
@@ -138,48 +143,25 @@ auto SBPLPlannerManager::getPlanningContext(
     res &= sbpl_model->setPlanningFrame(planning_scene->getPlanningFrame());
     if (!res) {
         ROS_WARN_NAMED(PP_LOGGER, "Failed to set SBPL Robot Model's planning scene or planning frame");
-        return context;
+        return null_context;
     }
 
-    ///////////////////////////////////////////
-    // Initialize a new SBPL Planning Context
-    ///////////////////////////////////////////
+    /////////////////////////////////////////////
+    // Initialize/Update SBPL Planning Context //
+    /////////////////////////////////////////////
 
 #if 0
     logPlanningScene(*planning_scene);
 #endif
     logMotionPlanRequest(req);
 
-    auto sbpl_context = std::unique_ptr<SBPLPlanningContext>();
-    sbpl_context.reset(new SBPLPlanningContext(sbpl_model, "sbpl_planning_context", req.group_name));
-
-    // find a configuration for this group + planner_id
-    auto& configs = getPlannerConfigurations();
-
-    // merge parameters from global group parameters and parameters for the
-    // selected planning configuration
-    std::map<std::string, std::string> all_params;
-    for (auto it = begin(configs); it != end(configs); ++it) {
-        auto& name = it->first;
-        auto& settings = it->second;
-        auto& group_name = req.group_name;
-        if (name == group_name) {
-            all_params.insert(begin(settings.config), end(settings.config));
-        } else if (name == req.planner_id) {
-            all_params.insert(begin(settings.config), end(settings.config));
-        }
-    }
-
-    if (!sbpl_context->init(all_params)) {
-        ROS_ERROR_NAMED(PP_LOGGER, "Failed to initialize SBPL Planning Context");
-        return context;
-    }
+    auto sbpl_context = mutable_me->getPlanningContextForPlanner(
+            sbpl_model, req.planner_id);
 
     sbpl_context->setPlanningScene(planning_scene);
     sbpl_context->setMotionPlanRequest(req);
 
-    context = std::move(sbpl_context);
-    return context;
+    return std::move(sbpl_context);
 }
 
 bool SBPLPlannerManager::canServiceRequest(
@@ -674,28 +656,63 @@ bool SBPLPlannerManager::loadSettingsMap(
     return true;
 }
 
-auto SBPLPlannerManager::getModelForGroup(
-    const std::string& group_name)
+auto SBPLPlannerManager::getModelForGroup(const std::string& group_name)
     -> MoveItRobotModel*
 {
     auto it = m_sbpl_models.find(group_name);
-    if (it == m_sbpl_models.end()) {
-        auto ent = m_sbpl_models.insert(
-                std::make_pair(group_name, std::make_shared<MoveItRobotModel>()));
-        assert(ent.second);
-        MoveItRobotModel* sbpl_model = ent.first->second.get();
-        if (!sbpl_model->init(m_robot_model, group_name)) {
-            m_sbpl_models.erase(ent.first);
+    if (it == end(m_sbpl_models)) {
+        auto model = make_unique<MoveItRobotModel>();
+        if (!model->init(m_robot_model, group_name)) {
             ROS_WARN_NAMED(PP_LOGGER, "Failed to initialize SBPL Robot Model");
-            return nullptr;
+            return NULL;
         }
 
         ROS_INFO_NAMED(PP_LOGGER, "Created SBPL Robot Model for group '%s'", group_name.c_str());
-        return sbpl_model;
-    }
-    else {
+        auto ent = m_sbpl_models.insert(std::make_pair(group_name, std::move(model)));
+        return ent.first->second.get();
+    } else {
         ROS_DEBUG_NAMED(PP_LOGGER, "Use existing SBPL Robot Model for group '%s'", group_name.c_str());
         return it->second.get();
+    }
+}
+
+auto SBPLPlannerManager::getPlanningContextForPlanner(
+    MoveItRobotModel* model,
+    const std::string& planner_id)
+    -> boost::shared_ptr<SBPLPlanningContext>
+{
+    boost::shared_ptr<SBPLPlanningContext> null_context;
+    auto it = m_contexts.find(planner_id);
+    if (it == end(m_contexts)) {
+        auto context = boost::make_shared<SBPLPlanningContext>(
+                model, "sbpl_planning_context", model->planningGroupName());
+
+        // find a configuration for this group + planner_id
+        auto& configs = this->getPlannerConfigurations();
+
+        // merge parameters from global group parameters and parameters for the
+        // selected planning configuration
+        std::map<std::string, std::string> all_params;
+        for (auto it = begin(configs); it != end(configs); ++it) {
+            auto& name = it->first;
+            auto& settings = it->second;
+            auto& group_name = model->planningGroupName();
+            if (name == group_name) {
+                all_params.insert(begin(settings.config), end(settings.config));
+            } else if (name == planner_id) {
+                all_params.insert(begin(settings.config), end(settings.config));
+            }
+        }
+
+        if (!context->init(all_params)) {
+            ROS_ERROR_NAMED(PP_LOGGER, "Failed to initialize SBPL Planning Context");
+            return null_context;
+        }
+
+        m_contexts.insert(std::make_pair(planner_id, context));
+        return context;
+    } else {
+        return it->second;
     }
 }
 
@@ -707,19 +724,18 @@ auto SBPLPlannerManager::selectPlanningLink(
         return std::string(); // doesn't matter, we'll bail out soon
     }
 
-    const auto& goal_constraint = req.goal_constraints.front();
+    auto& goal_constraint = req.goal_constraints.front();
     // should've received one pose constraint for a single link, o/w
     // canServiceRequest would have complained
     if (!goal_constraint.position_constraints.empty()) {
-        const auto& position_constraint = goal_constraint.position_constraints.front();
+        auto& position_constraint = goal_constraint.position_constraints.front();
         return position_constraint.link_name;
     }
 
     // it's still useful to have a planning link for obstacle-based
     // heuristic information...inspect the joint model group
 
-    const moveit::core::JointModelGroup* jmg =
-            m_robot_model->getJointModelGroup(req.group_name);
+    auto* jmg = m_robot_model->getJointModelGroup(req.group_name);
 
     std::vector<std::string> ee_tips;
     if (jmg->getEndEffectorTips(ee_tips) && !ee_tips.empty()) {
