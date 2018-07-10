@@ -118,6 +118,17 @@ public:
         const robot_state::RobotState& state,
         const AllowedCollisionMatrix& acm) const;
 
+    void distanceRobot(
+        const collision_detection::DistanceRequest& req,
+        collision_detection::DistanceResult& res,
+        const collision_detection::CollisionRobot&,
+        const moveit::core::RobotState&) const override;
+
+    void distanceWorld(
+        const collision_detection::DistanceRequest& req,
+        collision_detection::DistanceResult& res,
+        const collision_detection::CollisionWorld&) const override;
+
     double distanceWorld(const CollisionWorld& world) const;
 
     double distanceWorld(

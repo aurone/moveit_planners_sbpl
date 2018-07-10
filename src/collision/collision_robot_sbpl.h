@@ -140,6 +140,18 @@ public:
     virtual double distanceSelf(
         const robot_state::RobotState& state,
         const AllowedCollisionMatrix& acm) const;
+
+    void distanceSelf(
+        const collision_detection::DistanceRequest& req,
+        collision_detection::DistanceResult& res,
+        const moveit::core::RobotState&) const override;
+
+    void distanceOther(
+        const collision_detection::DistanceRequest& req,
+        collision_detection::DistanceResult& res,
+        const moveit::core::RobotState& state,
+        const collision_detection::CollisionRobot&,
+        const moveit::core::RobotState&) const override;
     ///@}
 
 protected:

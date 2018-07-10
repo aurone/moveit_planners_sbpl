@@ -258,6 +258,24 @@ double CollisionRobotSBPL::distanceSelf(
     return -1.0;
 }
 
+void CollisionRobotSBPL::distanceSelf(
+    const collision_detection::DistanceRequest& req,
+    collision_detection::DistanceResult& res,
+    const moveit::core::RobotState&) const
+{
+    assert(0);
+}
+
+void CollisionRobotSBPL::distanceOther(
+    const collision_detection::DistanceRequest& req,
+    collision_detection::DistanceResult& res,
+    const moveit::core::RobotState& state,
+    const collision_detection::CollisionRobot&,
+    const moveit::core::RobotState&) const
+{
+    assert(0);
+}
+
 void CollisionRobotSBPL::updatedPaddingOrScaling(
     const std::vector<std::string>& links)
 {

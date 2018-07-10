@@ -178,6 +178,23 @@ double CollisionWorldSBPL::distanceRobot(
     return -1.0;
 }
 
+void CollisionWorldSBPL::distanceRobot(
+    const collision_detection::DistanceRequest& req,
+    collision_detection::DistanceResult& res,
+    const collision_detection::CollisionRobot&,
+    const moveit::core::RobotState&) const
+{
+    assert(0);
+}
+
+void CollisionWorldSBPL::distanceWorld(
+    const collision_detection::DistanceRequest& req,
+    collision_detection::DistanceResult& res,
+    const collision_detection::CollisionWorld&) const
+{
+    assert(0);
+}
+
 double CollisionWorldSBPL::distanceWorld(const CollisionWorld& world) const
 {
     // TODO: implement
