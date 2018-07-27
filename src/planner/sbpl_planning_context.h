@@ -78,6 +78,7 @@ private:
     double m_bfs_res_x;
     double m_bfs_res_y;
     double m_bfs_res_z;
+    double m_bfs_sphere_radius;
 
     /// \brief Initialize SBPL constructs
     /// \param[out] Reason for failure if initialization is unsuccessful

@@ -278,14 +278,6 @@ bool SBPLPlanningContext::init(const std::map<std::string, std::string>& config)
 
     smpl::PlanningParams pp;
 
-    //////////////////////////////////
-    // parse state space parameters //
-    //////////////////////////////////
-
-    pp.planning_frame = m_robot_model->planningFrame();
-
-    // NOTE: default cost function parameters
-
     ////////////////////////////////
     // parse heuristic parameters //
     ////////////////////////////////
@@ -293,13 +285,13 @@ bool SBPLPlanningContext::init(const std::map<std::string, std::string>& config)
     auto bfs_res_x = 0.0;
     auto bfs_res_y = 0.0;
     auto bfs_res_z = 0.0;
-    pp.planning_link_sphere_radius = 0.0;
+    auto bfs_sphere_radius = 0.0;
     if (m_use_bfs) {
         try {
             bfs_res_x = std::stod(config.at("bfs_res_x"));
             bfs_res_y = std::stod(config.at("bfs_res_y"));
             bfs_res_z = std::stod(config.at("bfs_res_z"));
-            pp.planning_link_sphere_radius = std::stod(config.at("bfs_sphere_radius"));
+            bfs_sphere_radius = std::stod(config.at("bfs_sphere_radius"));
 
             if (bfs_res_x != bfs_res_y || bfs_res_x != bfs_res_z) {
                 ROS_WARN_NAMED(PP_LOGGER, "Distance field currently only supports uniformly discretized grids. Using x resolution (%0.3f) as resolution for all dimensions", bfs_res_x);
@@ -372,6 +364,7 @@ bool SBPLPlanningContext::init(const std::map<std::string, std::string>& config)
     m_bfs_res_x = bfs_res_x;
     m_bfs_res_y = bfs_res_y;
     m_bfs_res_z = bfs_res_z;
+    m_bfs_sphere_radius = bfs_sphere_radius;
 
     return true;
 }
@@ -385,8 +378,6 @@ bool SBPLPlanningContext::initSBPL(std::string& why)
     }
 
     auto& req = getMotionPlanRequest();
-
-    auto& planning_frame = scene->getPlanningFrame();
 
     ////////////////////
     // Collision Model
@@ -548,7 +539,7 @@ bool SBPLPlanningContext::initHeuristicGrid(
     auto res_y_m = m_use_bfs ? m_bfs_res_y : default_bfs_res;
     auto res_z_m = m_use_bfs ? m_bfs_res_z : default_bfs_res;
 
-    auto max_distance = m_use_bfs ?  m_pp.planning_link_sphere_radius + res_x_m : res_x_m;
+    auto max_distance = m_bfs_sphere_radius + res_x_m;
 
     Eigen::Affine3d T_planning_workspace;
     T_planning_workspace = Eigen::Translation3d(
