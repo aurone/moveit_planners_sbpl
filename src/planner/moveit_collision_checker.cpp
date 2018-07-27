@@ -324,7 +324,7 @@ auto MoveItCollisionChecker::getCollisionModelVisualization(
             ros::Duration(0),
             true);
 
-    auto* tip_link = m_robot_model->planningTipLink();
+    auto* tip_link = m_robot_model->planningLink();
     if (tip_link) {
         auto& T_model_tip = robot_state.getGlobalLinkTransform(tip_link->getName());
         auto frame_markers = viz::getFrameMarkerArray(

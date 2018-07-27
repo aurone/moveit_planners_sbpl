@@ -66,64 +66,49 @@ public:
 
     bool init(
         const moveit::core::RobotModelConstPtr& robot_model,
-        const std::string& group_name);
+        const std::string& group_name,
+        const std::string& ik_group_name = std::string());
 
     bool initialized() const;
 
-    bool setPlanningLink(const std::string& name);
-    const moveit::core::LinkModel* planningTipLink() const;
+    auto moveitRobotModel() const -> moveit::core::RobotModelConstPtr;
+    auto planningGroupName() const -> const std::string&;
+    auto planningJointGroup() const -> const moveit::core::JointModelGroup*;
 
-    void printRobotModelInformation();
+    auto ikGroupName() const -> const std::string&;
+    auto ikGroup() const -> const moveit::core::JointModelGroup*;
+
+    int activeVariableCount() const;
+    auto planningVariableNames() const -> const std::vector<std::string>&;
+    auto activeVariableIndices() const -> const std::vector<int>&;
+    auto variableMinLimits() const -> const std::vector<double>&;
+    auto variableMaxLimits() const -> const std::vector<double>&;
+    auto variableContinuous() const -> const std::vector<bool>&;
+
+    bool setPlanningLink(const std::string& name);
+    auto planningLink() const -> const moveit::core::LinkModel*;
+
+    bool setPlanningFrame(const std::string& planning_frame);
+    auto planningFrame() const -> const std::string&;
+
+    bool updateReferenceState(const moveit::core::RobotState& state);
 
     bool setPlanningScene(const planning_scene::PlanningSceneConstPtr& state);
 
-    const std::string& planningGroupName() const;
-    const moveit::core::JointModelGroup* planningJointGroup() const;
+    void printRobotModelInformation();
 
-    bool setPlanningFrame(const std::string& planning_frame);
-    const std::string& planningFrame() const;
-
-    /// \name Planning Joint Variable Properties
-    ///@{
-    int activeVariableCount() const;
-    const std::vector<std::string>& planningVariableNames() const;
-    const std::vector<int>& activeVariableIndices() const;
-    const std::vector<double>& variableMinLimits() const;
-    const std::vector<double>& variableMaxLimits() const;
-    const std::vector<bool>& variableContinuous() const;
-    ///@}
-
-    moveit::core::RobotModelConstPtr moveitRobotModel() const;
-
-    Eigen::Affine3d computeFK(
-        const sbpl::motion::RobotState& angles,
-        const std::string& name);
-
-    /// \namem Reimplemented Public Functions from Extension
-    ///@{
-    sbpl::motion::Extension* getExtension(size_t class_code) override;
-    ///@}
-
-    /// \name Reimplemented Public Functions from sbpl::motion::RobotModel
-    ///@{
-    double minPosLimit(int jidx) const override;
-    double maxPosLimit(int jidx) const override;
-    bool hasPosLimit(int jidx) const override;
-    bool isContinuous(int jidx) const override;
-    double velLimit(int jidx) const override;
-    double accLimit(int jidx) const override;
-
-    bool checkJointLimits(
+    auto computeFK(
         const sbpl::motion::RobotState& state,
-        bool verbose = false) override;
-    ///@}
+        const std::string& name)
+        -> Eigen::Affine3d;
 
-    /// \name sbpl::motion::ForwardKinematicsInterface Interface
+    /// \name ForwardKinematicsInterface Interface
     ///@{
-    Eigen::Affine3d computeFK(const sbpl::motion::RobotState& angles) override;
+    auto computeFK(const sbpl::motion::RobotState& state)
+        -> Eigen::Affine3d override;
     ///@}
 
-    /// \name sbpl::motion::InverseKinematicsInterface Interface
+    /// \name InverseKinematicsInterface Interface
     ///@{
     bool computeIK(
         const Eigen::Affine3d& pose,
@@ -138,7 +123,7 @@ public:
         sbpl::motion::ik_option::IkOption option = sbpl::motion::ik_option::UNRESTRICTED) override;
     ///@}
 
-    /// \name sbpl::motion::RedundantManipulatorInterface Interface
+    /// \name RedundantManipulatorInterface Interface
     ///@{
     const int redundantVariableCount() const override;
 
@@ -150,16 +135,34 @@ public:
         sbpl::motion::RobotState& solution) override;
     ///@}
 
-private:
+    /// \name RobotModel Interface
+    ///@{
+    double minPosLimit(int jidx) const override;
+    double maxPosLimit(int jidx) const override;
+    bool hasPosLimit(int jidx) const override;
+    bool isContinuous(int jidx) const override;
+    double velLimit(int jidx) const override;
+    double accLimit(int jidx) const override;
 
-    planning_scene::PlanningSceneConstPtr m_planning_scene;
+    bool checkJointLimits(
+        const sbpl::motion::RobotState& state,
+        bool verbose = false) override;
+    ///@}
+
+    /// \namem Extension Interface
+    ///@{
+    auto getExtension(size_t class_code) -> sbpl::motion::Extension* override;
+    ///@}
+
+private:
 
     moveit::core::RobotModelConstPtr m_robot_model;
     moveit::core::RobotStatePtr m_robot_state;
 
     std::string m_group_name;
+    std::string m_ik_group_name;
     const moveit::core::JointModelGroup* m_joint_group = nullptr;
-    const moveit::core::JointModelGroup* m_kinematics_group = nullptr;
+    const moveit::core::JointModelGroup* m_ik_group = nullptr;
 
     int m_active_var_count = 0;
     std::vector<std::string> m_active_var_names;
@@ -174,14 +177,16 @@ private:
 
     const moveit::core::LinkModel* m_tip_link = nullptr;
 
-    std::string m_planning_frame;
-    bool m_planning_frame_is_model_frame = false;
-
+    bool m_redundant_ik_group = false;
     int m_redundant_var_count = 0;
     std::vector<int> m_redundant_var_indices;
 
+    std::string m_planning_frame;
+    bool m_planning_frame_is_model_frame = false;
+    planning_scene::PlanningSceneConstPtr m_planning_scene;
+
 #ifdef PR2_WRIST_IK
-    std::shared_ptr<sbpl::motion::RPYSolver> m_rpy_solver;
+    std::unique_ptr<sbpl::motion::RPYSolver> m_rpy_solver;
     std::string m_forearm_roll_link;
     std::string m_wrist_flex_link;
     std::string m_wrist_roll_link;
