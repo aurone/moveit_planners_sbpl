@@ -12,6 +12,8 @@
 
 namespace sbpl_interface {
 
+class SBPLPlanningContext;
+
 class SBPLPlannerManager : public planning_interface::PlannerManager
 {
 public:
@@ -59,7 +61,11 @@ private:
     moveit::core::RobotModelConstPtr m_robot_model;
 
     // per-group sbpl robot model
-    std::map<std::string, std::shared_ptr<MoveItRobotModel>> m_sbpl_models;
+    // TODO: make unique per context instance
+    std::map<std::string, std::unique_ptr<MoveItRobotModel>> m_sbpl_models;
+
+    // per-configuration context
+    std::map<std::string, boost::shared_ptr<SBPLPlanningContext>> m_contexts;
 
     sbpl::VisualizerROS m_viz;
 
@@ -89,7 +95,13 @@ private:
     ///@}
 
     // retrive an already-initialized model for a given group
-    MoveItRobotModel* getModelForGroup(const std::string& group_name);
+    auto getModelForGroup(const std::string& group_name)
+        -> MoveItRobotModel*;
+
+    auto getPlanningContextForPlanner(
+        MoveItRobotModel* model,
+        const std::string& config)
+        -> boost::shared_ptr<SBPLPlanningContext>;
 
     std::string selectPlanningLink(
         const planning_interface::MotionPlanRequest& req) const;
