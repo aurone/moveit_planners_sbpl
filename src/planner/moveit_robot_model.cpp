@@ -760,7 +760,7 @@ bool MoveItRobotModel::computeUnrestrictedIK(
     }
     auto& T_model_link = T_planning_link; // rebrand
 
-    ROS_INFO_STREAM("start: " << start);
+    ROS_DEBUG_STREAM("start: " << start);
     for (size_t sind = 0; sind < start.size(); ++sind) {
         int avind = m_active_var_indices[sind];
         m_robot_state->setVariablePosition(avind, start[sind]);
@@ -788,7 +788,7 @@ bool MoveItRobotModel::computeUnrestrictedIK(
             ops))
     {
         Eigen::Quaterniond q(T_model_link.rotation());
-        ROS_INFO("Failed to set from ik to pose (%f, %f, %f, %f, %f, %f, %f)",
+        ROS_DEBUG("Failed to set from ik to pose (%f, %f, %f, %f, %f, %f, %f)",
                 T_model_link.translation().x(),
                 T_model_link.translation().y(),
                 T_model_link.translation().z(),
