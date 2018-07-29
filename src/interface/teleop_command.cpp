@@ -195,7 +195,7 @@ void TeleopCommand::update()
     }
 
     constexpr auto dt = 1.0 / 60.0;
-    const auto rps = sbpl::angles::to_radians(45.0);
+    const auto rps = smpl::angles::to_radians(45.0);
     const auto mps = 0.5;
 
     // Process trigger input for joint commands

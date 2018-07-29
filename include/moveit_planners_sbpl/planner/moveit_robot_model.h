@@ -50,10 +50,10 @@
 namespace sbpl_interface {
 
 class MoveItRobotModel :
-    public virtual sbpl::motion::RobotModel,
-    public virtual sbpl::motion::ForwardKinematicsInterface,
-    public virtual sbpl::motion::InverseKinematicsInterface,
-    public virtual sbpl::motion::RedundantManipulatorInterface
+    public virtual smpl::RobotModel,
+    public virtual smpl::ForwardKinematicsInterface,
+    public virtual smpl::InverseKinematicsInterface,
+    public virtual smpl::RedundantManipulatorInterface
 {
 public:
 
@@ -98,13 +98,13 @@ public:
     void printRobotModelInformation();
 
     auto computeFK(
-        const sbpl::motion::RobotState& state,
+        const smpl::RobotState& state,
         const std::string& name)
         -> Eigen::Affine3d;
 
     /// \name ForwardKinematicsInterface Interface
     ///@{
-    auto computeFK(const sbpl::motion::RobotState& state)
+    auto computeFK(const smpl::RobotState& state)
         -> Eigen::Affine3d override;
     ///@}
 
@@ -112,15 +112,15 @@ public:
     ///@{
     bool computeIK(
         const Eigen::Affine3d& pose,
-        const sbpl::motion::RobotState& start,
-        sbpl::motion::RobotState& solution,
-        sbpl::motion::ik_option::IkOption option = sbpl::motion::ik_option::UNRESTRICTED) override;
+        const smpl::RobotState& start,
+        smpl::RobotState& solution,
+        smpl::ik_option::IkOption option = smpl::ik_option::UNRESTRICTED) override;
 
     bool computeIK(
         const Eigen::Affine3d& pose,
-        const sbpl::motion::RobotState& start,
-        std::vector<sbpl::motion::RobotState>& solutions,
-        sbpl::motion::ik_option::IkOption option = sbpl::motion::ik_option::UNRESTRICTED) override;
+        const smpl::RobotState& start,
+        std::vector<smpl::RobotState>& solutions,
+        smpl::ik_option::IkOption option = smpl::ik_option::UNRESTRICTED) override;
     ///@}
 
     /// \name RedundantManipulatorInterface Interface
@@ -131,8 +131,8 @@ public:
 
     bool computeFastIK(
         const Eigen::Affine3d& pose,
-        const sbpl::motion::RobotState& start,
-        sbpl::motion::RobotState& solution) override;
+        const smpl::RobotState& start,
+        smpl::RobotState& solution) override;
     ///@}
 
     /// \name RobotModel Interface
@@ -145,13 +145,13 @@ public:
     double accLimit(int jidx) const override;
 
     bool checkJointLimits(
-        const sbpl::motion::RobotState& state,
+        const smpl::RobotState& state,
         bool verbose = false) override;
     ///@}
 
     /// \namem Extension Interface
     ///@{
-    auto getExtension(size_t class_code) -> sbpl::motion::Extension* override;
+    auto getExtension(size_t class_code) -> smpl::Extension* override;
     ///@}
 
 private:
@@ -186,7 +186,7 @@ private:
     planning_scene::PlanningSceneConstPtr m_planning_scene;
 
 #ifdef PR2_WRIST_IK
-    std::unique_ptr<sbpl::motion::RPYSolver> m_rpy_solver;
+    std::unique_ptr<smpl::RPYSolver> m_rpy_solver;
     std::string m_forearm_roll_link;
     std::string m_wrist_flex_link;
     std::string m_wrist_roll_link;
@@ -195,14 +195,14 @@ private:
 
     bool computeUnrestrictedIK(
         const Eigen::Affine3d& pose,
-        const sbpl::motion::RobotState& start,
-        sbpl::motion::RobotState& solution,
+        const smpl::RobotState& start,
+        smpl::RobotState& solution,
         bool lock_redundant_joints = false);
 
     bool computeWristIK(
         const Eigen::Affine3d& pose,
-        const sbpl::motion::RobotState& start,
-        sbpl::motion::RobotState& solution);
+        const smpl::RobotState& start,
+        smpl::RobotState& solution);
 
     bool transformToPlanningFrame(Eigen::Affine3d& T_model_link) const;
     bool transformToModelFrame(Eigen::Affine3d& T_planning_link) const;

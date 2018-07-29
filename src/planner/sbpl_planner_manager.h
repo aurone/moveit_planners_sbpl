@@ -67,7 +67,7 @@ private:
     // per-configuration context
     std::map<std::string, boost::shared_ptr<SBPLPlanningContext>> m_contexts;
 
-    sbpl::VisualizerROS m_viz;
+    smpl::VisualizerROS m_viz;
 
     planning_interface::PlannerConfigurationMap map;
 

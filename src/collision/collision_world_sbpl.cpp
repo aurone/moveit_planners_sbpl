@@ -254,7 +254,7 @@ void CollisionWorldSBPL::construct()
     LoadJointCollisionGroupMap(ph, m_jcgm_map);
 
     m_grid = createGridFor(m_wcm_config);
-    m_wcm = std::make_shared<sbpl::collision::WorldCollisionModel>(m_grid.get());
+    m_wcm = std::make_shared<smpl::collision::WorldCollisionModel>(m_grid.get());
 
     // TODO: allowed collisions matrix
 
@@ -277,7 +277,7 @@ void CollisionWorldSBPL::copyOnWrite()
 
         // copy over state from parent world collision model
         if (m_parent_wcm) {
-            m_wcm = std::make_shared<sbpl::collision::WorldCollisionModel>(
+            m_wcm = std::make_shared<smpl::collision::WorldCollisionModel>(
                     *m_parent_wcm, m_grid.get());
 
             m_parent_grid.reset();
@@ -297,7 +297,7 @@ auto CollisionWorldSBPL::FindObjectRepPair(
             begin(m_collision_objects), end(m_collision_objects), has_object);
 }
 
-sbpl::OccupancyGridPtr CollisionWorldSBPL::createGridFor(
+smpl::OccupancyGridPtr CollisionWorldSBPL::createGridFor(
     const CollisionGridConfig& config) const
 {
     ROS_DEBUG_NAMED(LOG, "  Creating Distance Field");
@@ -308,7 +308,7 @@ sbpl::OccupancyGridPtr CollisionWorldSBPL::createGridFor(
 
     const bool ref_counted = true;
 
-    auto dmap = std::make_shared<sbpl::OccupancyGrid>(
+    auto dmap = std::make_shared<smpl::OccupancyGrid>(
             config.size_x,
             config.size_y,
             config.size_z,
@@ -344,7 +344,7 @@ CollisionStateUpdaterPtr CollisionWorldSBPL::getCollisionStateUpdater(
     return gm;
 }
 
-const sbpl::DistanceMapInterface* CollisionWorldSBPL::distanceField(
+const smpl::DistanceMapInterface* CollisionWorldSBPL::distanceField(
     const std::string& robot_name,
     const std::string& group_name) const
 {
@@ -520,7 +520,7 @@ void CollisionWorldSBPL::checkRobotCollisionMutable(
 
     gm->update(state);
 
-    sbpl::collision::WorldCollisionModelConstPtr ewcm;
+    smpl::collision::WorldCollisionModelConstPtr ewcm;
     if (m_wcm) {
         ewcm = m_wcm;
     } else if (m_parent_wcm) {
@@ -530,7 +530,7 @@ void CollisionWorldSBPL::checkRobotCollisionMutable(
         setVacuousCollision(res);
         return;
     }
-    sbpl::collision::WorldCollisionDetector wcd(rcm.get(), ewcm.get());
+    smpl::collision::WorldCollisionDetector wcd(rcm.get(), ewcm.get());
 
     double dist;
     bool valid = wcd.checkCollision(
@@ -619,7 +619,7 @@ void CollisionWorldSBPL::checkRobotCollisionMutable(
 
 //    gm->update(state1);
 
-    sbpl::collision::WorldCollisionModelConstPtr ewcm;
+    smpl::collision::WorldCollisionModelConstPtr ewcm;
     if (m_wcm) {
         ewcm = m_wcm;
     } else if (m_parent_wcm) {
@@ -629,7 +629,7 @@ void CollisionWorldSBPL::checkRobotCollisionMutable(
         setVacuousCollision(res);
         return;
     }
-    sbpl::collision::WorldCollisionDetector wcd(rcm.get(), ewcm.get());
+    smpl::collision::WorldCollisionDetector wcd(rcm.get(), ewcm.get());
 
     double dist;
 
@@ -679,7 +679,7 @@ void CollisionWorldSBPL::processWorldUpdateUninitialized(
 
 }
 
-using namespace sbpl::collision;
+using namespace smpl::collision;
 
 void CollisionWorldSBPL::processWorldUpdateCreate(
     const World::ObjectConstPtr& object)
@@ -767,8 +767,8 @@ void CollisionWorldSBPL::processWorldUpdateRemoveShape(
 }
 
 auto CollisionWorldSBPL::getCollisionRobotVisualization(
-    sbpl::collision::RobotCollisionState& rcs,
-    sbpl::collision::AttachedBodiesCollisionState& abcs,
+    smpl::collision::RobotCollisionState& rcs,
+    smpl::collision::AttachedBodiesCollisionState& abcs,
     int gidx) const
     -> visualization_msgs::MarkerArray
 {

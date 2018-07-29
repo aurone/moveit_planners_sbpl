@@ -48,14 +48,14 @@ SBPLPlannerManager::SBPLPlannerManager() :
     m_viz()
 {
     ROS_DEBUG_NAMED(PP_LOGGER, "Constructed SBPL Planner Manager");
-    sbpl::viz::set_visualizer(&m_viz);
+    smpl::viz::set_visualizer(&m_viz);
 }
 
 SBPLPlannerManager::~SBPLPlannerManager()
 {
     ROS_DEBUG_NAMED(PP_LOGGER, "Destructed SBPL Planner Manager");
-    if (sbpl::viz::visualizer() == &m_viz) {
-        sbpl::viz::unset_visualizer();
+    if (smpl::viz::visualizer() == &m_viz) {
+        smpl::viz::unset_visualizer();
     }
 }
 
@@ -192,7 +192,7 @@ bool SBPLPlannerManager::canServiceRequest(
 
     // guard against unsupported constraints in the underlying interface
     std::string why;
-    if (!sbpl::motion::PlannerInterface::SupportsGoalConstraints(
+    if (!smpl::PlannerInterface::SupportsGoalConstraints(
             req.goal_constraints, why))
     {
         ROS_ERROR_NAMED(PP_LOGGER, "goal constraints not supported (%s)", why.c_str());

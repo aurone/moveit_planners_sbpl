@@ -21,8 +21,6 @@
 
 static const char* PP_LOGGER = "planning";
 
-namespace smpl = sbpl::motion;
-
 namespace moveit_msgs {
 
 static
@@ -126,7 +124,7 @@ auto CreateHeuristicGrid(
     double res_x,
     double res_z,
     double max_distance)
-    -> std::unique_ptr<sbpl::OccupancyGrid>;
+    -> std::unique_ptr<smpl::OccupancyGrid>;
 
 static
 bool GetPlanningFrameWorkspaceAABB(
@@ -136,8 +134,8 @@ bool GetPlanningFrameWorkspaceAABB(
 
 static
 void CopyDistanceField(
-    const sbpl::DistanceMapInterface& dfin,
-    sbpl::DistanceMapInterface& dfout);
+    const smpl::DistanceMapInterface& dfin,
+    smpl::DistanceMapInterface& dfout);
 
 SBPLPlanningContext::SBPLPlanningContext(
     MoveItRobotModel* robot_model,
@@ -393,10 +391,10 @@ bool SBPLPlanningContext::updatePlanner(
 }
 
 auto SBPLPlanningContext::updateOrCreateGrid(
-    std::unique_ptr<sbpl::OccupancyGrid> grid,
+    std::unique_ptr<smpl::OccupancyGrid> grid,
     const planning_scene::PlanningSceneConstPtr& scene,
     const moveit_msgs::WorkspaceParameters& workspace)
-    -> std::unique_ptr<sbpl::OccupancyGrid>
+    -> std::unique_ptr<smpl::OccupancyGrid>
 {
     // TODO: transforms may have changed that reposition the workspace within
     // the planning frame
@@ -431,7 +429,7 @@ auto SBPLPlanningContext::updateOrCreateGrid(
             grid_origin.x() = grid->originX();
             grid_origin.y() = grid->originY();
             grid_origin.z() = grid->originZ();
-            sbpl::collision::VoxelizeObject(
+            smpl::collision::VoxelizeObject(
                     object,
                     grid->resolution(),
                     grid_origin,
@@ -698,7 +696,7 @@ auto CreateHeuristicGrid(
     double res_x,
     double res_z,
     double max_distance)
-    -> std::unique_ptr<sbpl::OccupancyGrid>
+    -> std::unique_ptr<smpl::OccupancyGrid>
 {
     // create a distance field in the planning frame that represents the
     // workspace boundaries
@@ -742,7 +740,7 @@ auto CreateHeuristicGrid(
     ROS_DEBUG_NAMED(PP_LOGGER, "  origin_y: %0.3f", workspace_pos_in_planning.y());
     ROS_DEBUG_NAMED(PP_LOGGER, "  origin_z: %0.3f", workspace_pos_in_planning.z());
 
-    auto hdf = std::make_shared<sbpl::PropagationDistanceField>(
+    auto hdf = std::make_shared<smpl::PropagationDistanceField>(
             workspace_pos_in_planning.x(),
             workspace_pos_in_planning.y(),
             workspace_pos_in_planning.z(),
@@ -772,7 +770,7 @@ auto CreateHeuristicGrid(
             CopyDistanceField(*df, *hdf);
 
             ROS_INFO_NAMED(PP_LOGGER, "Successfully initialized heuristic grid from sbpl collision checker");
-            auto grid = make_unique<sbpl::OccupancyGrid>(hdf);
+            auto grid = make_unique<smpl::OccupancyGrid>(hdf);
             grid->setReferenceFrame(scene.getPlanningFrame());
             return grid;
         } else {
@@ -788,13 +786,13 @@ auto CreateHeuristicGrid(
     // instantiating a full cspace here and using available voxels state
     // information for a more accurate heuristic
 
-    auto grid = make_unique<sbpl::OccupancyGrid>(hdf);
+    auto grid = make_unique<smpl::OccupancyGrid>(hdf);
     grid->setReferenceFrame(scene.getPlanningFrame());
 
     // temporary storage for collision shapes/objects
-    std::vector<std::unique_ptr<sbpl::collision::CollisionShape>> shapes;
-    std::vector<std::unique_ptr<sbpl::collision::CollisionObject>> collision_objects;
-    sbpl::collision::WorldCollisionModel cmodel(grid.get());
+    std::vector<std::unique_ptr<smpl::collision::CollisionShape>> shapes;
+    std::vector<std::unique_ptr<smpl::collision::CollisionObject>> collision_objects;
+    smpl::collision::WorldCollisionModel cmodel(grid.get());
 
     // insert world objects into the collision model
     auto& world = cworld->getWorld();
@@ -802,7 +800,7 @@ auto CreateHeuristicGrid(
         int insert_count = 0;
         for (auto oit = world->begin(); oit != world->end(); ++oit) {
 
-            collision_objects.push_back(std::unique_ptr<sbpl::collision::CollisionObject>());
+            collision_objects.push_back(std::unique_ptr<smpl::collision::CollisionObject>());
             ConvertObjectToCollisionObjectShallow(oit->second, shapes, collision_objects.back());
             auto& collision_object = collision_objects.back();
 
@@ -824,8 +822,8 @@ auto CreateHeuristicGrid(
 }
 
 void CopyDistanceField(
-    const sbpl::DistanceMapInterface& dfin,
-    sbpl::DistanceMapInterface& dfout)
+    const smpl::DistanceMapInterface& dfin,
+    smpl::DistanceMapInterface& dfout)
 {
     std::vector<Eigen::Vector3d> points;
     for (int x = 0; x < dfout.numCellsX(); ++x) {

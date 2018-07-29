@@ -57,10 +57,10 @@ public:
 
     virtual ~CollisionRobotSBPL();
 
-    const sbpl::collision::RobotCollisionModelConstPtr&
+    const smpl::collision::RobotCollisionModelConstPtr&
     robotCollisionModel() const;
 
-    const sbpl::collision::RobotMotionCollisionModelConstPtr&
+    const smpl::collision::RobotMotionCollisionModelConstPtr&
     robotMotionCollisionModel() const;
 
     /// \name Reimplemented Public Functions
@@ -151,7 +151,7 @@ protected:
 
 private:
 
-    typedef std::shared_ptr<const sbpl::collision::CollisionModelConfig>
+    typedef std::shared_ptr<const smpl::collision::CollisionModelConfig>
     CollisionModelConfigConstPtr;
 
     CollisionGridConfig m_scm_config;
@@ -159,14 +159,14 @@ private:
     // mapping from joint group name to collision group name
     std::unordered_map<std::string, std::string> m_jcgm_map;
 
-    sbpl::collision::RobotCollisionModelConstPtr m_rcm;
-    sbpl::collision::RobotMotionCollisionModelConstPtr m_rmcm;
+    smpl::collision::RobotCollisionModelConstPtr m_rcm;
+    smpl::collision::RobotMotionCollisionModelConstPtr m_rmcm;
 
     CollisionStateUpdater m_updater;
 
     // self colllision models
-    sbpl::OccupancyGridPtr m_grid;
-    sbpl::collision::SelfCollisionModelPtr m_scm;
+    smpl::OccupancyGridPtr m_grid;
+    smpl::collision::SelfCollisionModelPtr m_scm;
 
     void setVacuousCollision(CollisionResult& res) const;
 
@@ -187,13 +187,13 @@ private:
 
     double getSelfCollisionPropagationDistance() const;
 
-    sbpl::OccupancyGridPtr createGridFor(
+    smpl::OccupancyGridPtr createGridFor(
         const CollisionGridConfig& config) const;
 
     visualization_msgs::MarkerArray
     getCollisionRobotVisualization(
-        sbpl::collision::RobotCollisionState& rcs,
-        sbpl::collision::AttachedBodiesCollisionState& abcs,
+        smpl::collision::RobotCollisionState& rcs,
+        smpl::collision::AttachedBodiesCollisionState& abcs,
         int gidx) const;
 };
 

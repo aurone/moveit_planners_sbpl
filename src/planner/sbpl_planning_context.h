@@ -65,12 +65,12 @@ private:
     MoveItRobotModel* m_robot_model;
     std::unique_ptr<MoveItCollisionChecker> m_collision_checker;
 
-    std::unique_ptr<sbpl::OccupancyGrid> m_grid;
+    std::unique_ptr<smpl::OccupancyGrid> m_grid;
 
-    std::unique_ptr<sbpl::motion::PlannerInterface> m_planner;
+    std::unique_ptr<smpl::PlannerInterface> m_planner;
 
     std::map<std::string, std::string> m_config;
-    sbpl::motion::PlanningParams m_pp;
+    smpl::PlanningParams m_pp;
 
     // The smpl-ized planner id ((search, heuristic, graph) triple)
     std::string m_planner_id;
@@ -93,10 +93,10 @@ private:
         const moveit_msgs::WorkspaceParameters& workspace);
 
     auto updateOrCreateGrid(
-        std::unique_ptr<sbpl::OccupancyGrid> grid,
+        std::unique_ptr<smpl::OccupancyGrid> grid,
         const planning_scene::PlanningSceneConstPtr& scene,
         const moveit_msgs::WorkspaceParameters& workspace)
-        -> std::unique_ptr<sbpl::OccupancyGrid>;
+        -> std::unique_ptr<smpl::OccupancyGrid>;
 };
 
 MOVEIT_CLASS_FORWARD(SBPLPlanningContext);

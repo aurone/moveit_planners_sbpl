@@ -48,8 +48,6 @@
 
 namespace sbpl_interface {
 
-namespace smpl = sbpl::motion;
-
 MoveItCollisionChecker::MoveItCollisionChecker() :
     Base(),
     m_robot_model(nullptr),
@@ -102,7 +100,7 @@ bool MoveItCollisionChecker::init(
 
     m_var_incs.reserve(m_robot_model->getPlanningJoints().size());
     for (auto& joint_name : m_robot_model->getPlanningJoints()) {
-        m_var_incs.push_back(sbpl::angles::to_radians(2.0));
+        m_var_incs.push_back(smpl::angles::to_radians(2.0));
     }
     ROS_INFO_STREAM("Increments: " << m_var_incs);
 
@@ -211,8 +209,8 @@ auto MoveItCollisionChecker::checkContinuousCollision(
 }
 
 auto MoveItCollisionChecker::checkInterpolatedPathCollision(
-    const sbpl::motion::RobotState& start,
-    const sbpl::motion::RobotState& finish)
+    const smpl::RobotState& start,
+    const smpl::RobotState& finish)
     -> bool
 {
     int waypoint_count = interpolatePathFast(start, finish, m_waypoint_path);
@@ -261,7 +259,7 @@ int MoveItCollisionChecker::interpolatePathFast(
     m_diffs.resize(m_robot_model->activeVariableCount(), 0.0);
     for (size_t vidx = 0; vidx < m_robot_model->activeVariableCount(); ++vidx) {
         if (m_robot_model->variableContinuous()[vidx]) {
-            m_diffs[vidx] = sbpl::angles::shortest_angle_diff(finish[vidx], start[vidx]);
+            m_diffs[vidx] = smpl::angles::shortest_angle_diff(finish[vidx], start[vidx]);
         }
         else {
             m_diffs[vidx] = finish[vidx] - start[vidx];
@@ -293,7 +291,7 @@ int MoveItCollisionChecker::interpolatePathFast(
     for (size_t vidx = 0; vidx < m_robot_model->activeVariableCount(); ++vidx) {
         if (m_robot_model->variableContinuous()[vidx]) {
             for (size_t widx = 0; widx < waypoint_count; ++widx) {
-                opath[widx][vidx] = sbpl::angles::normalize_angle(opath[widx][vidx]);
+                opath[widx][vidx] = smpl::angles::normalize_angle(opath[widx][vidx]);
             }
         }
     }
@@ -303,7 +301,7 @@ int MoveItCollisionChecker::interpolatePathFast(
 
 auto MoveItCollisionChecker::getCollisionModelVisualization(
     const smpl::RobotState& state)
-    -> std::vector<sbpl::visual::Marker>
+    -> std::vector<smpl::visual::Marker>
 {
     moveit::core::RobotState robot_state(*m_ref_state);
 
@@ -323,12 +321,12 @@ auto MoveItCollisionChecker::getCollisionModelVisualization(
             ros::Duration(0),
             true);
 
-    auto markers = sbpl::visual::ConvertMarkerArrayToMarkers(marker_arr);
+    auto markers = smpl::visual::ConvertMarkerArrayToMarkers(marker_arr);
 
     auto* tip_link = m_robot_model->planningLink();
     if (tip_link) {
         auto& T_model_tip = robot_state.getGlobalLinkTransform(tip_link->getName());
-        auto frame_markers = sbpl::visual::MakeFrameMarkers(
+        auto frame_markers = smpl::visual::MakeFrameMarkers(
                 T_model_tip,
                 m_robot_model->moveitRobotModel()->getModelFrame(),
                 "",

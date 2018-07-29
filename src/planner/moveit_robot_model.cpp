@@ -47,8 +47,6 @@ namespace sbpl_interface {
 
 static const char* LOG = "model";
 
-namespace smpl = sbpl::motion;
-
 /// Initialize the MoveItRobotModel for the given MoveIt! Robot Model and the
 /// group being planned for.
 bool MoveItRobotModel::init(
@@ -870,10 +868,10 @@ bool MoveItRobotModel::computeWristIK(
     // the orientation solver but I'm not convinced the orientation solver
     // works anymore
     double fr, fp, fy;
-    sbpl::angles::get_euler_zyx(forearm_rot, fy, fp, fr);
+    smpl::angles::get_euler_zyx(forearm_rot, fy, fp, fr);
 
     double wr, wp, wy;
-    sbpl::angles::get_euler_zyx(wrist_rot, wy, wp, wr);
+    smpl::angles::get_euler_zyx(wrist_rot, wy, wp, wr);
 
     // NOTE: calling fk to get these poses would be more convenient, but may
     // also pollute the robot state being used internally
