@@ -263,7 +263,6 @@ bool MoveItRobotModel::init(
             if (ik_group->canSetStateFromIK(tip->getName())) {
                 tip_link = tip;
                 ROS_DEBUG_NAMED(LOG, "  Found planning link '%s'", tip_link->getName().c_str());
-                setPlanningLink(tip->getName());
                 break;
             }
         }
