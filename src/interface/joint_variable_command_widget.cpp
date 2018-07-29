@@ -4,7 +4,7 @@
 #include <Eigen/Dense>
 #include <ros/console.h>
 #include <smpl/angles.h>
-#include <leatherman/print.h>
+#include <smpl/console/nonstd.h>
 
 #include <moveit_planners_sbpl/interface/robot_command_model.h>
 
@@ -666,14 +666,14 @@ void JointVariableCommandWidget::setJointVariableFromSpinBox(double value)
 
     auto& robot_model = m_model->getRobotModel();
 
-    ROS_DEBUG_NAMED(LOG, "Update joint variables %s from spinbox %p with value %0.3f", to_string(vindices).c_str(), spinbox, value);
+    ROS_DEBUG_STREAM_NAMED(LOG, "Update joint variables " << vindices << " from spinbox " << spinbox << " with value " << value);
 
     if (vindices.size() == 4) {
         // so much hackery here for quaternion controls
         // need to get the values from the other spinboxes
         auto& rpy_controls = m_vind_to_spinbox[vindices[0]];
 
-        ROS_DEBUG_NAMED(LOG, "rpy controls: %s", to_string(rpy_controls).c_str());
+        ROS_DEBUG_STREAM_NAMED(LOG, "rpy controls: " << rpy_controls);
 
         // attempt stability
         double r = std::round(rpy_controls[0]->value());

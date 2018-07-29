@@ -37,7 +37,6 @@
 // system includes
 #include <ros/ros.h>
 #include <geometric_shapes/shape_operations.h>
-#include <leatherman/print.h>
 #include <smpl/debug/visualize.h>
 
 // module includes

@@ -3,11 +3,11 @@
 // system includes
 #include <moveit/collision_detection/world.h>
 #include <eigen_conversions/eigen_msg.h>
-#include <leatherman/print.h>
 #include <moveit/planning_scene/planning_scene.h>
 #include <moveit/robot_state/conversions.h>
 #include <moveit_msgs/GetMotionPlan.h>
 #include <moveit_msgs/PlanningScene.h>
+#include <smpl/console/nonstd.h>
 #include <smpl/ros/propagation_distance_field.h>
 
 // project includes
@@ -20,7 +20,8 @@ namespace smpl = sbpl::motion;
 
 namespace moveit_msgs {
 
-static std::string to_string(moveit_msgs::MoveItErrorCodes code)
+static
+auto to_cstring(moveit_msgs::MoveItErrorCodes code) -> const char*
 {
     switch (code.val) {
     case moveit_msgs::MoveItErrorCodes::SUCCESS:
@@ -177,7 +178,7 @@ bool SBPLPlanningContext::solve(planning_interface::MotionPlanResponse& res)
     ROS_INFO_NAMED(PP_LOGGER, "Motion Plan Response:");
     ROS_INFO_NAMED(PP_LOGGER, "  Trajectory: %zu points", traj->getWayPointCount());
     ROS_INFO_NAMED(PP_LOGGER, "  Planning Time: %0.3f seconds", res_msg.planning_time);
-    ROS_INFO_NAMED(PP_LOGGER, "  Error Code: %d (%s)", res_msg.error_code.val, to_string(res_msg.error_code).c_str());
+    ROS_INFO_NAMED(PP_LOGGER, "  Error Code: %d (%s)", res_msg.error_code.val, to_cstring(res_msg.error_code));
 
     res.trajectory_ = traj;
     res.planning_time_ = res_msg.planning_time;

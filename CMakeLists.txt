@@ -21,7 +21,6 @@ find_package(
         eigen_conversions
         geometric_shapes
         interactive_markers
-        leatherman
         moveit_core
         moveit_msgs
         moveit_ros_planning
@@ -40,7 +39,6 @@ catkin_package(
     CATKIN_DEPENDS
         eigen_conversions
         geometric_shapes
-        leatherman
         smpl
         smpl_ros
         sbpl_collision_checking

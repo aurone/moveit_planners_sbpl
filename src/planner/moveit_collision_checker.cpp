@@ -37,12 +37,12 @@
 #include <limits>
 
 // system includes
-#include <leatherman/print.h>
-#include <leatherman/viz.h>
 #include <ros/console.h>
 #include <ros/ros.h>
 #include <smpl/angles.h>
 #include <smpl/debug/marker_conversions.h>
+#include <smpl/debug/marker_utils.h>
+#include <smpl/console/nonstd.h>
 
 #include <moveit_planners_sbpl/planner/moveit_robot_model.h>
 
@@ -57,7 +57,6 @@ MoveItCollisionChecker::MoveItCollisionChecker() :
     m_ref_state()
 {
     ros::NodeHandle nh;
-    m_vpub = nh.advertise<visualization_msgs::MarkerArray>("visualization_markers", 10);
 }
 
 MoveItCollisionChecker::~MoveItCollisionChecker()
@@ -105,7 +104,7 @@ bool MoveItCollisionChecker::init(
     for (auto& joint_name : m_robot_model->getPlanningJoints()) {
         m_var_incs.push_back(sbpl::angles::to_radians(2.0));
     }
-    ROS_INFO("Increments: %s", to_string(m_var_incs).c_str());
+    ROS_INFO_STREAM("Increments: " << m_var_incs);
 
     m_ref_state.reset(new moveit::core::RobotState(scene->getRobotModel()));
     *m_ref_state = ref_state;
@@ -324,20 +323,19 @@ auto MoveItCollisionChecker::getCollisionModelVisualization(
             ros::Duration(0),
             true);
 
+    auto markers = sbpl::visual::ConvertMarkerArrayToMarkers(marker_arr);
+
     auto* tip_link = m_robot_model->planningLink();
     if (tip_link) {
         auto& T_model_tip = robot_state.getGlobalLinkTransform(tip_link->getName());
-        auto frame_markers = viz::getFrameMarkerArray(
-                T_model_tip, m_robot_model->moveitRobotModel()->getModelFrame(), "", marker_arr.markers.size());
-        marker_arr.markers.insert(marker_arr.markers.end(), frame_markers.markers.begin(), frame_markers.markers.end());
-    }
-
-    std::vector<sbpl::visual::Marker> markers;
-    markers.reserve(marker_arr.markers.size());
-    for (auto& mm : marker_arr.markers) {
-        sbpl::visual::Marker m;
-        sbpl::visual::ConvertMarkerMsgToMarker(mm, m);
-        markers.push_back(std::move(m));
+        auto frame_markers = sbpl::visual::MakeFrameMarkers(
+                T_model_tip,
+                m_robot_model->moveitRobotModel()->getModelFrame(),
+                "",
+                markers.size());
+        markers.insert(
+                end(markers),
+                begin(frame_markers), end(frame_markers));
     }
 
     return markers;

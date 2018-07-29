@@ -33,13 +33,14 @@
 
 #include <moveit_planners_sbpl/planner/moveit_robot_model.h>
 
+// standard includes
 #include <math.h>
 
+// system includes
 #include <eigen_conversions/eigen_kdl.h>
-#include <leatherman/print.h>
-#include <leatherman/utils.h>
 #include <ros/console.h>
 #include <smpl/angles.h>
+#include <smpl/console/nonstd.h>
 #include <tf_conversions/tf_eigen.h>
 
 namespace sbpl_interface {
@@ -111,8 +112,8 @@ bool MoveItRobotModel::init(
         }
     }
     ROS_DEBUG_NAMED(LOG, "Active Variable Count: %d", active_var_count);
-    ROS_DEBUG_NAMED(LOG, "Active Variable Names: %s", to_string(active_var_names).c_str());
-    ROS_DEBUG_NAMED(LOG, "Active Variable Indices: %s", to_string(active_var_indices).c_str());
+    ROS_DEBUG_STREAM_NAMED(LOG, "Active Variable Names: " << active_var_names);
+    ROS_DEBUG_STREAM_NAMED(LOG, "Active Variable Indices: " << active_var_indices);
 
     ///////////////////////////////////////////////////////////////
     // Cache the limits and properties of all planning variables //
@@ -240,9 +241,9 @@ bool MoveItRobotModel::init(
         }
     }
 
-    ROS_DEBUG_NAMED(LOG, "Min Limits: %s", to_string(var_min_limits).c_str());
-    ROS_DEBUG_NAMED(LOG, "Max Limits: %s", to_string(var_max_limits).c_str());
-    ROS_DEBUG_NAMED(LOG, "Continuous: %s", to_string(var_continuous).c_str());
+    ROS_DEBUG_STREAM_NAMED(LOG, "Min Limits: " << var_min_limits);
+    ROS_DEBUG_STREAM_NAMED(LOG, "Max Limits: " << var_max_limits);
+    ROS_DEBUG_STREAM_NAMED(LOG, "Continuous: " << var_continuous);
 
     ///////////////////////////////////////////////////////////////////////////
     // Identify a default tip link to use for forward and inverse kinematics //
@@ -331,7 +332,7 @@ bool MoveItRobotModel::init(
         }
 
         ROS_DEBUG_NAMED(LOG, "Found %d redundancy variables", redundant_var_count);
-        ROS_DEBUG_NAMED(LOG, "Redundant variable indices: %s", to_string(redundant_var_indices).c_str());
+        ROS_DEBUG_STREAM_NAMED(LOG, "Redundant variable indices: " << redundant_var_indices);
     }
 
     // TODO: determine whether the orientation solver is applicable for an
@@ -391,7 +392,7 @@ bool MoveItRobotModel::init(
                 end(joint->getVariableNames()));
     }
     setPlanningJoints(planning_variables);
-    ROS_DEBUG_NAMED(LOG, "Planning Variables: %s", to_string(getPlanningJoints()).c_str());
+    ROS_DEBUG_STREAM_NAMED(LOG, "Planning Variables: " << getPlanningJoints());
 
     m_var_min_limits = std::move(var_min_limits);
     m_var_max_limits = std::move(var_max_limits);
@@ -840,7 +841,7 @@ bool MoveItRobotModel::computeUnrestrictedIK(
         solution[avind] = m_robot_state->getVariablePosition(vind);
     }
 
-    ROS_DEBUG("IK Succeeded with solution %s", to_string(solution).c_str());
+    ROS_DEBUG_STREAM("IK Succeeded with solution " << solution);
     return true;
 }
 

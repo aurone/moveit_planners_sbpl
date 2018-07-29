@@ -124,8 +124,6 @@ private:
         const sbpl::motion::RobotState& start,
         const sbpl::motion::RobotState& finish,
         std::vector<sbpl::motion::RobotState>& opath);
-
-    ros::Publisher m_vpub;
 };
 
 } // namespace sbpl_interface

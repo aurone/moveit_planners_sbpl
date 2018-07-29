@@ -37,7 +37,7 @@
 
 // system includes
 #include <eigen_conversions/eigen_msg.h>
-#include <leatherman/print.h>
+#include <smpl/console/nonstd.h>
 
 namespace collision_detection {
 
@@ -75,8 +75,8 @@ bool CollisionStateUpdater::init(
         if (m_rcm_var_indices[i] != m_rcm_var_indices[i - 1] + 1) {
             m_inorder = false;
             ROS_INFO("Joint variables not in order:");
-            ROS_INFO("  RobotModel: %s", to_string(robot.getVariableNames()).c_str());
-            ROS_INFO("  RobotCollisionModel: %s", to_string(rcm->jointVarNames()).c_str());
+            ROS_INFO_STREAM("  RobotModel: " << robot.getVariableNames());
+            ROS_INFO_STREAM("  RobotCollisionModel: " << rcm->jointVarNames());
             break;
         }
     }

@@ -1,10 +1,12 @@
 #include <moveit_planners_sbpl/interface/utils.h>
 
+// standard includes
 #include <algorithm>
 #include <stack>
 #include <utility>
 
-#include <leatherman/print.h>
+// system includes
+#include <smpl/console/nonstd.h>
 
 namespace sbpl_interface {
 
@@ -22,8 +24,8 @@ bool ComputeAxisAlignedBoundingBox(
     Eigen::Vector3d bb_max = Eigen::Vector3d::Zero();
 
     for (size_t sidx = 0; sidx < link.getShapes().size(); ++sidx) {
-        const auto& shape = link.getShapes()[sidx];
-        const auto& shape_transform = link.getCollisionOriginTransforms()[sidx];
+        auto& shape = link.getShapes()[sidx];
+        auto& shape_transform = link.getCollisionOriginTransforms()[sidx];
         Eigen::Vector3d shape_bb_pos;
         Eigen::Vector3d shape_bb_size;
         if (!ComputeAxisAlignedBoundingBox(*shape, shape_bb_pos, shape_bb_size)) {
@@ -400,13 +402,13 @@ std::ostream& operator<<(std::ostream& o, const RobotModelInfo& info)
             o << "    Base Frame: " << solver->getBaseFrame() << '\n';
             o << "    Default Timeout: " << solver->getDefaultTimeout() << '\n';
             o << "    Group Name: " << solver->getGroupName() << '\n';
-            o << "    Joint Names: " << to_string(solver->getJointNames()) << '\n';
-            o << "    getLinkNames: " << to_string(solver->getLinkNames()) << '\n';
+            o << "    Joint Names: " << solver->getJointNames() << '\n';
+            o << "    getLinkNames: " << solver->getLinkNames() << '\n';
             std::vector<unsigned int> redundant_jinds;
             solver->getRedundantJoints(redundant_jinds);
-            o << "    Redundant Joint Indices: " << to_string(redundant_jinds) << '\n';
+            o << "    Redundant Joint Indices: " << redundant_jinds << '\n';
             o << "    Search Discretization: " << solver->getSearchDiscretization() << '\n';
-            o << "    Tip Frames: " << to_string(solver->getTipFrames()) << '\n';
+            o << "    Tip Frames: " << solver->getTipFrames() << '\n';
         }
     }
 

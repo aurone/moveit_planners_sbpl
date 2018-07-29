@@ -8,7 +8,6 @@
 // system includes
 #include <eigen_conversions/eigen_msg.h>
 #include <geometric_shapes/shape_operations.h>
-#include <leatherman/print.h>
 #include <moveit/robot_state/conversions.h>
 #include <moveit_msgs/GetStateValidity.h>
 #include <moveit_msgs/PlanningSceneWorld.h>

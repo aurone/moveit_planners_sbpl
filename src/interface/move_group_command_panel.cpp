@@ -3,7 +3,6 @@
 // system includes
 #include <eigen_conversions/eigen_msg.h>
 #include <geometric_shapes/shape_operations.h>
-#include <leatherman/viz.h>
 #include <visualization_msgs/MarkerArray.h>
 
 // project includes
@@ -742,7 +741,7 @@ MoveGroupCommandPanel::getWorkspaceVisualization() const
 
     visualization_msgs::MarkerArray ma;
 
-    const auto& workspace = m_model.workspace();
+    auto& workspace = m_model.workspace();
 
     visualization_msgs::Marker marker;
 
@@ -764,12 +763,12 @@ MoveGroupCommandPanel::getWorkspaceVisualization() const
     marker.lifetime = ros::Duration(0);
 
     std::vector<geometry_msgs::Point> pts(10);
-    const double origin_x = workspace.min_corner.x;
-    const double origin_y = workspace.min_corner.y;
-    const double origin_z = workspace.min_corner.z;
-    const double dim_x = workspace.max_corner.x - workspace.min_corner.x;
-    const double dim_y = workspace.max_corner.y - workspace.min_corner.y;
-    const double dim_z = workspace.max_corner.z - workspace.min_corner.z;
+    auto origin_x = workspace.min_corner.x;
+    auto origin_y = workspace.min_corner.y;
+    auto origin_z = workspace.min_corner.z;
+    auto dim_x = workspace.max_corner.x - workspace.min_corner.x;
+    auto dim_y = workspace.max_corner.y - workspace.min_corner.y;
+    auto dim_z = workspace.max_corner.z - workspace.min_corner.z;
     pts[0].x = origin_x;        pts[0].y = origin_y;        pts[0].z = origin_z;
     pts[1].x = origin_x+dim_x;  pts[1].y = origin_y;        pts[1].z = origin_z;
     pts[2].x = origin_x+dim_x;  pts[2].y = origin_y+dim_y;  pts[2].z = origin_z;
