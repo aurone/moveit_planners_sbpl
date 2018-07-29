@@ -39,9 +39,14 @@
 #include <sbpl_collision_checking/robot_collision_model.h>
 #include <sbpl_collision_checking/robot_motion_collision_model.h>
 #include <sbpl_collision_checking/self_collision_model.h>
+#include <smpl/forward.h>
 
 // module includes
 #include "collision_common_sbpl.h"
+
+namespace smpl {
+SBPL_CLASS_FORWARD(OccupancyGrid);
+}
 
 namespace collision_detection {
 

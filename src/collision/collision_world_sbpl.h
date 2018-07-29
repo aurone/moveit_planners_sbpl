@@ -48,9 +48,14 @@
 #include <sbpl_collision_checking/shapes.h>
 #include <sbpl_collision_checking/world_collision_detector.h>
 #include <smpl/occupancy_grid.h>
+#include <smpl/forward.h>
 
 // project includes
 #include "collision_robot_sbpl.h"
+
+namespace smpl {
+SBPL_CLASS_FORWARD(OccupancyGrid);
+}
 
 namespace collision_detection {
 
