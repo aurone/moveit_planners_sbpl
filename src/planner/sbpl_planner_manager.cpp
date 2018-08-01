@@ -1,6 +1,6 @@
 #include "sbpl_planner_manager.h"
 
-#include <leatherman/print.h>
+// system includes
 #include <moveit/planning_scene/planning_scene.h>
 #include <moveit/robot_state/conversions.h>
 
@@ -37,20 +37,25 @@ namespace sbpl_interface {
 // pp = planning plugin
 static const char* PP_LOGGER = "planning";
 
+template <class T, class... Args>
+auto make_unique(Args&&... args) -> std::unique_ptr<T> {
+    return std::unique_ptr<T>(new T(args...));
+}
+
 SBPLPlannerManager::SBPLPlannerManager() :
     Base(),
     m_robot_model(),
     m_viz()
 {
     ROS_DEBUG_NAMED(PP_LOGGER, "Constructed SBPL Planner Manager");
-    sbpl::viz::set_visualizer(&m_viz);
+    smpl::viz::set_visualizer(&m_viz);
 }
 
 SBPLPlannerManager::~SBPLPlannerManager()
 {
     ROS_DEBUG_NAMED(PP_LOGGER, "Destructed SBPL Planner Manager");
-    if (sbpl::viz::visualizer() == &m_viz) {
-        sbpl::viz::unset_visualizer();
+    if (smpl::viz::visualizer() == &m_viz) {
+        smpl::viz::unset_visualizer();
     }
 }
 
@@ -74,7 +79,7 @@ bool SBPLPlannerManager::initialize(
     return true;
 }
 
-std::string SBPLPlannerManager::getDescription() const
+auto SBPLPlannerManager::getDescription() const -> std::string
 {
     return "Search-Based Planning Algorithms";
 }
@@ -82,43 +87,46 @@ std::string SBPLPlannerManager::getDescription() const
 void SBPLPlannerManager::getPlanningAlgorithms(
     std::vector<std::string>& algs) const
 {
-    const auto& pcm = getPlannerConfigurations();
-    for (const auto& entry : pcm) {
-        algs.push_back(entry.first);
+    auto& configs = getPlannerConfigurations();
+    for (auto& entry : configs) {
+        if (entry.first.find('[') != std::string::npos) {
+            algs.push_back(entry.first);
+        }
     }
 }
 
-planning_interface::PlanningContextPtr SBPLPlannerManager::getPlanningContext(
+auto SBPLPlannerManager::getPlanningContext(
     const planning_scene::PlanningSceneConstPtr& planning_scene,
     const planning_interface::MotionPlanRequest& req,
     moveit_msgs::MoveItErrorCodes& error_code) const
+    -> planning_interface::PlanningContextPtr
 {
     ROS_DEBUG_NAMED(PP_LOGGER, "Get SBPL Planning Context");
 
-    planning_interface::PlanningContextPtr context;
+    planning_interface::PlanningContextPtr null_context;
 
     if (!canServiceRequest(req)) {
         ROS_WARN_NAMED(PP_LOGGER, "Unable to service request");
-        return context;
+        return null_context;
     }
 
     if (!planning_scene) {
         ROS_WARN_NAMED(PP_LOGGER, "Planning Scene is null");
-        return context;
+        return null_context;
     }
 
-    ///////////////////////////
-    // Setup SBPL Robot Model
-    ///////////////////////////
+    ////////////////////////////////////////
+    // Initialize/Update SBPL Robot Model //
+    ////////////////////////////////////////
 
-    SBPLPlannerManager* mutable_me = const_cast<SBPLPlannerManager*>(this);
-    MoveItRobotModel* sbpl_model = mutable_me->getModelForGroup(req.group_name);
+    auto* mutable_me = const_cast<SBPLPlannerManager*>(this);
+    auto* sbpl_model = mutable_me->getModelForGroup(req.group_name);
     if (!sbpl_model) {
         ROS_WARN_NAMED(PP_LOGGER, "No SBPL Robot Model available for group '%s'", req.group_name.c_str());
-        return context;
+        return null_context;
     }
 
-    std::string planning_link = selectPlanningLink(req);
+    auto planning_link = selectPlanningLink(req);
     if (planning_link.empty()) {
         ROS_INFO_NAMED(PP_LOGGER, "Clear the planning link");
     } else {
@@ -127,7 +135,7 @@ planning_interface::PlanningContextPtr SBPLPlannerManager::getPlanningContext(
 
     if (!sbpl_model->setPlanningLink(planning_link)) {
         ROS_ERROR_NAMED(PP_LOGGER, "Failed to set planning link to '%s'", planning_link.c_str());
-        return context;
+        return null_context;
     }
 
     bool res = true;
@@ -135,47 +143,25 @@ planning_interface::PlanningContextPtr SBPLPlannerManager::getPlanningContext(
     res &= sbpl_model->setPlanningFrame(planning_scene->getPlanningFrame());
     if (!res) {
         ROS_WARN_NAMED(PP_LOGGER, "Failed to set SBPL Robot Model's planning scene or planning frame");
-        return context;
+        return null_context;
     }
 
-    ///////////////////////////////////////////
-    // Initialize a new SBPL Planning Context
-    ///////////////////////////////////////////
+    /////////////////////////////////////////////
+    // Initialize/Update SBPL Planning Context //
+    /////////////////////////////////////////////
 
-//    logPlanningScene(*planning_scene);
+#if 0
+    logPlanningScene(*planning_scene);
+#endif
     logMotionPlanRequest(req);
 
-    SBPLPlanningContext* sbpl_context = new SBPLPlanningContext(
-            sbpl_model, "sbpl_planning_context", req.group_name);
-
-    // find a configuration for this group + planner_id
-    const planning_interface::PlannerConfigurationMap& pcm = getPlannerConfigurations();
-
-    // merge parameters from global group parameters and parameters for the
-    // selected planning configuration
-    std::map<std::string, std::string> all_params;
-    for (auto it = pcm.begin(); it != pcm.end(); ++it) {
-        const std::string& name = it->first;
-        const planning_interface::PlannerConfigurationSettings& pcs = it->second;
-        const std::string& group_name = req.group_name;
-        if (name == group_name) {
-            all_params.insert(pcs.config.begin(), pcs.config.end());
-        } else if (name == req.planner_id) {
-            all_params.insert(pcs.config.begin(), pcs.config.end());
-        }
-    }
-
-    if (!sbpl_context->init(all_params)) {
-        ROS_ERROR_NAMED(PP_LOGGER, "Failed to initialize SBPL Planning Context");
-        delete sbpl_context;
-        return context;
-    }
+    auto sbpl_context = mutable_me->getPlanningContextForPlanner(
+            sbpl_model, req.planner_id);
 
     sbpl_context->setPlanningScene(planning_scene);
     sbpl_context->setMotionPlanRequest(req);
 
-    context.reset(sbpl_context);
-    return context;
+    return std::move(sbpl_context);
 }
 
 bool SBPLPlannerManager::canServiceRequest(
@@ -206,7 +192,7 @@ bool SBPLPlannerManager::canServiceRequest(
 
     // guard against unsupported constraints in the underlying interface
     std::string why;
-    if (!sbpl::motion::PlannerInterface::SupportsGoalConstraints(
+    if (!smpl::PlannerInterface::SupportsGoalConstraints(
             req.goal_constraints, why))
     {
         ROS_ERROR_NAMED(PP_LOGGER, "goal constraints not supported (%s)", why.c_str());
@@ -279,6 +265,7 @@ void SBPLPlannerManager::logPlanningScene(
     const planning_scene::PlanningScene& scene) const
 {
     ROS_INFO_NAMED(PP_LOGGER, "Planning Scene");
+    ROS_INFO_NAMED(PP_LOGGER, "  Ptr: %p", &scene);
     ROS_INFO_NAMED(PP_LOGGER, "  Name: %s", scene.getName().c_str());
     ROS_INFO_NAMED(PP_LOGGER, "  Has Parent: %s", scene.getParent() ? "true" : "false");
     ROS_INFO_NAMED(PP_LOGGER, "  Has Robot Model: %s", scene.getRobotModel() ? "true" : "false");
@@ -288,10 +275,10 @@ void SBPLPlannerManager::logPlanningScene(
     if (scene.getWorld()) {
         ROS_INFO_NAMED(PP_LOGGER, "    size:  %zu", scene.getWorld()->size());
         ROS_INFO_NAMED(PP_LOGGER, "    Object IDs: %zu", scene.getWorld()->getObjectIds().size());
-        for (auto oit = scene.getWorld()->begin();
-            oit != scene.getWorld()->end(); ++oit)
-        {
-            const std::string& object_id = oit->first;
+        auto wbegin = scene.getWorld()->begin();
+        auto wend = scene.getWorld()->end();
+        for (auto oit = wbegin; oit != wend; ++oit) {
+            auto& object_id = oit->first;
             ROS_INFO_NAMED(PP_LOGGER, "      %s", object_id.c_str());
         }
     }
@@ -299,7 +286,7 @@ void SBPLPlannerManager::logPlanningScene(
     ROS_INFO_NAMED(PP_LOGGER, "  Has Collision Robot: %s", scene.getCollisionRobot() ? "true" : "false");
     ROS_INFO_NAMED(PP_LOGGER, "  Current State:");
 
-    const moveit::core::RobotState& current_state = scene.getCurrentState();
+    auto& current_state = scene.getCurrentState();
     for (size_t vind = 0; vind < current_state.getVariableCount(); ++vind) {
         ROS_INFO_NAMED(PP_LOGGER, "    %s: %0.3f", current_state.getVariableNames()[vind].c_str(), current_state.getVariablePosition(vind));
     }
@@ -315,34 +302,42 @@ void SBPLPlannerManager::logMotionPlanRequest(
 
     ROS_DEBUG_NAMED(PP_LOGGER, "  workspace_parameters");
     ROS_DEBUG_NAMED(PP_LOGGER, "    header");
-    ROS_DEBUG_STREAM_NAMED(PP_LOGGER, "      seq: " << req.workspace_parameters.header.seq);
+    ROS_DEBUG_NAMED(PP_LOGGER, "      seq: %u", req.workspace_parameters.header.seq);
     ROS_DEBUG_STREAM_NAMED(PP_LOGGER, "      stamp: " << req.workspace_parameters.header.stamp);
-    ROS_DEBUG_STREAM_NAMED(PP_LOGGER, "      frame_id: \"" << req.workspace_parameters.header.frame_id.c_str() << "\"");
+    ROS_DEBUG_NAMED(PP_LOGGER, "      frame_id: \"%s\"", req.workspace_parameters.header.frame_id.c_str());
     ROS_DEBUG_NAMED(PP_LOGGER, "    min_corner");
-    ROS_DEBUG_STREAM_NAMED(PP_LOGGER, "      x: " << req.workspace_parameters.min_corner.x);
-    ROS_DEBUG_STREAM_NAMED(PP_LOGGER, "      y: " << req.workspace_parameters.min_corner.y);
-    ROS_DEBUG_STREAM_NAMED(PP_LOGGER, "      z: " << req.workspace_parameters.min_corner.z);
+    ROS_DEBUG_NAMED(PP_LOGGER, "      x: %f", req.workspace_parameters.min_corner.x);
+    ROS_DEBUG_NAMED(PP_LOGGER, "      y: %f", req.workspace_parameters.min_corner.y);
+    ROS_DEBUG_NAMED(PP_LOGGER, "      z: %f", req.workspace_parameters.min_corner.z);
     ROS_DEBUG_NAMED(PP_LOGGER, "    max_corner");
-    ROS_DEBUG_STREAM_NAMED(PP_LOGGER, "      x: " << req.workspace_parameters.max_corner.x);
-    ROS_DEBUG_STREAM_NAMED(PP_LOGGER, "      y: " << req.workspace_parameters.max_corner.y);
-    ROS_DEBUG_STREAM_NAMED(PP_LOGGER, "      z: " << req.workspace_parameters.max_corner.z);
+    ROS_DEBUG_NAMED(PP_LOGGER, "      x: %f", req.workspace_parameters.max_corner.x);
+    ROS_DEBUG_NAMED(PP_LOGGER, "      y: %f", req.workspace_parameters.max_corner.y);
+    ROS_DEBUG_NAMED(PP_LOGGER, "      z: %f", req.workspace_parameters.max_corner.z);
 
     ROS_DEBUG_NAMED(PP_LOGGER, "  start_state");
     ROS_DEBUG_NAMED(PP_LOGGER, "    joint_state:");
-    const sensor_msgs::JointState& joint_state = req.start_state.joint_state;
+    auto& joint_state = req.start_state.joint_state;
     for (size_t jidx = 0; jidx < joint_state.name.size(); ++jidx) {
         ROS_DEBUG_NAMED(PP_LOGGER, "      { name: %s, position: %0.3f }", joint_state.name[jidx].c_str(), joint_state.position[jidx]);
     }
     ROS_DEBUG_NAMED(PP_LOGGER, "    multi_dof_joint_state");
-    const sensor_msgs::MultiDOFJointState& multi_dof_joint_state = req.start_state.multi_dof_joint_state;
+    auto& multi_dof_joint_state = req.start_state.multi_dof_joint_state;
     ROS_DEBUG_NAMED(PP_LOGGER, "      header: { seq: %d, stamp: %0.3f, frame_id: \"%s\" }",
             multi_dof_joint_state.header.seq,
             multi_dof_joint_state.header.stamp.toSec(),
             multi_dof_joint_state.header.frame_id.c_str());
     for (size_t jidx = 0; jidx < multi_dof_joint_state.joint_names.size(); ++jidx) {
-        const std::string& joint_name = multi_dof_joint_state.joint_names[jidx];
-        const geometry_msgs::Transform& transform = multi_dof_joint_state.transforms[jidx];
-        ROS_DEBUG_NAMED(PP_LOGGER, "      { joint_names: %s, transform: %s }", joint_name.c_str(), to_string(transform).c_str());
+        auto& joint_name = multi_dof_joint_state.joint_names[jidx];
+        auto& transform = multi_dof_joint_state.transforms[jidx];
+        ROS_DEBUG_NAMED(PP_LOGGER, "      { joint_names: %s, transform: (%f, %f, %f, %f, %f, %f, %f) }",
+                joint_name.c_str(),
+                transform.translation.x,
+                transform.translation.y,
+                transform.translation.z,
+                transform.rotation.x,
+                transform.rotation.y,
+                transform.rotation.z,
+                transform.rotation.w);
     }
 
     ROS_DEBUG_NAMED(PP_LOGGER, "    attached_collision_objects: %zu", req.start_state.attached_collision_objects.size());
@@ -350,13 +345,12 @@ void SBPLPlannerManager::logMotionPlanRequest(
 
     ROS_DEBUG_NAMED(PP_LOGGER, "  goal_constraints: %zu", req.goal_constraints.size());
     for (size_t cind = 0; cind < req.goal_constraints.size(); ++cind) {
-        const moveit_msgs::Constraints& constraints = req.goal_constraints[cind];
+        auto& constraints = req.goal_constraints[cind];
 
         // joint constraints
         ROS_DEBUG_NAMED(PP_LOGGER, "    joint_constraints: %zu", constraints.joint_constraints.size());
         for (size_t jcind = 0; jcind < constraints.joint_constraints.size(); ++jcind) {
-            const moveit_msgs::JointConstraint& joint_constraint =
-                    constraints.joint_constraints[jcind];
+            auto& joint_constraint = constraints.joint_constraints[jcind];
             ROS_DEBUG_NAMED(PP_LOGGER, "      joint_name: %s, position: %0.3f, tolerance_above: %0.3f, tolerance_below: %0.3f, weight: %0.3f",
                     joint_constraint.joint_name.c_str(),
                     joint_constraint.position,
@@ -368,16 +362,15 @@ void SBPLPlannerManager::logMotionPlanRequest(
         // position constraints
         ROS_DEBUG_NAMED(PP_LOGGER, "    position_constraints: %zu", constraints.position_constraints.size());
         for (size_t pcind = 0; pcind < constraints.position_constraints.size(); ++pcind) {
-            const moveit_msgs::PositionConstraint pos_constraint =
-                    constraints.position_constraints[pcind];
+            auto& pos_constraint = constraints.position_constraints[pcind];
             ROS_DEBUG_NAMED(PP_LOGGER, "      header: { frame_id: %s, seq: %u, stamp: %0.3f }", pos_constraint.header.frame_id.c_str(), pos_constraint.header.seq, pos_constraint.header.stamp.toSec());
             ROS_DEBUG_NAMED(PP_LOGGER, "      link_name: %s", pos_constraint.link_name.c_str());
             ROS_DEBUG_NAMED(PP_LOGGER, "      target_point_offset: (%0.3f, %0.3f, %0.3f)", pos_constraint.target_point_offset.x, pos_constraint.target_point_offset.y, pos_constraint.target_point_offset.z);
             ROS_DEBUG_NAMED(PP_LOGGER, "      constraint_region:");
             ROS_DEBUG_NAMED(PP_LOGGER, "        primitives: %zu", pos_constraint.constraint_region.primitives.size());
             for (size_t pind = 0; pind < pos_constraint.constraint_region.primitives.size(); ++pind) {
-                const shape_msgs::SolidPrimitive& prim = pos_constraint.constraint_region.primitives[pind];
-                const geometry_msgs::Pose& pose = pos_constraint.constraint_region.primitive_poses[pind];
+                auto& prim = pos_constraint.constraint_region.primitives[pind];
+                auto& pose = pos_constraint.constraint_region.primitive_poses[pind];
                 ROS_DEBUG_NAMED(PP_LOGGER, "          { type: %d, pose: { position: (%0.3f, %0.3f, %0.3f), orientation: (%0.3f, %0.3f, %0.3f, %0.3f) } }", prim.type, pose.position.x, pose.position.y, pose.position.y, pose.orientation.w, pose.orientation.x, pose.orientation.y, pose.orientation.z);
             }
             ROS_DEBUG_NAMED(PP_LOGGER, "        meshes: %zu", pos_constraint.constraint_region.meshes.size());
@@ -386,15 +379,14 @@ void SBPLPlannerManager::logMotionPlanRequest(
         // orientation constarints
         ROS_DEBUG_NAMED(PP_LOGGER, "    orientation_constraints: %zu", constraints.orientation_constraints.size());
         for (size_t ocind = 0; ocind < constraints.orientation_constraints.size(); ++ocind) {
-            const moveit_msgs::OrientationConstraint rot_constraint =
-                    constraints.orientation_constraints[ocind];
-                ROS_DEBUG_NAMED(PP_LOGGER, "      header: { frame_id: %s, seq: %u, stamp: %0.3f }", rot_constraint.header.frame_id.c_str(), rot_constraint.header.seq, rot_constraint.header.stamp.toSec());
-                ROS_DEBUG_NAMED(PP_LOGGER, "      orientation: (%0.3f, %0.3f, %0.3f, %0.3f)", rot_constraint.orientation.w, rot_constraint.orientation.x, rot_constraint.orientation.y, rot_constraint.orientation.z);
-                ROS_DEBUG_NAMED(PP_LOGGER, "      link_name: %s", rot_constraint.link_name.c_str());
-                ROS_DEBUG_NAMED(PP_LOGGER, "      absolute_x_axis_tolerance: %0.3f", rot_constraint.absolute_x_axis_tolerance);
-                ROS_DEBUG_NAMED(PP_LOGGER, "      absolute_y_axis_tolerance: %0.3f", rot_constraint.absolute_y_axis_tolerance);
-                ROS_DEBUG_NAMED(PP_LOGGER, "      absolute_z_axis_tolerance: %0.3f", rot_constraint.absolute_z_axis_tolerance);
-                ROS_DEBUG_NAMED(PP_LOGGER, "      weight: %0.3f", rot_constraint.weight);
+            auto& rot_constraint = constraints.orientation_constraints[ocind];
+            ROS_DEBUG_NAMED(PP_LOGGER, "      header: { frame_id: %s, seq: %u, stamp: %0.3f }", rot_constraint.header.frame_id.c_str(), rot_constraint.header.seq, rot_constraint.header.stamp.toSec());
+            ROS_DEBUG_NAMED(PP_LOGGER, "      orientation: (%0.3f, %0.3f, %0.3f, %0.3f)", rot_constraint.orientation.w, rot_constraint.orientation.x, rot_constraint.orientation.y, rot_constraint.orientation.z);
+            ROS_DEBUG_NAMED(PP_LOGGER, "      link_name: %s", rot_constraint.link_name.c_str());
+            ROS_DEBUG_NAMED(PP_LOGGER, "      absolute_x_axis_tolerance: %0.3f", rot_constraint.absolute_x_axis_tolerance);
+            ROS_DEBUG_NAMED(PP_LOGGER, "      absolute_y_axis_tolerance: %0.3f", rot_constraint.absolute_y_axis_tolerance);
+            ROS_DEBUG_NAMED(PP_LOGGER, "      absolute_z_axis_tolerance: %0.3f", rot_constraint.absolute_z_axis_tolerance);
+            ROS_DEBUG_NAMED(PP_LOGGER, "      weight: %0.3f", rot_constraint.weight);
         }
 
         // visibility constraints
@@ -409,18 +401,18 @@ void SBPLPlannerManager::logMotionPlanRequest(
 
     ROS_DEBUG_NAMED(PP_LOGGER, "  trajectory_constraints");
     for (size_t cind = 0; cind < req.trajectory_constraints.constraints.size(); ++cind) {
-        const moveit_msgs::Constraints& constraints = req.trajectory_constraints.constraints[cind];
+        auto& constraints = req.trajectory_constraints.constraints[cind];
         ROS_DEBUG_NAMED(PP_LOGGER, "    joint_constraints: %zu", constraints.joint_constraints.size());
         ROS_DEBUG_NAMED(PP_LOGGER, "    position_constraints: %zu", constraints.position_constraints.size());
         ROS_DEBUG_NAMED(PP_LOGGER, "    orientation_constraints: %zu", constraints.orientation_constraints.size());
         ROS_DEBUG_NAMED(PP_LOGGER, "    visibility_constraints: %zu", constraints.visibility_constraints.size());
     }
 
-    ROS_DEBUG_STREAM_NAMED(PP_LOGGER, "  planner_id: " << req.planner_id);
-    ROS_DEBUG_STREAM_NAMED(PP_LOGGER, "  group_name: " << req.group_name);
-    ROS_DEBUG_STREAM_NAMED(PP_LOGGER, "  num_planning_attempts: " << req.num_planning_attempts);
-    ROS_DEBUG_STREAM_NAMED(PP_LOGGER, "  allowed_planning_time: " << req.allowed_planning_time);
-    ROS_DEBUG_STREAM_NAMED(PP_LOGGER, "  max_velocity_scaling_factor: " << req.max_velocity_scaling_factor);
+    ROS_DEBUG_NAMED(PP_LOGGER, "  planner_id: %s", req.planner_id.c_str());
+    ROS_DEBUG_NAMED(PP_LOGGER, "  group_name: %s", req.group_name.c_str());
+    ROS_DEBUG_NAMED(PP_LOGGER, "  num_planning_attempts: %d", req.num_planning_attempts);
+    ROS_DEBUG_NAMED(PP_LOGGER, "  allowed_planning_time: %f", req.allowed_planning_time);
+    ROS_DEBUG_NAMED(PP_LOGGER, "  max_velocity_scaling_factor: %f", req.max_velocity_scaling_factor);
 }
 
 /// Load the mapping from planner configuration name to planner configuration
@@ -429,6 +421,14 @@ bool SBPLPlannerManager::loadPlannerConfigurationMapping(
     const ros::NodeHandle& nh,
     const moveit::core::RobotModel& model)
 {
+    // New Behavior! Instead of requiring sane config, we'll instead warn on
+    // all errors and parse as many existing configurations as possible. This
+    // can be useful for debugging. It also allows restarting move_group using
+    // a different planner plugin without clearing parameters, which causes
+    // configurations from other planner plugins to persist on the param server
+    // if they do not exist for this plugin.
+    auto ignore_errors = true;
+
     PlannerSettingsMap search_settings;
     if (!loadSettingsMap(nh, "search_configs", search_settings)) {
         ROS_ERROR_NAMED(PP_LOGGER, "Failed to load search settings");
@@ -456,7 +456,7 @@ bool SBPLPlannerManager::loadPlannerConfigurationMapping(
 
     const char* req_group_params[] = { };
 
-    for (const std::string& group_name : model.getJointModelGroupNames()) {
+    for (auto& group_name : model.getJointModelGroupNames()) {
         if (!nh.hasParam(group_name)) {
             ROS_WARN_NAMED(PP_LOGGER, "No planning configuration for joint group '%s'", group_name.c_str());
             continue;
@@ -472,7 +472,8 @@ bool SBPLPlannerManager::loadPlannerConfigurationMapping(
         }
 
         if (joint_group_cfg.getType() != XmlRpc::XmlRpcValue::TypeStruct) {
-            ROS_ERROR_NAMED(PP_LOGGER, "'%s' should be a map of group names to group settings", group_name.c_str());
+            ROS_WARN_NAMED(PP_LOGGER, "'%s' should be a map of group names to group settings", group_name.c_str());
+            if (ignore_errors) continue; // next planning group
             return false;
         }
 
@@ -484,17 +485,19 @@ bool SBPLPlannerManager::loadPlannerConfigurationMapping(
             continue;
         }
 
-        XmlRpc::XmlRpcValue& planner_configs_cfg = joint_group_cfg["planner_configs"];
+        auto& planner_configs_cfg = joint_group_cfg["planner_configs"];
         if (planner_configs_cfg.getType() != XmlRpc::XmlRpcValue::TypeStruct) {
-            ROS_ERROR_NAMED(PP_LOGGER, "'planner_configs' should be a map of names to planner configurations (actual: %s)", xmlTypeToString(planner_configs_cfg.getType()));
+            ROS_WARN_NAMED(PP_LOGGER, "'planner_configs' element of '%s' should be a map of names to planner configurations (actual: %s)", group_name.c_str(), xmlTypeToString(planner_configs_cfg.getType()));
+            if (ignore_errors) continue; // next planning group
             return false;
         }
 
         for (auto pcit = planner_configs_cfg.begin(); pcit != planner_configs_cfg.end(); ++pcit) {
-            const std::string& pc_name = pcit->first;
-            XmlRpc::XmlRpcValue& planner_config = pcit->second;
+            auto& pc_name = pcit->first;
+            auto& planner_config = pcit->second;
             if (planner_config.getType() != XmlRpc::XmlRpcValue::TypeStruct) {
-                ROS_ERROR_NAMED(PP_LOGGER, "planner config should be a map from config type to config");
+                ROS_WARN_NAMED(PP_LOGGER, "planner config should be a map from configuration name to configuration");
+                if (ignore_errors) continue; // next configuration
                 return false;
             }
 
@@ -514,11 +517,12 @@ bool SBPLPlannerManager::loadPlannerConfigurationMapping(
                         return !planner_config.hasMember(key);
                     }))
             {
-                ROS_ERROR("planner config lacks required keys");
+                ROS_WARN_NAMED(PP_LOGGER, "planner config lacks required keys");
                 for (int i = 0; i < sizeof(required_keys) / sizeof(const char*); ++i) {
                     const char* key = required_keys[i];
-                    ROS_ERROR("Has '%s': %s", key, planner_config.hasMember(key) ? "true" : "false");
+                    ROS_WARN_NAMED(PP_LOGGER, "Has '%s': %s", key, planner_config.hasMember(key) ? "true" : "false");
                 }
+                if (ignore_errors) continue; // next configuration
                 return false;
             }
 
@@ -669,50 +673,86 @@ bool SBPLPlannerManager::loadSettingsMap(
     return true;
 }
 
-MoveItRobotModel* SBPLPlannerManager::getModelForGroup(
-    const std::string& group_name)
+auto SBPLPlannerManager::getModelForGroup(const std::string& group_name)
+    -> MoveItRobotModel*
 {
     auto it = m_sbpl_models.find(group_name);
-    if (it == m_sbpl_models.end()) {
-        auto ent = m_sbpl_models.insert(
-                std::make_pair(group_name, std::make_shared<MoveItRobotModel>()));
-        assert(ent.second);
-        MoveItRobotModel* sbpl_model = ent.first->second.get();
-        if (!sbpl_model->init(m_robot_model, group_name)) {
-            m_sbpl_models.erase(ent.first);
+    if (it == end(m_sbpl_models)) {
+        auto model = make_unique<MoveItRobotModel>();
+        if (!model->init(m_robot_model, group_name)) {
             ROS_WARN_NAMED(PP_LOGGER, "Failed to initialize SBPL Robot Model");
-            return nullptr;
+            return NULL;
         }
 
         ROS_INFO_NAMED(PP_LOGGER, "Created SBPL Robot Model for group '%s'", group_name.c_str());
-        return sbpl_model;
-    }
-    else {
+        auto ent = m_sbpl_models.insert(std::make_pair(group_name, std::move(model)));
+        return ent.first->second.get();
+    } else {
         ROS_DEBUG_NAMED(PP_LOGGER, "Use existing SBPL Robot Model for group '%s'", group_name.c_str());
         return it->second.get();
     }
 }
 
-std::string SBPLPlannerManager::selectPlanningLink(
+auto SBPLPlannerManager::getPlanningContextForPlanner(
+    MoveItRobotModel* model,
+    const std::string& planner_id)
+    -> boost::shared_ptr<SBPLPlanningContext>
+{
+    boost::shared_ptr<SBPLPlanningContext> null_context;
+    auto it = m_contexts.find(planner_id);
+    if (it == end(m_contexts)) {
+        auto context = boost::make_shared<SBPLPlanningContext>(
+                model, "sbpl_planning_context", model->planningGroupName());
+
+        // find a configuration for this group + planner_id
+        auto& configs = this->getPlannerConfigurations();
+
+        // merge parameters from global group parameters and parameters for the
+        // selected planning configuration
+        std::map<std::string, std::string> all_params;
+        for (auto it = begin(configs); it != end(configs); ++it) {
+            auto& name = it->first;
+            auto& settings = it->second;
+            auto& group_name = model->planningGroupName();
+            if (name == group_name) {
+                all_params.insert(begin(settings.config), end(settings.config));
+            } else if (name == planner_id) {
+                all_params.insert(begin(settings.config), end(settings.config));
+            }
+        }
+
+        if (!context->init(all_params)) {
+            ROS_ERROR_NAMED(PP_LOGGER, "Failed to initialize SBPL Planning Context");
+            return null_context;
+        }
+
+        m_contexts.insert(std::make_pair(planner_id, context));
+        return context;
+    } else {
+        return it->second;
+    }
+}
+
+auto SBPLPlannerManager::selectPlanningLink(
     const planning_interface::MotionPlanRequest& req) const
+    -> std::string
 {
     if (req.goal_constraints.empty()) {
         return std::string(); // doesn't matter, we'll bail out soon
     }
 
-    const auto& goal_constraint = req.goal_constraints.front();
+    auto& goal_constraint = req.goal_constraints.front();
     // should've received one pose constraint for a single link, o/w
     // canServiceRequest would have complained
     if (!goal_constraint.position_constraints.empty()) {
-        const auto& position_constraint = goal_constraint.position_constraints.front();
+        auto& position_constraint = goal_constraint.position_constraints.front();
         return position_constraint.link_name;
     }
 
     // it's still useful to have a planning link for obstacle-based
     // heuristic information...inspect the joint model group
 
-    const moveit::core::JointModelGroup* jmg =
-            m_robot_model->getJointModelGroup(req.group_name);
+    auto* jmg = m_robot_model->getJointModelGroup(req.group_name);
 
     std::vector<std::string> ee_tips;
     if (jmg->getEndEffectorTips(ee_tips) && !ee_tips.empty()) {

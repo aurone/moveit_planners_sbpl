@@ -37,18 +37,16 @@
 #include <limits>
 
 // system includes
-#include <leatherman/print.h>
-#include <leatherman/viz.h>
 #include <ros/console.h>
 #include <ros/ros.h>
 #include <smpl/angles.h>
 #include <smpl/debug/marker_conversions.h>
+#include <smpl/debug/marker_utils.h>
+#include <smpl/console/nonstd.h>
 
 #include <moveit_planners_sbpl/planner/moveit_robot_model.h>
 
 namespace sbpl_interface {
-
-namespace smpl = sbpl::motion;
 
 MoveItCollisionChecker::MoveItCollisionChecker() :
     Base(),
@@ -57,7 +55,6 @@ MoveItCollisionChecker::MoveItCollisionChecker() :
     m_ref_state()
 {
     ros::NodeHandle nh;
-    m_vpub = nh.advertise<visualization_msgs::MarkerArray>("visualization_markers", 10);
 }
 
 MoveItCollisionChecker::~MoveItCollisionChecker()
@@ -102,10 +99,10 @@ bool MoveItCollisionChecker::init(
     m_robot_model = robot_model;
 
     m_var_incs.reserve(m_robot_model->getPlanningJoints().size());
-    for (const std::string& joint_name : m_robot_model->getPlanningJoints()) {
-        m_var_incs.push_back(sbpl::angles::to_radians(2.0));
+    for (auto& joint_name : m_robot_model->getPlanningJoints()) {
+        m_var_incs.push_back(smpl::angles::to_radians(2.0));
     }
-    ROS_INFO("Increments: %s", to_string(m_var_incs).c_str());
+    ROS_INFO_STREAM("Increments: " << m_var_incs);
 
     m_ref_state.reset(new moveit::core::RobotState(scene->getRobotModel()));
     *m_ref_state = ref_state;
@@ -212,8 +209,8 @@ auto MoveItCollisionChecker::checkContinuousCollision(
 }
 
 auto MoveItCollisionChecker::checkInterpolatedPathCollision(
-    const sbpl::motion::RobotState& start,
-    const sbpl::motion::RobotState& finish)
+    const smpl::RobotState& start,
+    const smpl::RobotState& finish)
     -> bool
 {
     int waypoint_count = interpolatePathFast(start, finish, m_waypoint_path);
@@ -222,7 +219,7 @@ auto MoveItCollisionChecker::checkInterpolatedPathCollision(
     }
 
     for (int widx = 0; widx < waypoint_count; ++widx) {
-        const smpl::RobotState& p = m_waypoint_path[widx];
+        auto& p = m_waypoint_path[widx];
         if (!isStateValid(p, false)) {
             return false;
         }
@@ -262,7 +259,7 @@ int MoveItCollisionChecker::interpolatePathFast(
     m_diffs.resize(m_robot_model->activeVariableCount(), 0.0);
     for (size_t vidx = 0; vidx < m_robot_model->activeVariableCount(); ++vidx) {
         if (m_robot_model->variableContinuous()[vidx]) {
-            m_diffs[vidx] = sbpl::angles::shortest_angle_diff(finish[vidx], start[vidx]);
+            m_diffs[vidx] = smpl::angles::shortest_angle_diff(finish[vidx], start[vidx]);
         }
         else {
             m_diffs[vidx] = finish[vidx] - start[vidx];
@@ -294,7 +291,7 @@ int MoveItCollisionChecker::interpolatePathFast(
     for (size_t vidx = 0; vidx < m_robot_model->activeVariableCount(); ++vidx) {
         if (m_robot_model->variableContinuous()[vidx]) {
             for (size_t widx = 0; widx < waypoint_count; ++widx) {
-                opath[widx][vidx] = sbpl::angles::normalize_angle(opath[widx][vidx]);
+                opath[widx][vidx] = smpl::angles::normalize_angle(opath[widx][vidx]);
             }
         }
     }
@@ -304,7 +301,7 @@ int MoveItCollisionChecker::interpolatePathFast(
 
 auto MoveItCollisionChecker::getCollisionModelVisualization(
     const smpl::RobotState& state)
-    -> std::vector<sbpl::visual::Marker>
+    -> std::vector<smpl::visual::Marker>
 {
     moveit::core::RobotState robot_state(*m_ref_state);
 
@@ -324,20 +321,19 @@ auto MoveItCollisionChecker::getCollisionModelVisualization(
             ros::Duration(0),
             true);
 
-    auto* tip_link = m_robot_model->planningTipLink();
+    auto markers = smpl::visual::ConvertMarkerArrayToMarkers(marker_arr);
+
+    auto* tip_link = m_robot_model->planningLink();
     if (tip_link) {
         auto& T_model_tip = robot_state.getGlobalLinkTransform(tip_link->getName());
-        auto frame_markers = viz::getFrameMarkerArray(
-                T_model_tip, m_robot_model->moveitRobotModel()->getModelFrame(), "", marker_arr.markers.size());
-        marker_arr.markers.insert(marker_arr.markers.end(), frame_markers.markers.begin(), frame_markers.markers.end());
-    }
-
-    std::vector<sbpl::visual::Marker> markers;
-    markers.reserve(marker_arr.markers.size());
-    for (auto& mm : marker_arr.markers) {
-        sbpl::visual::Marker m;
-        sbpl::visual::ConvertMarkerMsgToMarker(mm, m);
-        markers.push_back(std::move(m));
+        auto frame_markers = smpl::visual::MakeFrameMarkers(
+                T_model_tip,
+                m_robot_model->moveitRobotModel()->getModelFrame(),
+                "",
+                markers.size());
+        markers.insert(
+                end(markers),
+                begin(frame_markers), end(frame_markers));
     }
 
     return markers;

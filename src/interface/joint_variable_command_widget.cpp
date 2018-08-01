@@ -4,7 +4,7 @@
 #include <Eigen/Dense>
 #include <ros/console.h>
 #include <smpl/angles.h>
-#include <leatherman/print.h>
+#include <smpl/console/nonstd.h>
 
 #include <moveit_planners_sbpl/interface/robot_command_model.h>
 
@@ -136,9 +136,9 @@ static QDoubleSpinBox* CreateRevoluteVariableSpinBox(
         ROS_DEBUG_NAMED(LOG, "Create revolute variable spinbox");
         QDoubleSpinBox* spinbox = new QDoubleSpinBox;
         spinbox->setMinimum(
-                sbpl::angles::to_degrees(bounds.min_position_));
+                smpl::angles::to_degrees(bounds.min_position_));
         spinbox->setMaximum(
-                sbpl::angles::to_degrees(bounds.max_position_));
+                smpl::angles::to_degrees(bounds.max_position_));
         spinbox->setSingleStep(1.0);
         spinbox->setWrapping(false);
         return spinbox;
@@ -572,7 +572,7 @@ void JointVariableCommandWidget::updateRobotState()
             Eigen::Affine3d rot(Eigen::Quaterniond(
                     qvars[0], qvars[1], qvars[2], qvars[3]));
             Eigen::Vector3d ypr;
-            sbpl::angles::get_euler_zyx(rot.rotation(), ypr[0], ypr[1], ypr[2]);
+            smpl::angles::get_euler_zyx(rot.rotation(), ypr[0], ypr[1], ypr[2]);
 
             Eigen::Affine3d A(
                 Eigen::AngleAxisd(ypr[0], Eigen::Vector3d::UnitZ()) *
@@ -582,9 +582,9 @@ void JointVariableCommandWidget::updateRobotState()
             double are_diff = A.isApprox(rot, 0.001);
 
             // round to the nearest degree to try and get more stable results
-            double vY = std::round(sbpl::angles::to_degrees(ypr[0]));
-            double vP = std::round(sbpl::angles::to_degrees(ypr[1]));
-            double vR = std::round(sbpl::angles::to_degrees(ypr[2]));
+            double vY = std::round(smpl::angles::to_degrees(ypr[0]));
+            double vP = std::round(smpl::angles::to_degrees(ypr[1]));
+            double vR = std::round(smpl::angles::to_degrees(ypr[2]));
             // break the cycle
             if ((qspinboxes[0]->value() != vR ||
                 qspinboxes[1]->value() != vP ||
@@ -614,7 +614,7 @@ void JointVariableCommandWidget::updateRobotState()
                 assert(m_vind_to_spinbox[vi].size() == 1);
                 QDoubleSpinBox* spinbox = m_vind_to_spinbox[vi][0];
                 if (IsVariableAngle(*robot_model, vi)) {
-                    double value = sbpl::angles::to_degrees(
+                    double value = smpl::angles::to_degrees(
                             robot_state->getVariablePosition(vi));
                     if (value != spinbox->value()) {
                         disconnect(spinbox, SIGNAL(valueChanged(double)), this, SLOT(setJointVariableFromSpinBox(double)));
@@ -666,14 +666,14 @@ void JointVariableCommandWidget::setJointVariableFromSpinBox(double value)
 
     auto& robot_model = m_model->getRobotModel();
 
-    ROS_DEBUG_NAMED(LOG, "Update joint variables %s from spinbox %p with value %0.3f", to_string(vindices).c_str(), spinbox, value);
+    ROS_DEBUG_STREAM_NAMED(LOG, "Update joint variables " << vindices << " from spinbox " << spinbox << " with value " << value);
 
     if (vindices.size() == 4) {
         // so much hackery here for quaternion controls
         // need to get the values from the other spinboxes
         auto& rpy_controls = m_vind_to_spinbox[vindices[0]];
 
-        ROS_DEBUG_NAMED(LOG, "rpy controls: %s", to_string(rpy_controls).c_str());
+        ROS_DEBUG_STREAM_NAMED(LOG, "rpy controls: " << rpy_controls);
 
         // attempt stability
         double r = std::round(rpy_controls[0]->value());
@@ -681,9 +681,9 @@ void JointVariableCommandWidget::setJointVariableFromSpinBox(double value)
         double y = std::round(rpy_controls[2]->value());
         ROS_DEBUG_NAMED(LOG, "set rpy values from spinbox values (%0.3f, %0.3f, %0.3f)", r, p, y);
         Eigen::Quaterniond rot(
-                Eigen::AngleAxisd(sbpl::angles::to_radians(y), Eigen::Vector3d::UnitZ()) *
-                Eigen::AngleAxisd(sbpl::angles::to_radians(p), Eigen::Vector3d::UnitY()) *
-                Eigen::AngleAxisd(sbpl::angles::to_radians(r), Eigen::Vector3d::UnitX()));
+                Eigen::AngleAxisd(smpl::angles::to_radians(y), Eigen::Vector3d::UnitZ()) *
+                Eigen::AngleAxisd(smpl::angles::to_radians(p), Eigen::Vector3d::UnitY()) *
+                Eigen::AngleAxisd(smpl::angles::to_radians(r), Eigen::Vector3d::UnitX()));
         ROS_DEBUG_NAMED(LOG, "  set quaternion (%0.3f, %0.3f, %0.3f, %0.3f)", rot.w(), rot.x(), rot.y(), rot.z());
         m_ignore_sync = true;
         m_model->setVariablePosition(vindices[0], rot.w());
@@ -695,7 +695,7 @@ void JointVariableCommandWidget::setJointVariableFromSpinBox(double value)
         // everything else
         if (IsVariableAngle(*robot_model, vindices[0])) {
             // convert to radians and assign
-            m_model->setVariablePosition(vindices[0], sbpl::angles::to_radians(value));
+            m_model->setVariablePosition(vindices[0], smpl::angles::to_radians(value));
         } else {
             // assign without conversion
             m_model->setVariablePosition(vindices[0], value);

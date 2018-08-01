@@ -44,11 +44,11 @@ namespace sbpl_interface {
 
 class MoveItRobotModel;
 
-class MoveItCollisionChecker : public sbpl::motion::CollisionChecker
+class MoveItCollisionChecker : public smpl::CollisionChecker
 {
 public:
 
-    typedef sbpl::motion::CollisionChecker Base;
+    typedef smpl::CollisionChecker Base;
 
     MoveItCollisionChecker();
     ~MoveItCollisionChecker();
@@ -62,30 +62,30 @@ public:
 
     /// \name Required Functions from Extension
     ///@{
-    sbpl::motion::Extension* getExtension(size_t class_code) override;
+    smpl::Extension* getExtension(size_t class_code) override;
     ///@}
 
     /// \name Required Functions from CollisionChecker
     ///@{
     bool isStateValid(
-        const sbpl::motion::RobotState& angles,
+        const smpl::RobotState& angles,
         bool verbose) override;
 
     bool isStateToStateValid(
-        const sbpl::motion::RobotState& angles0,
-        const sbpl::motion::RobotState& angles1,
+        const smpl::RobotState& angles0,
+        const smpl::RobotState& angles1,
         bool verbose) override;
 
     bool interpolatePath(
-        const sbpl::motion::RobotState& start,
-        const sbpl::motion::RobotState& finish,
-        std::vector<sbpl::motion::RobotState>& opath) override;
+        const smpl::RobotState& start,
+        const smpl::RobotState& finish,
+        std::vector<smpl::RobotState>& opath) override;
     ///@}
 
     /// \name Reimplemented Functions from CollisionChecker
     ///@{
-    auto getCollisionModelVisualization(const sbpl::motion::RobotState& angles)
-        -> std::vector<sbpl::visual::Marker> override;
+    auto getCollisionModelVisualization(const smpl::RobotState& angles)
+        -> std::vector<smpl::visual::Marker> override;
     ///@}
 
 private:
@@ -97,35 +97,33 @@ private:
 
     moveit::core::RobotStatePtr m_ref_state;
 
-    sbpl::motion::RobotState m_zero_state;
+    smpl::RobotState m_zero_state;
     std::vector<double> m_diffs;
-    std::vector<sbpl::motion::RobotState> m_waypoint_path;
+    std::vector<smpl::RobotState> m_waypoint_path;
 
     bool m_enabled_ccd;
 
     auto checkContinuousCollision(
-        const sbpl::motion::RobotState& start,
-        const sbpl::motion::RobotState& finish)
+        const smpl::RobotState& start,
+        const smpl::RobotState& finish)
         -> bool;
 
     auto checkInterpolatedPathCollision(
-        const sbpl::motion::RobotState& start,
-        const sbpl::motion::RobotState& finish)
+        const smpl::RobotState& start,
+        const smpl::RobotState& finish)
         -> bool;
 
     void setRobotStateFromState(
         moveit::core::RobotState& robot_state,
-        const sbpl::motion::RobotState& state) const;
+        const smpl::RobotState& state) const;
 
     // interpolate the path between start and finish, storing intermediate
     // waypoints within opath. previous entries in opath are overwritten and
     // never cleared. the number of relevant waypoints is returned
     int interpolatePathFast(
-        const sbpl::motion::RobotState& start,
-        const sbpl::motion::RobotState& finish,
-        std::vector<sbpl::motion::RobotState>& opath);
-
-    ros::Publisher m_vpub;
+        const smpl::RobotState& start,
+        const smpl::RobotState& finish,
+        std::vector<smpl::RobotState>& opath);
 };
 
 } // namespace sbpl_interface

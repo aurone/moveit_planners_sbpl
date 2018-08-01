@@ -37,7 +37,7 @@
 
 // system includes
 #include <eigen_conversions/eigen_msg.h>
-#include <leatherman/print.h>
+#include <smpl/console/nonstd.h>
 
 namespace collision_detection {
 
@@ -51,11 +51,11 @@ CollisionStateUpdater::CollisionStateUpdater() :
 
 bool CollisionStateUpdater::init(
     const moveit::core::RobotModel& robot,
-    const sbpl::collision::RobotCollisionModelConstPtr& rcm)
+    const smpl::collision::RobotCollisionModelConstPtr& rcm)
 {
-    using sbpl::collision::RobotCollisionState;
-    using sbpl::collision::AttachedBodiesCollisionModel;
-    using sbpl::collision::AttachedBodiesCollisionState;
+    using smpl::collision::RobotCollisionState;
+    using smpl::collision::AttachedBodiesCollisionModel;
+    using smpl::collision::AttachedBodiesCollisionState;
 
     if (!getRobotCollisionModelJointIndices(
             robot.getVariableNames(), *rcm, m_rcm_var_indices))
@@ -75,8 +75,8 @@ bool CollisionStateUpdater::init(
         if (m_rcm_var_indices[i] != m_rcm_var_indices[i - 1] + 1) {
             m_inorder = false;
             ROS_INFO("Joint variables not in order:");
-            ROS_INFO("  RobotModel: %s", to_string(robot.getVariableNames()).c_str());
-            ROS_INFO("  RobotCollisionModel: %s", to_string(rcm->jointVarNames()).c_str());
+            ROS_INFO_STREAM("  RobotModel: " << robot.getVariableNames());
+            ROS_INFO_STREAM("  RobotCollisionModel: " << rcm->jointVarNames());
             break;
         }
     }
@@ -109,7 +109,7 @@ const std::vector<double>& CollisionStateUpdater::getVariablesFor(
 
 bool CollisionStateUpdater::getRobotCollisionModelJointIndices(
     const std::vector<std::string>& joint_names,
-    const sbpl::collision::RobotCollisionModel& rcm,
+    const smpl::collision::RobotCollisionModel& rcm,
     std::vector<int>& rcm_joint_indices)
 {
     // check for joint existence
@@ -432,7 +432,7 @@ bool WorldObjectToCollisionObjectMsgName(
 // For primitive shapes, just copy to the corresponding shape type; for more
 // heavyweight shapes, reference the origin's data members.
 static auto MakeCollisionShape(const shapes::Shape& shape)
-    -> std::unique_ptr<sbpl::collision::CollisionShape>
+    -> std::unique_ptr<smpl::collision::CollisionShape>
 {
     switch (shape.type) {
     case shapes::ShapeType::UNKNOWN_SHAPE:
@@ -440,38 +440,38 @@ static auto MakeCollisionShape(const shapes::Shape& shape)
     case shapes::ShapeType::SPHERE:
     {
         auto& sphere = static_cast<const shapes::Sphere&>(shape);
-        return std::unique_ptr<sbpl::collision::SphereShape>(
-                new sbpl::collision::SphereShape(sphere.radius));
+        return std::unique_ptr<smpl::collision::SphereShape>(
+                new smpl::collision::SphereShape(sphere.radius));
     }
     case shapes::ShapeType::CYLINDER:
     {
         auto& cylinder = static_cast<const shapes::Cylinder&>(shape);
-        return std::unique_ptr<sbpl::collision::CylinderShape>(
-                new sbpl::collision::CylinderShape(cylinder.radius, cylinder.length));
+        return std::unique_ptr<smpl::collision::CylinderShape>(
+                new smpl::collision::CylinderShape(cylinder.radius, cylinder.length));
     }
     case shapes::ShapeType::CONE:
     {
         auto& cone = static_cast<const shapes::Cone&>(shape);
-        return std::unique_ptr<sbpl::collision::ConeShape>(
-                new sbpl::collision::ConeShape(cone.radius, cone.length));
+        return std::unique_ptr<smpl::collision::ConeShape>(
+                new smpl::collision::ConeShape(cone.radius, cone.length));
     }
     case shapes::ShapeType::BOX:
     {
         auto& box = static_cast<const shapes::Box&>(shape);
-        return std::unique_ptr<sbpl::collision::BoxShape>(
-                new sbpl::collision::BoxShape(box.size[0], box.size[1], box.size[2]));
+        return std::unique_ptr<smpl::collision::BoxShape>(
+                new smpl::collision::BoxShape(box.size[0], box.size[1], box.size[2]));
     }
     case shapes::ShapeType::PLANE:
     {
         auto& plane = static_cast<const shapes::Plane&>(shape);
-        return std::unique_ptr<sbpl::collision::PlaneShape>(
-                new sbpl::collision::PlaneShape(plane.a, plane.b, plane.c, plane.d));
+        return std::unique_ptr<smpl::collision::PlaneShape>(
+                new smpl::collision::PlaneShape(plane.a, plane.b, plane.c, plane.d));
     }
     case shapes::ShapeType::MESH:
     {
         auto& mesh = static_cast<const shapes::Mesh&>(shape);
-        auto imesh = std::unique_ptr<sbpl::collision::MeshShape>(
-                new sbpl::collision::MeshShape);
+        auto imesh = std::unique_ptr<smpl::collision::MeshShape>(
+                new smpl::collision::MeshShape);
         imesh->vertices = mesh.vertices;
         imesh->vertex_count = mesh.vertex_count;
         imesh->triangles = mesh.triangles; // hopefully this cast is well-formed
@@ -481,8 +481,8 @@ static auto MakeCollisionShape(const shapes::Shape& shape)
     case shapes::ShapeType::OCTREE:
     {
         auto& octree = static_cast<const shapes::OcTree&>(shape);
-        auto ioctree = std::unique_ptr<sbpl::collision::OcTreeShape>(
-                new sbpl::collision::OcTreeShape);
+        auto ioctree = std::unique_ptr<smpl::collision::OcTreeShape>(
+                new smpl::collision::OcTreeShape);
         ioctree->octree = octree.octree.get();
         return std::move(ioctree);
     }
@@ -491,12 +491,12 @@ static auto MakeCollisionShape(const shapes::Shape& shape)
 
 void ConvertObjectToCollisionObjectShallow(
     const World::ObjectConstPtr& o,
-    std::vector<std::unique_ptr<sbpl::collision::CollisionShape>>& collision_shapes,
-    std::unique_ptr<sbpl::collision::CollisionObject>& collision_object)
+    std::vector<std::unique_ptr<smpl::collision::CollisionShape>>& collision_shapes,
+    std::unique_ptr<smpl::collision::CollisionObject>& collision_object)
 {
     // create uniquely owned, corresponding shapes and gather to connect to
     // CollisionObject
-    std::vector<sbpl::collision::CollisionShape*> shapes;
+    std::vector<smpl::collision::CollisionShape*> shapes;
     for (auto& shape_ : o->shapes_) {
         auto shape = MakeCollisionShape(*shape_);
         shapes.push_back(shape.get());
@@ -504,27 +504,27 @@ void ConvertObjectToCollisionObjectShallow(
     }
 
     // copy shape poses
-    sbpl::collision::AlignedVector<Eigen::Affine3d> shape_poses;
+    smpl::collision::AlignedVector<Eigen::Affine3d> shape_poses;
     shape_poses.reserve(o->shape_poses_.size());
     for (auto& shape_pose : o->shape_poses_) {
         shape_poses.push_back(shape_pose);
     }
 
     // create CollisionObject, deliver the goods
-    collision_object = std::unique_ptr<sbpl::collision::CollisionObject>(new sbpl::collision::CollisionObject);
+    collision_object = std::unique_ptr<smpl::collision::CollisionObject>(new smpl::collision::CollisionObject);
     collision_object->id = o->id_;
     collision_object->shapes = std::move(shapes);
     collision_object->shape_poses = std::move(shape_poses);
 }
 
-auto GetCollisionMarkers(sbpl::collision::RobotCollisionState& rcs)
+auto GetCollisionMarkers(smpl::collision::RobotCollisionState& rcs)
     -> visualization_msgs::MarkerArray
 {
     rcs.updateSphereStates();
     return rcs.getVisualization();
 }
 
-auto GetCollisionMarkers(sbpl::collision::RobotCollisionState& rcs, int gidx)
+auto GetCollisionMarkers(smpl::collision::RobotCollisionState& rcs, int gidx)
     -> visualization_msgs::MarkerArray
 {
     // update the spheres within the group
@@ -536,7 +536,7 @@ auto GetCollisionMarkers(sbpl::collision::RobotCollisionState& rcs, int gidx)
 }
 
 auto GetCollisionMarkers(
-    sbpl::collision::AttachedBodiesCollisionState& abcs,
+    smpl::collision::AttachedBodiesCollisionState& abcs,
     int gidx)
     -> visualization_msgs::MarkerArray
 {
@@ -547,8 +547,8 @@ auto GetCollisionMarkers(
 }
 
 auto GetCollisionMarkers(
-    sbpl::collision::RobotCollisionState& rcs,
-    sbpl::collision::AttachedBodiesCollisionState& abcs,
+    smpl::collision::RobotCollisionState& rcs,
+    smpl::collision::AttachedBodiesCollisionState& abcs,
     int gidx)
     -> visualization_msgs::MarkerArray
 {

@@ -71,15 +71,15 @@ CollisionRobotSBPL::CollisionRobotSBPL(
     }
 
     // load the robot collision model configuration
-    sbpl::collision::CollisionModelConfig cm_config;
-    if (!sbpl::collision::CollisionModelConfig::Load(rcm_config, cm_config)) {
+    smpl::collision::CollisionModelConfig cm_config;
+    if (!smpl::collision::CollisionModelConfig::Load(rcm_config, cm_config)) {
         const char* msg = "Failed to load Collision Model Config";
         ROS_ERROR_STREAM(msg);
         throw std::runtime_error(msg);
     }
 
     // build robot collision model from configuration
-    auto rcm = sbpl::collision::RobotCollisionModel::Load(
+    auto rcm = smpl::collision::RobotCollisionModel::Load(
             *model->getURDF(), cm_config);
     if (!rcm) {
         const char* msg = "Failed to build Robot Collision Model from config";
@@ -100,7 +100,7 @@ CollisionRobotSBPL::CollisionRobotSBPL(
 
     // ok! store the robot collision model
     m_rcm = rcm;
-    m_rmcm = std::make_shared<sbpl::collision::RobotMotionCollisionModel>(m_rcm.get());
+    m_rmcm = std::make_shared<smpl::collision::RobotMotionCollisionModel>(m_rcm.get());
 
     ros::NodeHandle nh;
 }
@@ -121,13 +121,13 @@ CollisionRobotSBPL::~CollisionRobotSBPL()
     ROS_INFO_NAMED(CRP_LOGGER, "~CollisionRobotSBPL");
 }
 
-const sbpl::collision::RobotCollisionModelConstPtr&
+const smpl::collision::RobotCollisionModelConstPtr&
 CollisionRobotSBPL::robotCollisionModel() const
 {
     return m_rcm;
 }
 
-const sbpl::collision::RobotMotionCollisionModelConstPtr&
+const smpl::collision::RobotMotionCollisionModelConstPtr&
 CollisionRobotSBPL::robotMotionCollisionModel() const
 {
     return m_rmcm;
@@ -297,10 +297,10 @@ void CollisionRobotSBPL::checkSelfCollisionMutable(
     const robot_state::RobotState& state,
     const AllowedCollisionMatrix& acm)
 {
-    using sbpl::collision::AttachedBodiesCollisionModel;
-    using sbpl::collision::AttachedBodiesCollisionState;
-    using sbpl::collision::RobotCollisionState;
-    using sbpl::collision::SelfCollisionModel;
+    using smpl::collision::AttachedBodiesCollisionModel;
+    using smpl::collision::AttachedBodiesCollisionState;
+    using smpl::collision::RobotCollisionState;
+    using smpl::collision::SelfCollisionModel;
 
     if (state.getRobotModel()->getName() != m_rcm->name()) {
         ROS_ERROR_NAMED(CRP_LOGGER, "Collision Robot Model does not match Robot Model");
@@ -390,10 +390,10 @@ void CollisionRobotSBPL::checkSelfCollisionMutable(
     const moveit::core::RobotState& state2,
     const AllowedCollisionMatrix& acm)
 {
-    using sbpl::collision::AttachedBodiesCollisionModel;
-    using sbpl::collision::AttachedBodiesCollisionState;
-    using sbpl::collision::RobotCollisionState;
-    using sbpl::collision::SelfCollisionModel;
+    using smpl::collision::AttachedBodiesCollisionModel;
+    using smpl::collision::AttachedBodiesCollisionState;
+    using smpl::collision::RobotCollisionState;
+    using smpl::collision::SelfCollisionModel;
 
     assert(state1.getRobotModel()->getName() == m_rcm->name());
     assert(state2.getRobotModel()->getName() == m_rcm->name());
@@ -509,7 +509,7 @@ double CollisionRobotSBPL::getSelfCollisionPropagationDistance() const
     }
 }
 
-sbpl::OccupancyGridPtr CollisionRobotSBPL::createGridFor(
+smpl::OccupancyGridPtr CollisionRobotSBPL::createGridFor(
     const CollisionGridConfig& config) const
 {
     ROS_DEBUG_NAMED(CRP_LOGGER, "  Create Distance Field");
@@ -522,7 +522,7 @@ sbpl::OccupancyGridPtr CollisionRobotSBPL::createGridFor(
     // the range of motion of the robot
     const bool ref_counted = true;
     double max_distance = getSelfCollisionPropagationDistance();
-    return std::make_shared<sbpl::OccupancyGrid>(
+    return std::make_shared<smpl::OccupancyGrid>(
             config.size_x,
             config.size_y,
             config.size_z,
@@ -536,8 +536,8 @@ sbpl::OccupancyGridPtr CollisionRobotSBPL::createGridFor(
 
 visualization_msgs::MarkerArray
 CollisionRobotSBPL::getCollisionRobotVisualization(
-    sbpl::collision::RobotCollisionState& rcs,
-    sbpl::collision::AttachedBodiesCollisionState& abcs,
+    smpl::collision::RobotCollisionState& rcs,
+    smpl::collision::AttachedBodiesCollisionState& abcs,
     int gidx) const
 {
     auto ma = GetCollisionMarkers(rcs, abcs, gidx);

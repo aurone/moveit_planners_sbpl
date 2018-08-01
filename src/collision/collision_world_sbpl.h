@@ -48,9 +48,14 @@
 #include <sbpl_collision_checking/shapes.h>
 #include <sbpl_collision_checking/world_collision_detector.h>
 #include <smpl/occupancy_grid.h>
+#include <smpl/forward.h>
 
 // project includes
 #include "collision_robot_sbpl.h"
+
+namespace smpl {
+SBPL_CLASS_FORWARD(OccupancyGrid);
+}
 
 namespace collision_detection {
 
@@ -64,7 +69,7 @@ public:
 
     virtual ~CollisionWorldSBPL();
 
-    const sbpl::DistanceMapInterface* distanceField(
+    const smpl::DistanceMapInterface* distanceField(
         const std::string& robot_name,
         const std::string& group_name) const;
 
@@ -165,12 +170,12 @@ private:
     // mapping from joint group name to collision group name
     std::unordered_map<std::string, std::string> m_jcgm_map;
 
-    sbpl::OccupancyGridConstPtr m_parent_grid;
-    sbpl::collision::WorldCollisionModelConstPtr m_parent_wcm;
-    sbpl::collision::WorldCollisionDetectorConstPtr m_parent_wcd;
+    smpl::OccupancyGridConstPtr m_parent_grid;
+    smpl::collision::WorldCollisionModelConstPtr m_parent_wcm;
+    smpl::collision::WorldCollisionDetectorConstPtr m_parent_wcd;
 
-    sbpl::OccupancyGridPtr m_grid;
-    sbpl::collision::WorldCollisionModelPtr m_wcm;
+    smpl::OccupancyGridPtr m_grid;
+    smpl::collision::WorldCollisionModelPtr m_wcm;
 
     std::unordered_map<std::string, CollisionStateUpdaterPtr> m_updaters;
 
@@ -183,10 +188,10 @@ private:
         World::ObjectConstPtr world_object;
 
         // CollisionShapes matching world object's shapes
-        std::vector<std::unique_ptr<sbpl::collision::CollisionShape>> shapes;
+        std::vector<std::unique_ptr<smpl::collision::CollisionShape>> shapes;
 
         // CollisionObject matching world object
-        std::unique_ptr<sbpl::collision::CollisionObject> collision_object;
+        std::unique_ptr<smpl::collision::CollisionObject> collision_object;
     };
 
     // TODO: test the semantics of this during copy-on-write
@@ -199,7 +204,7 @@ private:
     auto FindObjectRepPair(const World::ObjectConstPtr& object)
         -> std::vector<ObjectRepPair>::iterator;
 
-    sbpl::OccupancyGridPtr createGridFor(
+    smpl::OccupancyGridPtr createGridFor(
         const CollisionGridConfig& config) const;
 
     CollisionStateUpdaterPtr getCollisionStateUpdater(
@@ -251,8 +256,8 @@ private:
     void processWorldUpdateRemoveShape(const World::ObjectConstPtr& object);
 
     auto getCollisionRobotVisualization(
-        sbpl::collision::RobotCollisionState& rcs,
-        sbpl::collision::AttachedBodiesCollisionState& abcs,
+        smpl::collision::RobotCollisionState& rcs,
+        smpl::collision::AttachedBodiesCollisionState& abcs,
         int gidx) const
         -> visualization_msgs::MarkerArray;
 };

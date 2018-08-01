@@ -100,29 +100,29 @@ public:
 
     bool init(
         const moveit::core::RobotModel& robot,
-        const sbpl::collision::RobotCollisionModelConstPtr& rcm);
+        const smpl::collision::RobotCollisionModelConstPtr& rcm);
 
     void update(const moveit::core::RobotState& state);
 
     const std::vector<double>& getVariablesFor(
         const moveit::core::RobotState& state);
 
-    const sbpl::collision::RobotCollisionStatePtr&
+    const smpl::collision::RobotCollisionStatePtr&
     collisionState() { return m_rcs; }
 
-    sbpl::collision::RobotCollisionStateConstPtr
+    smpl::collision::RobotCollisionStateConstPtr
     collisionState() const { return m_rcs; }
 
-    const sbpl::collision::AttachedBodiesCollisionModelPtr&
+    const smpl::collision::AttachedBodiesCollisionModelPtr&
     attachedBodiesCollisionModel() { return m_ab_model; }
 
-    sbpl::collision::AttachedBodiesCollisionModelConstPtr
+    smpl::collision::AttachedBodiesCollisionModelConstPtr
     attachedBodiesCollisionModel() const { return m_ab_model; }
 
-    const sbpl::collision::AttachedBodiesCollisionStatePtr&
+    const smpl::collision::AttachedBodiesCollisionStatePtr&
     attachedBodiesCollisionState() { return m_ab_state; }
 
-    sbpl::collision::AttachedBodiesCollisionStateConstPtr
+    smpl::collision::AttachedBodiesCollisionStateConstPtr
     attachedBodiesCollisionState() const { return m_ab_state; }
 
     const TouchLinkSet& touchLinkSet() const { return m_touch_link_map; }
@@ -137,10 +137,10 @@ private:
     std::vector<double> m_rcm_vars;
 
     // the final RobotCollisionState
-    sbpl::collision::RobotCollisionStatePtr m_rcs;
+    smpl::collision::RobotCollisionStatePtr m_rcs;
 
-    sbpl::collision::AttachedBodiesCollisionModelPtr m_ab_model;
-    sbpl::collision::AttachedBodiesCollisionStatePtr m_ab_state;
+    smpl::collision::AttachedBodiesCollisionModelPtr m_ab_model;
+    smpl::collision::AttachedBodiesCollisionStatePtr m_ab_state;
     TouchLinkSet m_touch_link_map;
 
     bool m_inorder;
@@ -152,7 +152,7 @@ private:
 
     bool getRobotCollisionModelJointIndices(
         const std::vector<std::string>& joint_names,
-        const sbpl::collision::RobotCollisionModel& rcm,
+        const smpl::collision::RobotCollisionModel& rcm,
         std::vector<int>& rcm_joint_indices);
 
     bool updateAttachedBodies(const moveit::core::RobotState& state);
@@ -163,7 +163,7 @@ typedef std::shared_ptr<const CollisionStateUpdater> CollisionStateUpdaterConstP
 
 // proxy class to interface with CollisionSpace
 class AllowedCollisionMatrixInterface :
-    public sbpl::collision::AllowedCollisionsInterface
+    public smpl::collision::AllowedCollisionsInterface
 {
 public:
 
@@ -175,7 +175,7 @@ public:
     virtual bool getEntry(
         const std::string& name1,
         const std::string& name2,
-        sbpl::collision::AllowedCollision::Type& type) const override
+        smpl::collision::AllowedCollision::Type& type) const override
     {
         return m_acm.getEntry(name1, name2, type);
     }
@@ -201,14 +201,14 @@ public:
     virtual bool getEntry(
         const std::string& name1,
         const std::string& name2,
-        sbpl::collision::AllowedCollision::Type& type) const override
+        smpl::collision::AllowedCollision::Type& type) const override
     {
         if (AllowedCollisionMatrixInterface::getEntry(name1, name2, type)) {
             return true;
         } else if (m_touch_link_map.find(std::make_pair(name1, name2)) !=
                 m_touch_link_map.end())
         {
-            type = sbpl::collision::AllowedCollision::Type::ALWAYS;
+            type = smpl::collision::AllowedCollision::Type::ALWAYS;
             return true;
         } else {
             return false;
@@ -230,23 +230,23 @@ bool WorldObjectToCollisionObjectMsgName(
 
 void ConvertObjectToCollisionObjectShallow(
     const World::ObjectConstPtr& o,
-    std::vector<std::unique_ptr<sbpl::collision::CollisionShape>>& collision_shapes,
-    std::unique_ptr<sbpl::collision::CollisionObject>& collision_object);
+    std::vector<std::unique_ptr<smpl::collision::CollisionShape>>& collision_shapes,
+    std::unique_ptr<smpl::collision::CollisionObject>& collision_object);
 
-auto GetCollisionMarkers(sbpl::collision::RobotCollisionState& rcs)
+auto GetCollisionMarkers(smpl::collision::RobotCollisionState& rcs)
     -> visualization_msgs::MarkerArray;
 
-auto GetCollisionMarkers(sbpl::collision::RobotCollisionState& rcs, int gidx)
+auto GetCollisionMarkers(smpl::collision::RobotCollisionState& rcs, int gidx)
     -> visualization_msgs::MarkerArray;
 
 auto GetCollisionMarkers(
-    sbpl::collision::AttachedBodiesCollisionState& abcs,
+    smpl::collision::AttachedBodiesCollisionState& abcs,
     int gidx)
     -> visualization_msgs::MarkerArray;
 
 auto GetCollisionMarkers(
-    sbpl::collision::RobotCollisionState& rcs,
-    sbpl::collision::AttachedBodiesCollisionState& abcs,
+    smpl::collision::RobotCollisionState& rcs,
+    smpl::collision::AttachedBodiesCollisionState& abcs,
     int gidx)
     -> visualization_msgs::MarkerArray;
 
