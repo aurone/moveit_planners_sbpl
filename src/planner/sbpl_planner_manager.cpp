@@ -696,13 +696,13 @@ auto SBPLPlannerManager::getModelForGroup(const std::string& group_name)
 auto SBPLPlannerManager::getPlanningContextForPlanner(
     MoveItRobotModel* model,
     const std::string& planner_id)
-    -> boost::shared_ptr<SBPLPlanningContext>
+    -> SBPLPlanningContextPtr
 {
-    boost::shared_ptr<SBPLPlanningContext> null_context;
+    SBPLPlanningContextPtr null_context;
     auto it = m_contexts.find(planner_id);
     if (it == end(m_contexts)) {
-        auto context = boost::make_shared<SBPLPlanningContext>(
-                model, "sbpl_planning_context", model->planningGroupName());
+        auto context = SBPLPlanningContextPtr(new SBPLPlanningContext(
+                model, "sbpl_planning_context", model->planningGroupName()));
 
         // find a configuration for this group + planner_id
         auto& configs = this->getPlannerConfigurations();

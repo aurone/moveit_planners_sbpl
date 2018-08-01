@@ -12,7 +12,7 @@
 
 namespace sbpl_interface {
 
-class SBPLPlanningContext;
+MOVEIT_CLASS_FORWARD(SBPLPlanningContext);
 
 class SBPLPlannerManager : public planning_interface::PlannerManager
 {
@@ -65,7 +65,7 @@ private:
     std::map<std::string, std::unique_ptr<MoveItRobotModel>> m_sbpl_models;
 
     // per-configuration context
-    std::map<std::string, boost::shared_ptr<SBPLPlanningContext>> m_contexts;
+    std::map<std::string, SBPLPlanningContextPtr> m_contexts;
 
     smpl::VisualizerROS m_viz;
 
@@ -101,7 +101,7 @@ private:
     auto getPlanningContextForPlanner(
         MoveItRobotModel* model,
         const std::string& config)
-        -> boost::shared_ptr<SBPLPlanningContext>;
+        -> SBPLPlanningContextPtr;
 
     std::string selectPlanningLink(
         const planning_interface::MotionPlanRequest& req) const;
