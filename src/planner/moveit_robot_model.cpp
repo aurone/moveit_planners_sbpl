@@ -405,6 +405,7 @@ bool MoveItRobotModel::init(
     m_redundant_var_indices = std::move(redundant_var_indices);
 
     m_planning_frame = std::move(planning_frame);
+    m_planning_frame_is_model_frame = true;
 
     return true;
 }
