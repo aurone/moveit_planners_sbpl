@@ -43,6 +43,7 @@
 
 // module includes
 #include "collision_common_sbpl.h"
+#include "config.h"
 
 namespace smpl {
 SBPL_CLASS_FORWARD(OccupancyGrid);
@@ -62,39 +63,63 @@ public:
 
     virtual ~CollisionRobotSBPL();
 
-    const smpl::collision::RobotCollisionModelConstPtr&
-    robotCollisionModel() const;
+    auto robotCollisionModel() const
+        -> const smpl::collision::RobotCollisionModelConstPtr&;
 
-    const smpl::collision::RobotMotionCollisionModelConstPtr&
-    robotMotionCollisionModel() const;
+    auto robotMotionCollisionModel() const
+        -> const smpl::collision::RobotMotionCollisionModelConstPtr&;
 
-    /// \name Reimplemented Public Functions
+    /// \name CollisionRobot Interface
     ///@{
-    virtual void checkOtherCollision(
+    void checkSelfCollision(
         const CollisionRequest& req,
         CollisionResult& res,
-        const robot_state::RobotState& robot_state,
-        const CollisionRobot& other_robot,
-        const robot_state::RobotState& other_state) const;
+        const robot_state::RobotState& state) const override;
 
-    virtual void checkOtherCollision(
+    void checkSelfCollision(
         const CollisionRequest& req,
         CollisionResult& res,
-        const robot_state::RobotState& robot_state,
+        const robot_state::RobotState& state,
+        const AllowedCollisionMatrix& acm) const override;
+
+    void checkSelfCollision(
+        const CollisionRequest& req,
+        CollisionResult& res,
+        const robot_state::RobotState& state1,
+        const robot_state::RobotState& state2) const override;
+
+    void checkSelfCollision(
+        const CollisionRequest& req,
+        CollisionResult& res,
+        const robot_state::RobotState& state1,
+        const robot_state::RobotState& state2,
+        const AllowedCollisionMatrix& acm) const override;
+
+    void checkOtherCollision(
+        const CollisionRequest& req,
+        CollisionResult& res,
+        const robot_state::RobotState& state,
+        const CollisionRobot& other_robot,
+        const robot_state::RobotState& other_state) const override;
+
+    void checkOtherCollision(
+        const CollisionRequest& req,
+        CollisionResult& res,
+        const robot_state::RobotState& state,
         const CollisionRobot& other_robot,
         const robot_state::RobotState& other_state,
-        const AllowedCollisionMatrix& acm) const;
+        const AllowedCollisionMatrix& acm) const override;
 
-    virtual void checkOtherCollision(
+    void checkOtherCollision(
         const CollisionRequest& req,
         CollisionResult& res,
         const robot_state::RobotState& state1,
         const robot_state::RobotState& state2,
         const CollisionRobot& other_robot,
         const robot_state::RobotState& other_state1,
-        const robot_state::RobotState& other_state2) const;
+        const robot_state::RobotState& other_state2) const override;
 
-    virtual void checkOtherCollision(
+    void checkOtherCollision(
         const CollisionRequest& req,
         CollisionResult& res,
         const robot_state::RobotState& state1,
@@ -102,68 +127,49 @@ public:
         const CollisionRobot& other_robot,
         const robot_state::RobotState& other_state1,
         const robot_state::RobotState& other_state2,
-        const AllowedCollisionMatrix& acm) const;
+        const AllowedCollisionMatrix& acm) const override;
 
-    virtual void checkSelfCollision(
-        const CollisionRequest& req,
-        CollisionResult& res,
-        const robot_state::RobotState& state) const;
+#if COLLISION_DETECTION_SBPL_ROS_VERSION == COLLISION_DETECTION_SBPL_ROS_KINETIC
 
-    virtual void checkSelfCollision(
-        const CollisionRequest& req,
-        CollisionResult& res,
-        const robot_state::RobotState& state,
-        const AllowedCollisionMatrix& acm) const;
+    void distanceSelf(
+        const DistanceRequest& req,
+        DistanceResult& res,
+        const robot_state::RobotState& state) const override;
 
-    virtual void checkSelfCollision(
-        const CollisionRequest& req,
-        CollisionResult& res,
-        const robot_state::RobotState& state1,
-        const robot_state::RobotState& state2) const;
-
-    virtual void checkSelfCollision(
-        const CollisionRequest& req,
-        CollisionResult& res,
-        const robot_state::RobotState& state1,
-        const robot_state::RobotState& state2,
-        const AllowedCollisionMatrix& acm) const;
-
-    virtual double distanceOther(
+    void distanceOther(
+        const DistanceRequest& req,
+        DistanceResult& res,
         const robot_state::RobotState& state,
         const CollisionRobot& other_robot,
-        const robot_state::RobotState& other_state) const;
+        const robot_state::RobotState& other_state) const override;
 
-    virtual double distanceOther(
+#else
+
+    double distanceSelf(const robot_state::RobotState& state) const override;
+
+    double distanceSelf(
+        const robot_state::RobotState& state,
+        const AllowedCollisionMatrix& acm) const override;
+
+    double distanceOther(
+        const robot_state::RobotState& state,
+        const CollisionRobot& other_robot,
+        const robot_state::RobotState& other_state) const override;
+
+    double distanceOther(
         const robot_state::RobotState& state,
         const CollisionRobot& other_robot,
         const robot_state::RobotState& other_state,
-        const AllowedCollisionMatrix& acm) const;
+        const AllowedCollisionMatrix& acm) const override;
+#endif
 
-    virtual double distanceSelf(
-        const robot_state::RobotState& state) const;
-
-    virtual double distanceSelf(
-        const robot_state::RobotState& state,
-        const AllowedCollisionMatrix& acm) const;
-
-    void distanceSelf(
-        const collision_detection::DistanceRequest& req,
-        collision_detection::DistanceResult& res,
-        const moveit::core::RobotState&) const override;
-
-    void distanceOther(
-        const collision_detection::DistanceRequest& req,
-        collision_detection::DistanceResult& res,
-        const moveit::core::RobotState& state,
-        const collision_detection::CollisionRobot&,
-        const moveit::core::RobotState&) const override;
     ///@}
 
 protected:
 
     /// \name Reimplemented Protected Functions
     ///@{
-    virtual void updatedPaddingOrScaling(const std::vector<std::string>& links);
+    void updatedPaddingOrScaling(const std::vector<std::string>& links) override;
     ///@}
 
 private:

@@ -52,6 +52,7 @@
 
 // project includes
 #include "collision_robot_sbpl.h"
+#include "config.h"
 
 namespace smpl {
 SBPL_CLASS_FORWARD(OccupancyGrid);
@@ -69,11 +70,12 @@ public:
 
     virtual ~CollisionWorldSBPL();
 
-    const smpl::DistanceMapInterface* distanceField(
+    auto distanceField(
         const std::string& robot_name,
-        const std::string& group_name) const;
+        const std::string& group_name) const
+        -> const smpl::DistanceMapInterface*;
 
-    /// \name Reimplemented Public Functions
+    /// \name CollisionWorld Interface
     ///@{
     void checkRobotCollision(
         const CollisionRequest& req,
@@ -114,51 +116,36 @@ public:
         const CollisionWorld& other_world,
         const AllowedCollisionMatrix& acm) const override;
 
-    double distanceRobot(
-        const CollisionRobot& robot,
-        const robot_state::RobotState& state) const;
-
-    double distanceRobot(
-        const CollisionRobot& robot,
-        const robot_state::RobotState& state,
-        const AllowedCollisionMatrix& acm) const;
+#if COLLISION_DETECTION_SBPL_ROS_VERSION == COLLISION_DETECTION_SBPL_ROS_KINETIC
 
     void distanceRobot(
-        const collision_detection::DistanceRequest& req,
-        collision_detection::DistanceResult& res,
-        const collision_detection::CollisionRobot&,
-        const moveit::core::RobotState&) const override;
+        const DistanceRequest& req,
+        DistanceResult& res,
+        const CollisionRobot& robot,
+        const robot_state::RobotState& state) const override;
 
     void distanceWorld(
-        const collision_detection::DistanceRequest& req,
-        collision_detection::DistanceResult& res,
-        const collision_detection::CollisionWorld&) const override;
+        const DistanceRequest& req,
+        DistanceResult& res,
+        const CollisionWorld& world) const override;
 
-    double distanceWorld(const CollisionWorld& world) const;
+#else // COLLISION_DETECTION_SBPL_ROS_VERSION == COLLISION_DETECTION_SBPL_ROS_INDIGO
 
-    double distanceWorld(
-        const CollisionWorld& world,
-        const AllowedCollisionMatrix& acm) const;
+    double distanceRobot(
+        const CollisionRobot& robot,
+        const robot_state::RobotState& state) const override;
 
     double distanceRobot(
         const CollisionRobot& robot,
         const robot_state::RobotState& state,
-        bool verbose = false) const;
+        const AllowedCollisionMatrix& acm) const override;
 
-    double distanceRobot(
-        const CollisionRobot& robot,
-        const robot_state::RobotState& state,
-        const AllowedCollisionMatrix& acm,
-        bool verbose = false) const;
+    double distanceWorld(const CollisionWorld& world) const override;
 
     double distanceWorld(
         const CollisionWorld& world,
-        bool verbose = false) const;
-
-    double distanceWorld(
-        const CollisionWorld& world,
-        const AllowedCollisionMatrix& acm,
-        bool verbose = false) const;
+        const AllowedCollisionMatrix& acm) const override;
+#endif
 
     void setWorld(const WorldPtr& world) override;
     ///@}

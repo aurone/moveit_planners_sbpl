@@ -7,7 +7,6 @@ endif()
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 
-find_package(sbpl REQUIRED)
 find_package(Boost REQUIRED)
 
 find_package(Qt4 REQUIRED)
@@ -46,12 +45,15 @@ catkin_package(
     DEPENDS)
 
 include_directories(SYSTEM ${Boost_INCLUDE_DIRS})
-include_directories(SYSTEM ${SBPL_INCLUDE_DIRS})
 include_directories(SYSTEM ${catkin_INCLUDE_DIRS})
 include_directories(include)
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
 add_library(smpl_moveit_robot_model src/planner/moveit_robot_model.cpp)
+
+################################################
+# Build move_group_command_panel_plugin plugin #
+################################################
 
 qt4_wrap_cpp(
     MOVE_GROUP_COMMAND_PANEL_MOC_SOURCES
@@ -76,6 +78,18 @@ target_link_libraries(
     ${QT_LIBRARIES}
     ${catkin_LIBRARIES})
 
+# Ad-hoc handling of API differences between indigo and kinetic distributions
+if("$ENV{ROS_DISTRO}" STREQUAL "kinetic")
+    set(COLLISION_DETECTION_SBPL_ROS_VERSION COLLISION_DETECTION_SBPL_ROS_KINETIC)
+else()
+#elseif ("$ENV{ROS_DISTRO}" STREQUAL "indigo")
+    set(COLLISION_DETECTION_SBPL_ROS_VERSION COLLISION_DETECTION_SBPL_ROS_INDIGO)
+endif()
+
+#########################################
+# Build collision_detection_sbpl plugin #
+#########################################
+
 add_library(
     collision_detection_sbpl
     src/collision/collision_plugin_sbpl.cpp
@@ -84,7 +98,18 @@ add_library(
     src/collision/collision_robot_sbpl.cpp
     src/collision/collision_world_sbpl.cpp)
 
+target_include_directories(collision_detection_sbpl PRIVATE src)
+
+target_compile_definitions(
+    collision_detection_sbpl
+    PRIVATE
+    -DCOLLISION_DETECTION_SBPL_ROS_VERSION=${COLLISION_DETECTION_SBPL_ROS_VERSION})
+
 target_link_libraries(collision_detection_sbpl ${catkin_LIBRARIES})
+
+###########################################
+# Build moveit_sbpl_planner_plugin plugin #
+###########################################
 
 add_library(
     moveit_sbpl_planner_plugin
@@ -93,12 +118,22 @@ add_library(
     src/planner/sbpl_planning_context.cpp
     src/planner/moveit_collision_checker.cpp)
 
+target_compile_definitions(
+    moveit_sbpl_planner_plugin
+    PRIVATE
+    -DCOLLISION_DETECTION_SBPL_ROS_VERSION=${COLLISION_DETECTION_SBPL_ROS_VERSION})
+
+target_include_directories(moveit_sbpl_planner_plugin PRIVATE src)
+
 target_link_libraries(
     moveit_sbpl_planner_plugin
     ${catkin_LIBRARIES}
-    ${SBPL_LIBRARIES}
     collision_detection_sbpl
     smpl_moveit_robot_model)
+
+###########
+# Install #
+###########
 
 install(
     DIRECTORY include/moveit_planners_sbpl

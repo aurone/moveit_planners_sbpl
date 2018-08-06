@@ -89,6 +89,20 @@ CollisionWorldSBPL::~CollisionWorldSBPL()
     }
 }
 
+auto CollisionWorldSBPL::distanceField(
+    const std::string& robot_name,
+    const std::string& group_name) const
+    -> const smpl::DistanceMapInterface*
+{
+    if (m_grid) {
+        return m_grid->getDistanceField().get();
+    } else if (m_parent_grid) {
+        return m_parent_grid->getDistanceField().get();
+    } else {
+        return nullptr;
+    }
+}
+
 void CollisionWorldSBPL::checkRobotCollision(
     const CollisionRequest& req,
     CollisionResult& res,
@@ -158,6 +172,29 @@ void CollisionWorldSBPL::checkWorldCollision(
     setVacuousCollision(res);
 }
 
+#if COLLISION_DETECTION_SBPL_ROS_VERSION == COLLISION_DETECTION_SBPL_ROS_KINETIC
+
+void CollisionWorldSBPL::distanceRobot(
+    const collision_detection::DistanceRequest& req,
+    collision_detection::DistanceResult& res,
+    const collision_detection::CollisionRobot&,
+    const moveit::core::RobotState&) const
+{
+    // TODO: implement
+    assert(0);
+}
+
+void CollisionWorldSBPL::distanceWorld(
+    const collision_detection::DistanceRequest& req,
+    collision_detection::DistanceResult& res,
+    const collision_detection::CollisionWorld&) const
+{
+    // TODO: implement
+    assert(0);
+}
+
+#else
+
 double CollisionWorldSBPL::distanceRobot(
     const CollisionRobot& robot,
     const robot_state::RobotState& state) const
@@ -177,23 +214,6 @@ double CollisionWorldSBPL::distanceRobot(
     return -1.0;
 }
 
-void CollisionWorldSBPL::distanceRobot(
-    const collision_detection::DistanceRequest& req,
-    collision_detection::DistanceResult& res,
-    const collision_detection::CollisionRobot&,
-    const moveit::core::RobotState&) const
-{
-    assert(0);
-}
-
-void CollisionWorldSBPL::distanceWorld(
-    const collision_detection::DistanceRequest& req,
-    collision_detection::DistanceResult& res,
-    const collision_detection::CollisionWorld&) const
-{
-    assert(0);
-}
-
 double CollisionWorldSBPL::distanceWorld(const CollisionWorld& world) const
 {
     // TODO: implement
@@ -210,41 +230,7 @@ double CollisionWorldSBPL::distanceWorld(
     return -1.0;
 }
 
-double CollisionWorldSBPL::distanceRobot(
-    const CollisionRobot& robot,
-    const robot_state::RobotState& state,
-    bool verbose) const
-{
-    ROS_INFO_NAMED(LOG, "distanceWorld(robot, state, verbose)");
-    return -1.0;
-}
-
-double CollisionWorldSBPL::distanceRobot(
-    const CollisionRobot& robot,
-    const robot_state::RobotState& state,
-    const AllowedCollisionMatrix& acm,
-    bool verbose) const
-{
-    ROS_INFO_NAMED(LOG, "distanceWorld(robot, state, acm, verbose)");
-    return -1.0;
-}
-
-double CollisionWorldSBPL::distanceWorld(
-    const CollisionWorld& world,
-    bool verbose) const
-{
-    ROS_INFO_NAMED(LOG, "distanceWorld(world, verbose)");
-    return -1.0;
-}
-
-double CollisionWorldSBPL::distanceWorld(
-    const CollisionWorld& world,
-    const AllowedCollisionMatrix& acm,
-    bool verbose) const
-{
-    ROS_INFO_NAMED(LOG, "distanceWorld(world, acm, verbose)");
-    return -1.0;
-}
+#endif
 
 void CollisionWorldSBPL::setWorld(const WorldPtr& world)
 {
@@ -359,19 +345,6 @@ CollisionStateUpdaterPtr CollisionWorldSBPL::getCollisionStateUpdater(
     // store the successfully initialized group model
     m_updaters[robot_model.getName()] = gm;
     return gm;
-}
-
-const smpl::DistanceMapInterface* CollisionWorldSBPL::distanceField(
-    const std::string& robot_name,
-    const std::string& group_name) const
-{
-    if (m_grid) {
-        return m_grid->getDistanceField().get();
-    } else if (m_parent_grid) {
-        return m_parent_grid->getDistanceField().get();
-    } else {
-        return nullptr;
-    }
 }
 
 void CollisionWorldSBPL::registerWorldCallback()
